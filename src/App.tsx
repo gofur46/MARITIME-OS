@@ -107,9 +107,9 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col md:flex-row grid-pattern">
       {/* Sidebar Navigation - Ultra Premium Yacht Console Style */}
-      <aside className="w-full md:w-24 bg-gradient-to-b from-paper to-bg border-r border-accent/20 flex flex-col items-center py-8 gap-10 z-10 shadow-[5px_0_40px_rgba(0,0,0,0.6)] relative">
-        <div className="absolute top-0 right-0 w-px h-full bg-gradient-to-b from-accent/30 via-transparent to-accent/10" />
-        <div className="w-14 h-14 bg-gradient-to-tr from-accent to-accent-glow rounded-2xl flex items-center justify-center text-bg font-black text-2xl shadow-[0_0_35px_rgba(226,184,103,0.4)] border border-white/20">
+      <aside className="w-full md:w-24 bg-gradient-to-b from-[#11243b] via-[#081220] to-[#03060d] border-r border-accent/25 flex flex-col items-center py-8 gap-10 z-10 shadow-[6px_0_50px_rgba(0,240,255,0.08)] relative">
+        <div className="absolute top-0 right-0 w-px h-full bg-gradient-to-b from-accent/40 via-transparent to-accent/15" />
+        <div className="w-14 h-14 bg-gradient-to-tr from-accent to-[#00a2ff]/30 rounded-2xl flex items-center justify-center text-bg font-black text-2xl shadow-[0_0_35px_rgba(0,240,255,0.45)] border border-accent/40">
           M
         </div>
         <nav className="flex flex-col gap-8">
@@ -216,14 +216,14 @@ export default function App() {
                   dataKey="temperature" 
                   label="Surface Temperature" 
                   unit="°C" 
-                  color="#e2b867" 
+                  color="#00f0ff" 
                 />
                 <WeatherChart 
                   data={history} 
                   dataKey="waveHeight" 
                   label="Oceanic Swell" 
                   unit="m" 
-                  color="#00e5ff" 
+                  color="#3b82f6" 
                 />
               </div>
             </div>
@@ -272,7 +272,7 @@ export default function App() {
 
 function NavItem({ icon, active = false, label }: { icon: React.ReactNode, active?: boolean, label: string }) {
   return (
-    <div className={`group relative cursor-pointer p-4 rounded-xl transition-all duration-300 ${active ? 'bg-accent/15 text-accent border border-accent/30 shadow-[0_0_15px_rgba(226,184,103,0.15)]' : 'text-white/40 hover:text-white/80 hover:bg-white/5'}`}>
+    <div className={`group relative cursor-pointer p-4 rounded-xl transition-all duration-300 ${active ? 'bg-accent/15 text-accent border border-accent/30 shadow-[0_0_20px_rgba(0,240,255,0.25)]' : 'text-white/40 hover:text-white/80 hover:bg-white/5'}`}>
       {icon}
       <div className="absolute left-full ml-4 px-3 py-1.5 bg-paper text-white text-[9.5px] tracking-widest font-bold uppercase rounded-lg border border-accent/20 shadow-xl opacity-0 group-hover:opacity-100 transition-all transform translate-x-[-10px] group-hover:translate-x-0 whitespace-nowrap pointer-events-none z-50 font-mono">
         {label}

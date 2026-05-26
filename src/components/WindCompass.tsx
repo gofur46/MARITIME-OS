@@ -34,12 +34,12 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
         {/* CIRCLE 1: MARITIME DIRECTIONAL ROSE */}
         <div className="relative group">
           <div className="text-[7.5px] absolute -top-10 left-1/2 -translate-x-1/2 opacity-40 font-bold tracking-[0.2em] uppercase text-center w-full text-accent/80 font-mono">01 // Harbor Vessel Positioning</div>
-          <div className="w-68 h-68 rounded-full border-2 border-accent/15 flex items-center justify-center relative bg-gradient-to-br from-paper to-bg shadow-[0_0_50px_rgba(226,184,103,0.03),inset_0_0_30px_rgba(226,184,103,0.05)]">
+          <div className="w-68 h-68 rounded-full border-2 border-accent/15 flex items-center justify-center relative bg-gradient-to-br from-paper to-bg shadow-[0_0_50px_rgba(0,240,255,0.08),inset_0_0_30px_rgba(0,240,255,0.08)]">
             
             {/* Compass glass reflection effect */}
             <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-transparent via-white/[0.01] to-white/[0.04] pointer-events-none z-20" />
 
-            {/* Harbor/Pier Context (Sleek minimalist gold outlines mimicking terminal maps) */}
+            {/* Harbor/Pier Context (Sleek minimalist outlines mimicking terminal maps) */}
             <div className="absolute inset-0 opacity-15 pointer-events-none">
               <div className="absolute top-[48%] left-1/2 -translate-y-1/2 w-48 h-12 border-b-2 border-r-2 border-accent/60 rounded-br-2xl skew-x-12 ml-6" />
               <div className="absolute top-[30%] left-1/2 -translate-y-1/2 w-0.5 h-20 bg-accent/40 ml-28" />
@@ -61,7 +61,7 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
                 <div className="absolute -right-12 top-1/2 -translate-y-1/2 text-[7.5px] font-bold tracking-[0.2em] text-success/80 bg-success/5 border border-success/10 px-1 py-0.5 rounded uppercase">Stbd</div>
                 
                 {/* Bow marker */}
-                <div className="absolute -top-1 w-2 h-2 bg-accent rounded-full border border-white/20 shadow-[0_0_10px_rgba(226,184,103,0.8)]" />
+                <div className="absolute -top-1 w-2 h-2 bg-accent rounded-full border border-white/20 shadow-[0_0_10px_rgba(0,240,255,0.8)]" />
               </div>
             </div>
 
@@ -88,7 +88,7 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
               className="absolute inset-0 flex items-center justify-center p-3"
             >
               <div className="w-full h-full relative flex items-center justify-center">
-                {/* Gold Gradient pointer trail pointing deep into center */}
+                {/* Cyan Gradient pointer trail pointing deep into center */}
                 <div className="absolute top-[15px] bottom-[15px] w-[2px] bg-gradient-to-b from-accent/80 via-accent/20 to-transparent pointer-events-none" />
                 
                 {/* Luxury Arrow Head pointing directly to ship hull */}
@@ -105,7 +105,7 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
         {/* CIRCLE 2: KINETIC VECTOR (SPEED & FORCE) */}
         <div className="relative group">
           <div className="text-[7.5px] absolute -top-10 left-1/2 -translate-x-1/2 opacity-40 font-bold tracking-[0.2em] uppercase text-center w-full text-accent/80 font-mono">02 // Wind Velocity Monitor</div>
-          <div className="w-56 h-56 rounded-full border-2 border-accent/15 flex items-center justify-center relative shadow-[0_0_50px_rgba(226,184,103,0.03)] bg-gradient-to-tr from-paper/90 to-bg backdrop-blur-xl">
+          <div className="w-56 h-56 rounded-full border-2 border-accent/15 flex items-center justify-center relative shadow-[0_0_50px_rgba(0,240,255,0.08)] bg-gradient-to-tr from-paper/90 to-bg backdrop-blur-xl">
             
             {/* Outer dial frame */}
             <div className="absolute inset-1.5 rounded-full border border-white/5 pointer-events-none" />
@@ -144,7 +144,7 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
               className="absolute inset-0 p-6"
             >
               <div className="absolute top-0 left-1/2 -translate-x-1/2">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-accent drop-shadow-[0_0_15px_rgba(226,184,103,0.8)]">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-accent drop-shadow-[0_0_15px_rgba(0,240,255,0.8)]">
                   <path d="M12 20L12 4M12 20L7 15M12 20L17 15" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>

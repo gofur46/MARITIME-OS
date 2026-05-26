@@ -7,20 +7,20 @@
 
 @layer base {
   :root {
-    --bg: #080a0d;
-    --paper: #101318;
-    --ink: #f1f3f5;
-    --accent: #e2b867; /* Luxurious soft champagne gold */
-    --accent-glow: rgba(226, 184, 103, 0.15);
-    --secondary: #00e5ff; /* Maritime deep ice-blue/cyan */
+    --bg: #050a12; /* Deep Marine navy-black */
+    --paper: #0b1424; /* Rich maritime dark blue-gray */
+    --ink: #e0f2fe; /* High-contrast soft sky-blue instead of pale white */
+    --accent: #00f0ff; /* Bright high-voltage neon cyber-cyan / light blue */
+    --accent-glow: rgba(0, 240, 255, 0.25);
+    --secondary: #3b82f6; /* Premium ocean/vessel blue */
     --success: #10b981;
     --warning: #fbbf24;
     --danger: #f87171;
-    --border: rgba(226, 184, 103, 0.08); /* Gold-tinted subtle border */
+    --border: rgba(0, 240, 255, 0.16); /* Cyan-tinted premium visible border */
   }
 
   body {
-    background: radial-gradient(circle at 50% 40%, #151a22 0%, #080a0d 100%) no-repeat fixed;
+    background: radial-gradient(circle at 50% 40%, #0d1e33 0%, #040810 100%) no-repeat fixed;
     color: var(--ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -29,7 +29,7 @@
 
 @layer components {
   .tech-card {
-    background: linear-gradient(135deg, #11151c 0%, #0a0c10 100%);
+    background: linear-gradient(135deg, #0d1726 0%, #050a10 100%);
     border: 1px solid var(--border);
     position: relative;
     overflow: hidden;
@@ -39,8 +39,8 @@
   }
 
   .tech-card:hover {
-    border-color: rgba(226, 184, 103, 0.15);
-    box-shadow: 0 15px 50px -5px rgba(0, 0, 0, 0.9), 0 0 20px rgba(226, 184, 103, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    border-color: rgba(0, 240, 255, 0.35);
+    box-shadow: 0 15px 50px -5px rgba(0, 0, 0, 0.9), 0 0 20px rgba(0, 240, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
 
   .tech-card::before {
@@ -79,10 +79,10 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(226, 184, 103, 0.1);
+  background: rgba(0, 240, 255, 0.15);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(226, 184, 103, 0.25);
+  background: rgba(0, 240, 255, 0.35);
 }
