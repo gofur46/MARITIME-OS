@@ -1,6 +1,6 @@
 {
-  "name": "MaritimeOS - Port AWS Monitor",
-  "description": "Real-time Automatic Weather Station (AWS) and maritime monitoring system for port operations with AI predictions and safety alerts.",
+  "name": "Maritime OS",
+  "description": "Real-time Automatic Weather Station (AWS) and maritime monitoring system for port operations.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

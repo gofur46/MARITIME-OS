@@ -7,8 +7,8 @@
 
 @layer base {
   :root {
-    --bg: #070809;
-    --paper: #0e1013;
+    --bg: #080a0d;
+    --paper: #101318;
     --ink: #f1f3f5;
     --accent: #e2b867; /* Luxurious soft champagne gold */
     --accent-glow: rgba(226, 184, 103, 0.15);
@@ -20,7 +20,7 @@
   }
 
   body {
-    background-color: var(--bg);
+    background: radial-gradient(circle at 50% 40%, #151a22 0%, #080a0d 100%) no-repeat fixed;
     color: var(--ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -29,7 +29,7 @@
 
 @layer components {
   .tech-card {
-    background: linear-gradient(135deg, #0e1013 0%, #0a0c0e 100%);
+    background: linear-gradient(135deg, #11151c 0%, #0a0c10 100%);
     border: 1px solid var(--border);
     position: relative;
     overflow: hidden;
@@ -61,18 +61,10 @@
 
   .grid-pattern {
     background-image: 
-      linear-gradient(rgba(226, 184, 103, 0.01) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(226, 184, 103, 0.01) 1px, transparent 1px);
+      linear-gradient(rgba(226, 184, 103, 0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(226, 184, 103, 0.015) 1px, transparent 1px);
     background-size: 30px 30px;
     position: relative;
-  }
-
-  .grid-pattern::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(circle at 50% 30%, transparent 10%, var(--bg) 90%);
-    pointer-events: none;
   }
 }
 
