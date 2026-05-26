@@ -7,14 +7,16 @@
 
 @layer base {
   :root {
-    --bg: #0c0d0e;
-    --paper: #151719;
-    --ink: #e2e4e7;
-    --accent: #3b82f6;
+    --bg: #070809;
+    --paper: #0e1013;
+    --ink: #f1f3f5;
+    --accent: #e2b867; /* Luxurious soft champagne gold */
+    --accent-glow: rgba(226, 184, 103, 0.15);
+    --secondary: #00e5ff; /* Maritime deep ice-blue/cyan */
     --success: #10b981;
-    --warning: #f59e0b;
-    --danger: #ef4444;
-    --border: rgba(255, 255, 255, 0.1);
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --border: rgba(226, 184, 103, 0.08); /* Gold-tinted subtle border */
   }
 
   body {
@@ -27,12 +29,18 @@
 
 @layer components {
   .tech-card {
-    background: var(--paper);
+    background: linear-gradient(135deg, #0e1013 0%, #0a0c0e 100%);
     border: 1px solid var(--border);
     position: relative;
     overflow: hidden;
-    border-radius: 1.5rem;
-    box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.5);
+    border-radius: 1.25rem;
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .tech-card:hover {
+    border-color: rgba(226, 184, 103, 0.15);
+    box-shadow: 0 15px 50px -5px rgba(0, 0, 0, 0.9), 0 0 20px rgba(226, 184, 103, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
 
   .tech-card::before {
@@ -40,29 +48,38 @@
     position: absolute;
     top: 0;
     left: 0;
-    width: 4px;
+    width: 2px;
     height: 100%;
-    background: var(--accent);
-    opacity: 0.3;
+    background: linear-gradient(to bottom, var(--accent), transparent);
+    opacity: 0.15;
   }
 
   .data-mono {
     font-family: var(--font-mono);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.04em;
   }
 
   .grid-pattern {
     background-image: 
-      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-    background-size: 20px 20px;
+      linear-gradient(rgba(226, 184, 103, 0.01) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(226, 184, 103, 0.01) 1px, transparent 1px);
+    background-size: 30px 30px;
+    position: relative;
+  }
+
+  .grid-pattern::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 30%, transparent 10%, var(--bg) 90%);
+    pointer-events: none;
   }
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -70,10 +87,10 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(226, 184, 103, 0.1);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(226, 184, 103, 0.25);
 }

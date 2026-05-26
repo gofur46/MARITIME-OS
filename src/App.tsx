@@ -106,12 +106,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row grid-pattern">
-      {/* Sidebar Navigation */}
-      <aside className="w-full md:w-20 bg-paper border-r border-white/5 flex flex-col items-center py-8 gap-8 z-10">
-        <div className="w-12 h-12 bg-accent rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-[0_0_25px_rgba(59,130,246,0.4)]">
+      {/* Sidebar Navigation - Ultra Premium Yacht Console Style */}
+      <aside className="w-full md:w-24 bg-gradient-to-b from-paper to-bg border-r border-accent/20 flex flex-col items-center py-8 gap-10 z-10 shadow-[5px_0_40px_rgba(0,0,0,0.6)] relative">
+        <div className="absolute top-0 right-0 w-px h-full bg-gradient-to-b from-accent/30 via-transparent to-accent/10" />
+        <div className="w-14 h-14 bg-gradient-to-tr from-accent to-accent-glow rounded-2xl flex items-center justify-center text-bg font-black text-2xl shadow-[0_0_35px_rgba(226,184,103,0.4)] border border-white/20">
           M
         </div>
-        <nav className="flex flex-col gap-6">
+        <nav className="flex flex-col gap-8">
           <NavItem icon={<LayoutDashboard className="w-5 h-5" />} active label="Dashboard" />
           <NavItem icon={<History className="w-5 h-5" />} label="Logs" />
           <NavItem icon={<Shield className="w-5 h-5" />} label="Security" />
@@ -119,68 +120,80 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-6 md:p-8 space-y-8 max-w-full w-full overflow-hidden">
-        <header className="flex justify-between items-center bg-white/[0.02] backdrop-blur-md p-4 rounded-3xl border border-white/5">
+      <main className="flex-1 p-6 md:p-10 space-y-10 max-w-full w-full overflow-hidden">
+        <header className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center bg-gradient-to-r from-paper/90 via-paper/50 to-bg/90 backdrop-blur-xl p-6 rounded-[2rem] border border-accent/20 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative">
+          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-accent/40 rounded-tl-xl" />
+          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-accent/40 rounded-br-xl" />
+
           <div className="flex items-center gap-6">
             <div>
               <h1 className="text-3xl font-black tracking-tighter text-white flex items-center gap-3">
-                MARITIME<span className="text-accent">OS</span> 
-                <span className="text-[10px] uppercase font-mono bg-accent/20 text-accent py-0.5 px-3 rounded-full border border-accent/30 tracking-[0.2em] font-bold">TERMINAL-H</span>
+                MARITIME<span className="text-accent underline decoration-accent/30 underline-offset-4">OS</span> 
+                <span className="text-[9px] uppercase font-mono bg-accent/10 text-accent py-1 px-4 rounded-full border border-accent/30 tracking-[0.25em] font-black">VESSEL_TLM_H</span>
               </h1>
-              <p className="text-[10px] opacity-40 mt-0.5 uppercase tracking-[0.3em] font-bold flex items-center gap-2">
-                <span className="w-2 h-2 bg-success rounded-full animate-pulse"></span>
-                Active Telemetry Feed • 106.8833E 6.1033S
+              <p className="text-[9.5px] opacity-60 mt-1.5 uppercase tracking-[0.25em] font-bold flex items-center gap-2 font-mono text-accent/80">
+                <span className="w-2.5 h-2.5 bg-success rounded-full animate-ping absolute"></span>
+                <span className="w-2.5 h-2.5 bg-success rounded-full"></span>
+                Active Telemetry Feed • 106.8833° E 6.1033° S
               </p>
             </div>
           </div>
           
-          <div className="flex items-center gap-8">
+          <div className="flex items-center gap-8 w-full lg:w-auto justify-between lg:justify-end border-t lg:border-t-0 border-white/5 pt-4 lg:pt-0">
             <div className="hidden xl:flex gap-8">
               <div className="text-right">
-                <div className="text-[9px] uppercase font-bold opacity-30 tracking-widest">Station Health</div>
-                <div className="text-[10px] font-mono text-success">99.9% UPTIME</div>
+                <div className="text-[8.5px] uppercase font-bold opacity-40 tracking-widest text-accent font-mono">Cons_Health</div>
+                <div className="text-[10px] font-mono font-bold text-success">99.99% SECURE</div>
               </div>
               <div className="text-right">
-                <div className="text-[9px] uppercase font-bold opacity-30 tracking-widest">Data Latency</div>
-                <div className="text-[10px] font-mono text-accent">12ms</div>
+                <div className="text-[8.5px] uppercase font-bold opacity-40 tracking-widest text-accent font-mono">Feed Latency</div>
+                <div className="text-[10px] font-mono font-bold text-secondary">0.08 MS</div>
               </div>
             </div>
-            <div className="h-10 w-px bg-white/10 hidden md:block" />
-            <div className="text-right">
-              <div className="text-xs font-mono opacity-40 uppercase tracking-tighter">{format(Date.now(), 'EEEE, dd MMM yyyy')}</div>
-              <div className="text-xl font-black data-mono tracking-tighter text-white">{format(Date.now(), 'HH:mm:ss')}</div>
+            <div className="h-10 w-px bg-accent/20 hidden xl:block" />
+            <div className="text-right flex lg:flex-col items-baseline lg:items-end justify-between lg:justify-start w-full lg:w-auto gap-4 lg:gap-0">
+              <div className="text-[10px] font-mono opacity-50 uppercase tracking-[0.1em] text-accent font-bold">{format(Date.now(), 'EEEE, dd MMM yyyy')}</div>
+              <div className="text-2xl font-black data-mono tracking-tighter text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.08)]">{format(Date.now(), 'HH:mm:ss')}</div>
             </div>
           </div>
         </header>
 
         {/* AWS Triage Layout - Balanced Full Screen */}
-        <section className="grid grid-cols-1 xl:grid-cols-5 gap-8 items-start">
+        <section className="grid grid-cols-1 xl:grid-cols-5 gap-10 items-start">
           
           {/* LEFT TELEMETRY: MARITIME (1/5) */}
           <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between px-2">
-              <div className="text-[10px] uppercase font-bold tracking-[0.3em] text-accent flex items-center gap-2">
-                <Waves className="w-3 h-3" /> Maritime
+            <div className="flex items-center justify-between px-3 py-1 border-b border-accent/15">
+              <div className="text-[11px] uppercase font-bold tracking-[0.25em] text-accent flex items-center gap-2">
+                <Waves className="w-3.5 h-3.5 text-secondary" /> Maritime Sensors
               </div>
-              <div className="text-[10px] font-mono opacity-20">GRP_01</div>
+              <div className="text-[8.5px] font-mono opacity-40 text-accent font-bold">NODE_ALPHA</div>
             </div>
             <StatCard label="Wave Height" value={currentData.waveHeight.toFixed(2)} unit="Meters" icon={<Waves />} alertLevel={currentData.waveHeight > 1.5 ? 'Warning' : 'Normal'} />
             <StatCard label="Sea Level" value={currentData.seaLevel.toFixed(1)} unit="CM" icon={<MoveDown />} />
             <StatCard label="Station Tide" value={(currentData.seaLevel * 0.8).toFixed(1)} unit="CM" icon={<Waves />} />
 
-            <div className="tech-card p-6 bg-accent/[0.02] border-accent/10 mt-auto">
+            <div className="tech-card p-6 bg-gradient-to-b from-paper/60 to-bg border-accent/15 mt-4 relative">
+              <div className="absolute top-0 right-0 w-16 h-[1.5px] bg-gradient-to-r from-transparent to-accent" />
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-1 h-3 bg-accent rounded-full" />
-                <h4 className="text-[10px] font-bold text-accent uppercase tracking-[0.2em]">System Status</h4>
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-success"></span>
+                </span>
+                <h4 className="text-[9px] font-bold text-accent uppercase tracking-[0.25em] font-mono">Telemetry Status</h4>
               </div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center text-[9px] border-b border-white/5 pb-2">
-                  <span className="opacity-30 uppercase">Uptime</span>
-                  <span className="font-mono font-bold text-success">CONNECTED</span>
+              <div className="space-y-3.5">
+                <div className="flex justify-between items-center text-[10px] border-b border-white/5 pb-2">
+                  <span className="opacity-40 uppercase font-bold text-[8.5px] tracking-wider">L-H Broadcast</span>
+                  <span className="font-mono font-bold text-success tracking-widest text-[9px]">ONLINE_SECURE</span>
                 </div>
-                <div className="flex justify-between items-center text-[9px]">
-                  <span className="opacity-30 uppercase">Protocol</span>
-                  <span className="font-mono font-bold opacity-60">MQTT-TLS_v3</span>
+                <div className="flex justify-between items-center text-[10px] border-b border-white/5 pb-2">
+                  <span className="opacity-40 uppercase font-bold text-[8.5px] tracking-wider">Protocol</span>
+                  <span className="font-mono font-bold opacity-85 text-[9px]">MQTT-TLS_v3.2</span>
+                </div>
+                <div className="flex justify-between items-center text-[10px]">
+                  <span className="opacity-40 uppercase font-bold text-[8.5px] tracking-wider">Encryption</span>
+                  <span className="font-mono font-bold text-secondary text-[9px]">AES_256_GCM</span>
                 </div>
               </div>
             </div>
@@ -196,21 +209,21 @@ export default function App() {
             />
             
             {/* COMPACT CHART CONTAINER */}
-            <div className="bg-white/[0.01] border border-white/5 rounded-[2rem] p-2 space-y-2">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+            <div className="bg-gradient-to-tr from-paper to-bg border border-accent/15 rounded-[2rem] p-3 shadow-inner">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <WeatherChart 
                   data={history} 
                   dataKey="temperature" 
-                  label="Surface Temp" 
+                  label="Surface Temperature" 
                   unit="°C" 
-                  color="#f59e0b" 
+                  color="#e2b867" 
                 />
                 <WeatherChart 
                   data={history} 
                   dataKey="waveHeight" 
                   label="Oceanic Swell" 
                   unit="m" 
-                  color="#10b981" 
+                  color="#00e5ff" 
                 />
               </div>
             </div>
@@ -218,11 +231,11 @@ export default function App() {
 
           {/* RIGHT TELEMETRY: ATMOSPHERIC (1/5) */}
           <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between px-2">
-              <div className="text-[10px] uppercase font-bold tracking-[0.3em] text-accent flex items-center gap-2">
-                <Gauge className="w-3 h-3" /> Atmospheric
+            <div className="flex items-center justify-between px-3 py-1 border-b border-accent/15">
+              <div className="text-[11px] uppercase font-bold tracking-[0.25em] text-accent flex items-center gap-2">
+                <Gauge className="w-3.5 h-3.5 text-secondary" /> Atmospheric Sensors
               </div>
-              <div className="text-[10px] font-mono opacity-20">GRP_02</div>
+              <div className="text-[8.5px] font-mono opacity-40 text-accent font-bold font-mono">NODE_BETA</div>
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-1 gap-6">
               <StatCard label="Temperature" value={currentData.temperature.toFixed(1)} unit="°C" icon={<Thermometer />} />
@@ -231,13 +244,17 @@ export default function App() {
             <StatCard label="Barometric Pressure" value={currentData.pressure.toFixed(1)} unit="HPA" icon={<Gauge />} />
             
             <div className="grid grid-cols-2 gap-4">
-              <div className="tech-card p-4 flex flex-col items-center justify-center bg-white/[0.01] border-white/5">
-                <div className="text-[8px] uppercase font-bold opacity-30 mb-1">Solar</div>
-                <div className="text-xs font-mono font-bold">{currentData.solarRadiation.toFixed(0)}</div>
+              <div className="tech-card p-5 flex flex-col items-center justify-center bg-gradient-to-br from-paper to-bg border-accent/10 relative">
+                <div className="absolute top-1 right-2 w-1 h-1 rounded-full bg-accent/40" />
+                <div className="text-[8px] uppercase tracking-[0.2em] font-bold text-accent mb-2 font-mono">Solar Rad</div>
+                <div className="text-sm font-extrabold text-white font-mono">{currentData.solarRadiation.toFixed(0)}</div>
+                <div className="text-[7px] text-accent/50 font-mono mt-1 font-semibold uppercase">W/M²</div>
               </div>
-              <div className="tech-card p-4 flex flex-col items-center justify-center bg-white/[0.01] border-white/5">
-                <div className="text-[8px] uppercase font-bold opacity-30 mb-1">Precip</div>
-                <div className="text-xs font-mono font-bold">{currentData.rainfall.toFixed(1)}</div>
+              <div className="tech-card p-5 flex flex-col items-center justify-center bg-gradient-to-br from-paper to-bg border-accent/10 relative">
+                <div className="absolute top-1 right-2 w-1 h-1 rounded-full bg-secondary/40" />
+                <div className="text-[8px] uppercase tracking-[0.2em] font-bold text-accent mb-2 font-mono">Precipitation</div>
+                <div className="text-sm font-extrabold text-white font-mono">{currentData.rainfall.toFixed(1)}</div>
+                <div className="text-[7px] text-accent/50 font-mono mt-1 font-semibold uppercase">MM/H</div>
               </div>
             </div>
           </div>
@@ -245,9 +262,9 @@ export default function App() {
       </main>
       
       {/* HUD Overlays */}
-      <div className="fixed bottom-4 right-4 pointer-events-none opacity-50 flex flex-col items-end gap-1">
-        <div className="text-[8px] font-mono uppercase">System: AIS_PORT_RELAY_PROX_v1</div>
-        <div className="text-[8px] font-mono uppercase tracking-tighter">Lat: -6.1033 | Lon: 106.8833</div>
+      <div className="fixed bottom-4 right-6 pointer-events-none opacity-40 flex flex-col items-end gap-1">
+        <div className="text-[8px] font-mono uppercase text-accent font-bold tracking-widest">System: AIS_PORT_RELAY_PROX_v1.5</div>
+        <div className="text-[8px] font-mono uppercase tracking-[0.1em] text-white">Lat: -6.1033 | Lon: 106.8833</div>
       </div>
     </div>
   );
@@ -255,12 +272,12 @@ export default function App() {
 
 function NavItem({ icon, active = false, label }: { icon: React.ReactNode, active?: boolean, label: string }) {
   return (
-    <div className={`group relative cursor-pointer p-4 rounded-2xl transition-all duration-300 ${active ? 'bg-accent/15 text-accent ring-1 ring-accent/20' : 'text-ink/40 hover:text-ink/80 hover:bg-white/5'}`}>
+    <div className={`group relative cursor-pointer p-4 rounded-xl transition-all duration-300 ${active ? 'bg-accent/15 text-accent border border-accent/30 shadow-[0_0_15px_rgba(226,184,103,0.15)]' : 'text-white/40 hover:text-white/80 hover:bg-white/5'}`}>
       {icon}
-      <div className="absolute left-full ml-4 px-3 py-1.5 bg-ink text-bg text-[10px] font-bold uppercase rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all transform translate-x-[-10px] group-hover:translate-x-0 whitespace-nowrap pointer-events-none z-50">
+      <div className="absolute left-full ml-4 px-3 py-1.5 bg-paper text-white text-[9.5px] tracking-widest font-bold uppercase rounded-lg border border-accent/20 shadow-xl opacity-0 group-hover:opacity-100 transition-all transform translate-x-[-10px] group-hover:translate-x-0 whitespace-nowrap pointer-events-none z-50 font-mono">
         {label}
       </div>
-      {active && <motion.div layoutId="nav-pill" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-accent rounded-full" />}
+      {active && <motion.div layoutId="nav-pill" className="absolute left-0 top-1/4 bottom-1/4 w-0.5 bg-accent rounded-full" />}
     </div>
   );
 }
