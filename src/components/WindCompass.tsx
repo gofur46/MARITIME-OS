@@ -6,9 +6,41 @@ interface WindCompassProps {
   speed: number;
   direction: number;
   unit: string;
+  dominantRange?: { start: number; end: number };
 }
 
-export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit }) => {
+const polarToCartesian = (centerX: number, centerY: number, radius: number, angleInDegrees: number) => {
+  const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
+  return {
+    x: centerX + radius * Math.cos(angleInRadians),
+    y: centerY + radius * Math.sin(angleInRadians),
+  };
+};
+
+const describeArc = (x: number, y: number, radius: number, startAngle: number, endAngle: number) => {
+  let start = startAngle;
+  let end = endAngle;
+  if (end < start) {
+    end += 360;
+  }
+  const diff = end - start;
+  
+  // Limit to avoid SVG arc calculation bugs with complete circles
+  if (diff >= 360) {
+    end = start + 359.9;
+  }
+  
+  const startPt = polarToCartesian(x, y, radius, start);
+  const endPt = polarToCartesian(x, y, radius, end);
+  const largeArcFlag = diff <= 180 ? '0' : '1';
+
+  return [
+    'M', startPt.x, startPt.y,
+    'A', radius, radius, 0, largeArcFlag, 1, endPt.x, endPt.y
+  ].join(' ');
+};
+
+export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit, dominantRange }) => {
   return (
     <div className="tech-card p-8 bg-gradient-to-b from-paper/80 via-paper/50 to-bg/90 border-accent/20 backdrop-blur-xl relative">
       {/* Decorative luxury corners */}
@@ -36,6 +68,38 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
           <div className="text-[7.5px] absolute -top-10 left-1/2 -translate-x-1/2 opacity-40 font-bold tracking-[0.2em] uppercase text-center w-full text-accent/80 font-mono">01 // Harbor Vessel Positioning</div>
           <div className="w-68 h-68 rounded-full border-2 border-accent/15 flex items-center justify-center relative bg-gradient-to-br from-paper to-bg shadow-[0_0_50px_rgba(0,240,255,0.08),inset_0_0_30px_rgba(0,240,255,0.08)]">
             
+            {/* Dominant Wind Range Glowing Highlight Segment (High Voltage Green) */}
+            {dominantRange && (
+              <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 select-none overflow-visible" viewBox="0 0 272 272">
+                <defs>
+                  <filter id="neon-glow-green" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="5" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                </defs>
+                {/* Back shadow wider arc */}
+                <path
+                  d={describeArc(136, 136, 133, dominantRange.start, dominantRange.end)}
+                  fill="none"
+                  stroke="#10b981"
+                  strokeWidth="8"
+                  strokeOpacity="0.12"
+                  strokeLinecap="round"
+                />
+                {/* Solid core thickened glow arc */}
+                <path
+                  d={describeArc(136, 136, 133, dominantRange.start, dominantRange.end)}
+                  fill="none"
+                  stroke="#10b981"
+                  strokeWidth="4.5"
+                  strokeLinecap="round"
+                  filter="url(#neon-glow-green)"
+                  className="animate-pulse"
+                  style={{ animationDuration: '2.5s' }}
+                />
+              </svg>
+            )}
+
             {/* Compass glass reflection effect */}
             <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-transparent via-white/[0.01] to-white/[0.04] pointer-events-none z-20" />
 
@@ -156,12 +220,20 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
         </div>
       </div>
 
-      <div className="mt-10 pt-6 border-t border-accent/10 flex justify-between items-center opacity-60">
-        <div className="text-[9px] font-mono tracking-[0.15em] text-accent/85 flex items-center gap-1.5">
-          <span className="w-1 h-1 bg-accent rounded-full"></span>
+      <div className="mt-10 pt-6 border-t border-accent/10 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="text-[9px] font-mono tracking-[0.15em] opacity-60 text-accent/85 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 bg-accent rounded-full"></span>
           REALTIME_TELEMETRY_ENGINE
         </div>
-        <div className="text-[9px] font-mono font-bold text-white tracking-widest">{direction.toFixed(1)}° AZIMUTH</div>
+        
+        {dominantRange && (
+          <div className="text-[9.5px] font-mono tracking-[0.12em] text-[#10b981] flex items-center gap-1.5 bg-[#10b981]/10 border border-[#10b981]/20 px-3 py-1 rounded-md font-bold shadow-[0_0_15px_rgba(16,185,129,0.05)]">
+            <span className="w-1.5 h-1.5 bg-[#10b981] rounded-full animate-pulse"></span>
+            <span>DOMINANT WIND (10M): {dominantRange.start.toFixed(0)}° - {dominantRange.end.toFixed(0)}°</span>
+          </div>
+        )}
+        
+        <div className="text-[9px] font-mono font-bold text-white/80 tracking-widest bg-white/5 px-2.5 py-1 rounded border border-white/5">{direction.toFixed(1)}° AZIMUTH</div>
       </div>
     </div>
   );

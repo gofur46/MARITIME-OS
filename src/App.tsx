@@ -34,6 +34,40 @@ const generateMockData = (count: number): WeatherData[] => {
   return data;
 };
 
+// Helper to calculate circular mean and spread for dominant wind direction in the last 15 periods (approx 10 minutes)
+const getDominantRange = (historyData: WeatherData[]) => {
+  const last15 = historyData.slice(-15);
+  if (last15.length === 0) return { start: 10, end: 90 };
+  
+  let sinSum = 0;
+  let cosSum = 0;
+  last15.forEach(d => {
+    const rad = (d.windDirection * Math.PI) / 180;
+    sinSum += Math.sin(rad);
+    cosSum += Math.cos(rad);
+  });
+  
+  const avgRad = Math.atan2(sinSum, cosSum);
+  let meanDeg = (avgRad * 180) / Math.PI;
+  if (meanDeg < 0) meanDeg += 360;
+  
+  let minOffset = 0;
+  let maxOffset = 0;
+  last15.forEach(d => {
+    let diff = d.windDirection - meanDeg;
+    while (diff < -180) diff += 360;
+    while (diff > 180) diff -= 360;
+    if (diff < minOffset) minOffset = diff;
+    if (diff > maxOffset) maxOffset = diff;
+  });
+  
+  // Pad the bounds standard deviation range by 8 degrees on each side for smooth visual representation
+  const startAngle = (meanDeg + minOffset - 8 + 360) % 360;
+  const endAngle = (meanDeg + maxOffset + 8 + 360) % 360;
+  
+  return { start: startAngle, end: endAngle };
+};
+
 export default function App() {
   const [history, setHistory] = useState<WeatherData[]>(generateMockData(60));
   const [instructions, setInstructions] = useState<PortInstruction[]>([]);
@@ -206,11 +240,12 @@ export default function App() {
               speed={currentData.windSpeed} 
               direction={currentData.windDirection} 
               unit="KNOTS" 
+              dominantRange={getDominantRange(history)}
             />
             
             {/* COMPACT CHART CONTAINER */}
-            <div className="bg-gradient-to-tr from-paper to-bg border border-accent/15 rounded-[2rem] p-3 shadow-inner">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-gradient-to-tr from-paper to-bg border border-accent/15 rounded-[2rem] p-4 shadow-inner">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <WeatherChart 
                   data={history} 
                   dataKey="temperature" 
@@ -224,6 +259,20 @@ export default function App() {
                   label="Oceanic Swell" 
                   unit="m" 
                   color="#3b82f6" 
+                />
+                <WeatherChart 
+                  data={history} 
+                  dataKey="windSpeed" 
+                  label="Wind Velocity" 
+                  unit="Knots" 
+                  color="#10b981" 
+                />
+                <WeatherChart 
+                  data={history} 
+                  dataKey="pressure" 
+                  label="Barometric Pressure" 
+                  unit="HPA" 
+                  color="#fbbf24" 
                 />
               </div>
             </div>
