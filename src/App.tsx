@@ -1374,6 +1374,72 @@ export default function App() {
         {activeTab === 'database' && (
           <div className="space-y-6">
             
+            {/* 10-Minute Average & XAMPP Integration Banner */}
+            <div className="bg-gradient-to-r from-[#0a1b3a] to-[#041026] p-5 rounded-2xl border border-teal-500/30 shadow-[0_0_20px_rgba(20,184,166,0.1)] space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
+                    <Database className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white uppercase tracking-wider">Arsip Database Terintegrasi (XAMPP & MariaDB)</h4>
+                    <p className="text-xs text-slate-400 mt-1 max-w-[650px]">
+                      Sistem ini dirancang selaras dengan standar meteorologi pelabuhan. Data sensor yang mengalir asinkronus per detik disaring menjadi **Rata-rata Terkumpul 10 Menit** sebelum ditulis secara permanen ke database lokal untuk memaksimalkan efisiensi penyimpanan dan mencegah hilangnya riwayat telemetri.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase font-mono tracking-widest bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                    ⏱️ RATA-RATA 10 MENIT
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase font-mono tracking-widest bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 animate-pulse">
+                    XAMPP PHP_MY_ADMIN READY
+                  </span>
+                </div>
+              </div>
+
+              {/* Collapsible phpMyAdmin Table Builder Script */}
+              <div className="bg-black/40 border border-white/5 rounded-xl p-4">
+                <div className="flex items-center justify-between pointer-events-auto">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping" />
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300">Skema SQL Pembuat Tabel (phpMyAdmin XAMPP)</span>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      const sqlText = `CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry;\nUSE db_pelabuhan_telemetry;\n\nCREATE TABLE IF NOT EXISTS tbl_sensor_logs (\n    id INT AUTO_INCREMENT PRIMARY KEY,\n    station_id VARCHAR(50) NOT NULL,\n    timestamp DATETIME NOT NULL,\n    temperature DECIMAL(5,2) NOT NULL,\n    humidity INT NOT NULL,\n    solar_radiation INT NOT NULL,\n    rainfall DECIMAL(5,2) NOT NULL,\n    wave_height DECIMAL(4,2) NOT NULL,\n    sea_level DECIMAL(5,1) NOT NULL,\n    water_ph DECIMAL(4,2) NOT NULL,\n    wind_direction INT NOT NULL,\n    wind_speed DECIMAL(4,1) NOT NULL,\n    pressure DECIMAL(6,2) NOT NULL,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`;
+                      navigator.clipboard.writeText(sqlText);
+                      showToastNotification("Kueri SQL Berhasil Disalin!");
+                    }}
+                    className="text-[9px] bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 font-bold uppercase px-3 py-1.5 rounded-lg border border-teal-500/20 transition cursor-pointer font-mono"
+                  >
+                    Copy SQL Script
+                  </button>
+                </div>
+                <pre className="text-[9px] font-mono text-slate-400 mt-3 p-3 bg-black/60 rounded-lg overflow-x-auto max-h-[140px] leading-relaxed select-all">
+{`CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry;
+USE db_pelabuhan_telemetry;
+
+CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    station_id VARCHAR(50) NOT NULL,
+    timestamp DATETIME NOT NULL, /* Berisi Waktu Mulai Interval Rata-Rata 10 Menit */
+    temperature DECIMAL(5,2) NOT NULL, /* Rata-rata 10-Menit (°C) */
+    humidity INT NOT NULL, /* Rata-rata 10-Menit (%) */
+    solar_radiation INT NOT NULL, /* Rata-rata 10-Menit (W/m²) */
+    rainfall DECIMAL(5,2) NOT NULL, /* Akumulasi Curah Hujan 10-Menit (mm) */
+    wave_height DECIMAL(4,2) NOT NULL, /* Rata-rata Tinggi Gelombang (m) */
+    sea_level DECIMAL(5,1) NOT NULL, /* Rata-rata Level Air Laut (cm) */
+    water_ph DECIMAL(4,2) NOT NULL, /* Rata-rata pH Air Laut */
+    wind_direction INT NOT NULL, /* Rata-rata Vektor Arah Wind (deg) */
+    wind_speed DECIMAL(4,1) NOT NULL, /* Rata-rata Laju Angin (m/s) */
+    pressure DECIMAL(6,2) NOT NULL, /* Rata-rata Tekanan Udara (hPa) */
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`}
+                </pre>
+              </div>
+            </div>
+
             {/* Filter Log panel with CSV exporter */}
             <div className="bg-gradient-to-b from-[#0b1424] to-bg p-5 rounded-2xl border border-white/10 flex flex-wrap gap-5 items-end justify-between">
               <div className="flex flex-wrap gap-5 items-end">

@@ -141,3 +141,68 @@ Selain menangkap data, sistem terminal aplikasi cerdas ini mampu melakukan "Smar
 
 ---
 
+## 💾 6. STRUKTUR DATABASE (XAMPP COMPATIBLE) & OFFLINE BUFFER RESILIENCE
+
+Untuk menjamin kedaulatan data dan mencegah hilangnya rekaman sensor penting ketika server penerima mengalami gangguan (*down*), aplikasi ini dilengkapi dengan arsitektur penyimpanan ganda (*Dual-Storage Architecture*).
+
+### A. Struktur Tabel Database XAMPP (MySQL / MariaDB)
+Jika Anda menggunakan modul database **XAMPP (MySQL/MariaDB)** untuk mengarsipkan data telemetri jangka panjang, Anda dapat menduplikasi struktur skema relasional yang kompatibel penuh dengan data keluaran aplikasi ini.
+
+#### 🛠️ Query SQL DDL untuk phpMyAdmin / XAMPP:
+```sql
+CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry;
+USE db_pelabuhan_telemetry;
+
+CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    station_id VARCHAR(50) NOT NULL,
+    timestamp DATETIME NOT NULL,
+    temperature DECIMAL(5,2) NOT NULL,
+    humidity INT NOT NULL,
+    solar_radiation INT NOT NULL,
+    rainfall DECIMAL(5,2) NOT NULL,
+    wave_height DECIMAL(4,2) NOT NULL,
+    sea_level DECIMAL(5,1) NOT NULL,
+    water_ph DECIMAL(4,2) NOT NULL,
+    wind_direction INT NOT NULL,
+    wind_speed DECIMAL(4,1) NOT NULL,
+    pressure DECIMAL(6,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+*Arsitektur kolom ini memetakan seluruh parameter stasiun cuaca pelabuhan secara linear dan presisi dari baris data masukan.*
+
+---
+
+### B. Mekanisme Proteksi Data Hilang (Offline Buffer Storage)
+Aplikasi ini memiliki sistem **Penyimpanan Lokal Mandiri (Local Offline Cache Buffer)** terintegrasi untuk menangani kondisi darurat ketika jaringan internet terputus, atau server penerima (*HTTP/FTP upstream*) padam:
+
+1.  **Local Memory State Queue + LocalStorage Recovery**
+    *   Setiap kali paket data sensor masuk dari stasiun cuaca (melalui **Serial** or **TCP**), data akan langsung ditulis ke dalam antrean memori lokal teramankan (*Client-Ledger Queue*).
+    *   Sistem menyinkronkan data log historis ke dalam media penyimpanan non-volatile browser (`localStorage`). Sehingga jika aplikasi tidak sengaja ditutup atau halaman web disegarkan (*page refresh*), riwayat data sensor penting **TIDAK AKUAN HILANG** dan tetap tersimpan rapi di perangkat operator pelabuhan.
+2.  **Mekanisme "Buffer-Hold & Delayed Sync"**
+    *   Selama server penerima eksternal mati (*disconnected/offline state*), aplikasi akan terus mengumpulkan dan menumpuk log telemetri di tabel **Data Telemetry Ledger** dashboard lokal.
+    *   Operator dapat mengonfirmasi status antrean data melalu indikator visual status **SCADA Connection** di dashboard.
+3.  **Manual & Auto CSV Synchronizer (One-Click Reconciliation)**
+    *   Setelah server penerima atau jaringan telah kembali pulih berganti status menjadi online, operator pelabuhan dapat langsung mengunduh seluruh saldo antrean data offline tersebut dengan menekan tombol **Export CSV** di Tab **Database**.
+    *   File CSV hasil ekspor tersebut memiliki format kolom komparatif yang identik tinggi dengan tabel SQL di XAMPP, memudahkan operator untuk mengunggah langsung (*import*) log yang sempat tertahan ke database phpMyAdmin tanpa ada satu baris pun data yang tercecer.
+
+---
+
+### C. Algoritma Akumulasi & Rata-rata 10 Menit (Standardisasi BMKG & WMO)
+Sistem ini mengimplementasikan teknik filtrasi statistik standar **WMO (World Meteorological Organization)** di mana data tidak ditulis mentah-mentah setiap detik ke database demi menghindari noise gelombang atau tiupan angin yang terlalu fluktuatif (*gush noise*).
+
+1.  **Metodologi Pooling Data:**
+    *   **Sampel Sesaat (Instantaneous samples)**: Ditangkap setiap 1-5 detik oleh unit sirkuit mikrokontroler (atau simulator asinkronus internal).
+    *   **Buffer Penampungan Temp (Windowing Buffer)**: Setiap nilai dimasukkan ke dalam antrean kalkulator sementara selama rentang jendela waktu 10-menit berjalan (*rolling 10-minute window*).
+2.  **Rumus Perhitungan Rata-Rata Parameter:**
+    *   **Suhu, Kelembaban, Tekanan, pH, dan Level Air**: Dihitung menggunakan rata-rata aritmatika murni:
+        $$\bar{X} = \frac{1}{N} \sum_{i=1}^{N} X_i$$
+    *   **Arah & Kecepatan Angin (Vector Average)**: Arah angin dihitung berdasarkan rata-rata komponen vektor polar ($u$ dan $v$) untuk mencegah kesalahan kalkulasi matematika (contoh: rata-rata antara $350^\circ$ utara dan $10^\circ$ utara dihitung secara akurat sebagai $0^\circ$ atau utara sejati, bukan $180^\circ$ selatan).
+    *   **Curah Hujan (Rainfall)**: Menggunakan akumulasi penjumlahan total ($Integration$) kumulatif tinggi air yang tercurah selama interval 10 menit tersebut, bukan dicari rata-ratanya.
+3.  **Manfaat Utama Sistem Rata-rata 10 Menit:**
+    *   **Efisiensi Penyimpanan (XAMPP Friendly)**: Mengurangi jumlah total transaksi tulis (*write query*) PHP/MySQL dari yang semula $86.400$ baris per hari (jika disimpan tiap 1 detik) menjadi hanya **144 baris per hari** (berserial interval 10 menit). Hal ini menjamin database XAMPP Anda berjalan mulus bertahun-tahun tanpa penurunan kecepatan operasional keras.
+    *   **Data Validitas Tinggi**: Eliminasi noise gelombang laut mendadak (*sea waves crest*) atau hembusan angin acak (*wind gusts*), memberikan data tren pelabuhan sejati yang optimal untuk keselamatan penyandaran kapal laut.
+
+---
+*Dokumen ini dibuat secara otomatis oleh sistem asisten virtual AI Studio sebagai panduan operasional integrasi aplikasi.*
