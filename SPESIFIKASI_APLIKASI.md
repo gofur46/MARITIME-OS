@@ -75,4 +75,4 @@ Aplikasi dibangun menggunakan struktur kode tangguh standar industri modern:
 *   **Visualisasi Grafik**: SVG native & Recharts terintegrasi
 
 ---
-*Dokumen ini dibuat secara otomatis oleh sistem asisten virtual AI Studio sebagai panduan operasional integrasi aplikasi.*
+
