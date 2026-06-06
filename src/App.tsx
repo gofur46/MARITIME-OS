@@ -1,332 +1,1670 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Thermometer, Droplets, Wind, Navigation, Gauge, Sun, CloudRain, 
-  Waves, MoveDown, LayoutDashboard, History, Shield, Info,
-  AlertCircle
+  Waves, MoveDown, LayoutDashboard, History, Settings, FileText,
+  AlertTriangle, Play, RefreshCw, Send, CheckCircle, Database
 } from 'lucide-react';
-import { StatCard } from './components/StatCard';
-import { WeatherChart } from './components/WeatherChart';
-import { InstructionCenter } from './components/InstructionCenter';
-import { WindCompass } from './components/WindCompass';
-import { WeatherData, PortInstruction, WeatherPrediction } from './types';
-import { getInsights } from './services/geminiService';
-import { motion, AnimatePresence } from 'motion/react';
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { WeatherData, AlertLevel, PortInstruction } from './types';
 import { format } from 'date-fns';
 
-// Initial Mock Data
-const generateMockData = (count: number): WeatherData[] => {
+// Create Yesterday's baseline climatology averages for our math
+const CLIMATOLOGY_AVG = {
+  waveHeight: 1.15, // meters
+  windSpeed: 10.4,   // Knots (or m/s depending on system unit)
+  temperature: 28.5,
+  pressure: 1011.2
+};
+
+// Initial Config state
+const DEFAULT_CONFIG = {
+  idStation: 'SYS1000',
+  transport: 'SERIAL', // SERIAL | TCP | OFF
+  splitchar: ';',
+  serialcom: 'COM3',
+  baudrate: '9600',
+  pierAngle: '15', // Rotating ship inside the compass
+  cloudMode: 'OFF',
+  httpUrl: 'https://api.portmarine.gov/aws/v1',
+  ftpHost: 'ftp.portmarine.gov',
+  ftpUser: 'aws_logger',
+  ftpPass: '********',
+  ftpPath: '/data/xml',
+  ind_date: '1',
+  ind_id: '0',
+  sensors: {
+    'ch_0': '2',   // Air Temp
+    'ch_2': '2',   // Temp Avg (let's map to Temp source with average)
+    'ch_4': '2',   // Temp Max (computed in code or mapped)
+    'ch_6': '2',   // Temp Min
+    'ch_8': '3',   // Humidity
+    'ch_12': '4',  // Dew Point (computed or mapped)
+    'ch_1': '5',   // Rain Rate
+    'ch_3': '6',   // Rain Accumulation
+    'ch_5': '7',   // Solar Rad
+    'ch_14': '8',  // Wave Height
+    'ch_15': '9',  // Water Level
+    'ch_16': '10', // Wind Direction
+    'ch_17': '11',  // Wind Speed
+    'ch_7': '12',  // Pressure STN
+    'ch_9': '12',  // Pres QFE
+    'ch_11': '12', // Pres QFF
+    'ch_13': '12'  // Pres QNH
+  }
+};
+
+// Generate highly realistic initial historical database rows (60 rows)
+const generateInitialLogs = (count: number): WeatherData[] => {
   const data: WeatherData[] = [];
-  let now = Date.now() - count * 60000;
+  let baseTime = Date.now() - count * 600000; // 10 minute intervals
   for (let i = 0; i < count; i++) {
+    const temp = 27 + Math.random() * 4;
+    const hum = 75 + Math.random() * 15;
+    const windSpeed = 8 + Math.random() * 12;
     data.push({
-      timestamp: now + i * 60000,
-      temperature: 28 + Math.random() * 5,
-      humidity: 70 + Math.random() * 10,
-      windSpeed: 5 + Math.random() * 15,
-      windDirection: Math.random() * 360,
-      pressure: 1010 + Math.random() * 5,
-      solarRadiation: 400 + Math.random() * 200,
-      rainfall: Math.random() > 0.9 ? Math.random() * 5 : 0,
-      waveHeight: 0.5 + Math.random() * 1.5,
-      seaLevel: 10 + Math.random() * 20,
+      timestamp: baseTime + i * 600000,
+      temperature: parseFloat(temp.toFixed(1)),
+      humidity: Math.round(hum),
+      windSpeed: parseFloat(windSpeed.toFixed(1)),
+      windDirection: Math.round(Math.random() * 360),
+      pressure: parseFloat((1008 + Math.random() * 6).toFixed(1)),
+      solarRadiation: Math.round(250 + Math.random() * 400),
+      rainfall: Math.random() > 0.88 ? parseFloat((Math.random() * 4).toFixed(1)) : 0,
+      waveHeight: parseFloat((0.4 + Math.random() * 1.5).toFixed(2)),
+      seaLevel: parseFloat((120 + Math.random() * 50).toFixed(1)) // cm
     });
   }
   return data;
 };
 
-// Helper to calculate circular mean and spread for dominant wind direction in the last 15 periods (approx 10 minutes)
-const getDominantRange = (historyData: WeatherData[]) => {
-  const last15 = historyData.slice(-15);
-  if (last15.length === 0) return { start: 10, end: 90 };
-  
-  let sinSum = 0;
-  let cosSum = 0;
-  last15.forEach(d => {
-    const rad = (d.windDirection * Math.PI) / 180;
-    sinSum += Math.sin(rad);
-    cosSum += Math.cos(rad);
-  });
-  
-  const avgRad = Math.atan2(sinSum, cosSum);
-  let meanDeg = (avgRad * 180) / Math.PI;
-  if (meanDeg < 0) meanDeg += 360;
-  
-  let minOffset = 0;
-  let maxOffset = 0;
-  last15.forEach(d => {
-    let diff = d.windDirection - meanDeg;
-    while (diff < -180) diff += 360;
-    while (diff > 180) diff -= 360;
-    if (diff < minOffset) minOffset = diff;
-    if (diff > maxOffset) maxOffset = diff;
-  });
-  
-  // Pad the bounds standard deviation range by 8 degrees on each side for smooth visual representation
-  const startAngle = (meanDeg + minOffset - 8 + 360) % 360;
-  const endAngle = (meanDeg + maxOffset + 8 + 360) % 360;
-  
-  return { start: startAngle, end: endAngle };
-};
-
 export default function App() {
-  const [history, setHistory] = useState<WeatherData[]>(generateMockData(60));
-  const [instructions, setInstructions] = useState<PortInstruction[]>([]);
-  const [insights, setInsights] = useState<WeatherPrediction | null>(null);
-  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+  const [activeTab, setActiveTab] = useState<'realtime' | 'analyst' | 'database' | 'settings'>('realtime');
   
-  const currentData = history[history.length - 1];
+  // Persisted state setup matching your parameters
+  const [config, setConfig] = useState(() => {
+    const saved = localStorage.getItem('aws_config');
+    return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
+  });
 
-  // Simulation loop
+  const [history, setHistory] = useState<WeatherData[]>(() => {
+    const saved = localStorage.getItem('aws_history_logs');
+    return saved ? JSON.parse(saved) : generateInitialLogs(45);
+  });
+
+  // Database start/end period filter state for tab 3
+  const [dbStartDate, setDbStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [dbEndDate, setDbEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [filteredLogs, setFilteredLogs] = useState<WeatherData[]>([]);
+  const [dbSearchTerm, setDbSearchTerm] = useState('');
+
+  // Save changes helper
+  const handleSaveConfig = (newConfig: typeof config) => {
+    setConfig(newConfig);
+    localStorage.setItem('aws_config', JSON.stringify(newConfig));
+    showToastNotification('Config Saved Successfully!');
+  };
+
+  const showToastNotification = (msg: string) => {
+    setSystemAlert(msg);
+    setTimeout(() => {
+      setSystemAlert(null);
+    }, 3000);
+  };
+
+  const [systemAlert, setSystemAlert] = useState<string | null>(null);
+
+  // Raw serial/tcp terminal steam content
+  const [streamLogs, setStreamLogs] = useState<string>(
+    `[+] Systems check initialized. Status: OK\n` +
+    `[+] SQL connection active: pool size = 10, database = db_aws\n` +
+    `[+] Berhasil membuka Serial Port di ${config.serialcom} at ${config.baudrate} baudrate.\n`
+  );
+
+  // Store rain accumulative log
+  const [rainAccum, setRainAccum] = useState(3.4);
+
+  // Active simulated logger feed
   useEffect(() => {
     const interval = setInterval(() => {
-      setHistory(prev => {
-        const last = prev[prev.length - 1];
-        const newData: WeatherData = {
-          timestamp: Date.now(),
-          temperature: last.temperature + (Math.random() - 0.5) * 0.5,
-          humidity: Math.min(100, Math.max(0, last.humidity + (Math.random() - 0.5) * 1)),
-          windSpeed: Math.max(0, last.windSpeed + (Math.random() - 0.5) * 2),
-          windDirection: (last.windDirection + (Math.random() - 0.5) * 10 + 360) % 360,
-          pressure: last.pressure + (Math.random() - 0.5) * 0.2,
-          solarRadiation: Math.max(0, last.solarRadiation + (Math.random() - 0.5) * 20),
-          rainfall: Math.random() > 0.95 ? Math.random() * 2 : 0,
-          waveHeight: Math.max(0.1, last.waveHeight + (Math.random() - 0.5) * 0.1),
-          seaLevel: last.seaLevel + (Math.random() - 0.5) * 0.5,
-        };
-        const updated = [...prev.slice(1), newData];
-        
-        // Trigger alerts based on logic
-        checkThresholds(newData);
-        
-        return updated;
-      });
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+      const pctime = new Date();
+      const nextTemp = 27 + Math.random() * 4;
+      const nextHum = 70 + Math.floor(Math.random() * 25);
+      const nextWindSpeed = 6 + Math.random() * 14;
+      const nextWindDir = Math.floor(Math.random() * 360);
+      const nextPress = 1008 + Math.random() * 5;
+      const nextSolar = Math.floor(100 + Math.random() * 600);
+      const nextRainRate = Math.random() > 0.9 ? parseFloat((Math.random() * 6).toFixed(1)) : 0;
+      const nextWave = parseFloat((0.3 + Math.random() * 1.6).toFixed(2));
+      const nextSeaLvl = parseFloat((110 + Math.random() * 60).toFixed(1));
 
-  const checkThresholds = (data: WeatherData) => {
-    if (data.windSpeed > 20) {
-      addInstruction('Warning', 'Navigation', `High wind speed detected (${data.windSpeed.toFixed(1)} knots). Small craft warning in effect.`);
-    }
-    if (data.waveHeight > 2.0) {
-      addInstruction('Critical', 'Docking', `Wave height (${data.waveHeight.toFixed(2)}m) exceeds safe docking limits for Zone B.`);
-    }
-  };
+      // Append rain accum if raining
+      if (nextRainRate > 0) {
+        setRainAccum(prev => parseFloat((prev + nextRainRate * 0.05).toFixed(1)));
+      }
 
-  const addInstruction = (level: PortInstruction['level'], type: PortInstruction['type'], message: string) => {
-    setInstructions(prev => {
-      // Avoid duplicate recent messages
-      if (prev.length > 0 && prev[0].message === message) return prev;
-      return [{
-        id: Math.random().toString(36).substr(2, 9),
+      const newRecord: WeatherData = {
         timestamp: Date.now(),
-        level,
-        type,
-        message
-      }, ...prev].slice(0, 50);
-    });
-  };
+        temperature: parseFloat(nextTemp.toFixed(1)),
+        humidity: nextHum,
+        windSpeed: parseFloat(nextWindSpeed.toFixed(1)),
+        windDirection: nextWindDir,
+        pressure: parseFloat(nextPress.toFixed(1)),
+        solarRadiation: nextSolar,
+        rainfall: nextRainRate,
+        waveHeight: nextWave,
+        seaLevel: nextSeaLvl
+      };
 
-  const fetchAIInsights = async () => {
-    setIsLoadingInsights(true);
-    const result = await getInsights(currentData, history);
-    setInsights(result);
-    setIsLoadingInsights(false);
-  };
+      setHistory(prev => {
+        const keeps = [...prev, newRecord];
+        // Keep logs clean
+        if (keeps.length > 200) {
+          return keeps.slice(keeps.length - 150);
+        }
+        localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
+        return keeps;
+      });
 
+      // Update terminal stream simulator
+      if (config.transport !== 'OFF') {
+        const dateStr = format(pctime, 'dd-MM-yyyy HH:mm:ss');
+        // Synthesize string like: "SYS1000;26-05-2026 15:33:02;28.5;28.3;29.4;27.6;79.2;14.2;0.0;0.5;420.0;1.12;14.50;90.2;10.5;1011.2;1011.5;1011.1"
+        const rawString = `${config.idStation}${config.splitchar}${dateStr}${config.splitchar}${newRecord.temperature.toFixed(1)}${config.splitchar}${newRecord.humidity}${config.splitchar}${newRecord.solarRadiation}${config.splitchar}${newRecord.rainfall.toFixed(1)}${config.splitchar}${newRecord.waveHeight.toFixed(2)}${config.splitchar}${newRecord.seaLevel.toFixed(1)}${config.splitchar}${newRecord.windDirection}${config.splitchar}${newRecord.windSpeed.toFixed(1)}${config.splitchar}${newRecord.pressure.toFixed(1)}`;
+        
+        setStreamLogs(prev => {
+          const lines = prev.split('\n');
+          const output_lines = [...lines, `DATA RECEIVED -> ${rawString}`];
+          if (output_lines.length > 40) return output_lines.slice(output_lines.length - 30).join('\n');
+          return output_lines.join('\n');
+        });
+      }
+    }, 4500);
+
+    return () => clearInterval(interval);
+  }, [config]);
+
+  // Handle default initial filter for database search logs
   useEffect(() => {
-    fetchAIInsights();
-  }, []);
+    filterLogsData();
+  }, [history, dbStartDate, dbEndDate, dbSearchTerm]);
+
+  const filterLogsData = () => {
+    const active = history.filter(row => {
+      const rowDateStr = format(row.timestamp, 'yyyy-MM-dd');
+      const startMatch = dbStartDate ? rowDateStr >= dbStartDate : true;
+      const endMatch = dbEndDate ? rowDateStr <= dbEndDate : true;
+      
+      const searchMatch = dbSearchTerm ? (
+        row.temperature.toString().includes(dbSearchTerm) ||
+        row.windSpeed.toString().includes(dbSearchTerm) ||
+        row.windDirection.toString().includes(dbSearchTerm) ||
+        row.pressure.toString().includes(dbSearchTerm)
+      ) : true;
+
+      return startMatch && endMatch && searchMatch;
+    });
+    setFilteredLogs(active.reverse());
+  };
+
+  const currentData = history[history.length - 1] || {
+    timestamp: Date.now(),
+    temperature: 28.2,
+    humidity: 78,
+    windSpeed: 12.0,
+    windDirection: 45,
+    pressure: 1011.2,
+    solarRadiation: 450,
+    rainfall: 0,
+    waveHeight: 1.1,
+    seaLevel: 140
+  };
+
+  // 1-Hour temperature statistics computed from the history queue
+  const tempStats = (() => {
+    const lastSix = history.slice(-12); // approx last couple hours
+    if (lastSix.length === 0) return { avg: '28.2', max: '29.1', min: '27.4' };
+    const temps = lastSix.map(h => h.temperature);
+    const sum = temps.reduce((a, b) => a + b, 0);
+    const avg = (sum / temps.length).toFixed(1);
+    const max = Math.max(...temps).toFixed(1);
+    const min = Math.min(...temps).toFixed(1);
+    return { avg, max, min };
+  })();
+
+  // Wind Rose accumulator calculations
+  const windRoseData = (() => {
+    const accumulator = { 'N': 0, 'NE': 0, 'E': 0, 'SE': 0, 'S': 0, 'SW': 0, 'W': 0, 'NW': 0 };
+    history.forEach(row => {
+      const deg = row.windDirection;
+      if (deg >= 337.5 || deg < 22.5) accumulator['N']++;
+      else if (deg >= 22.5 && deg < 67.5) accumulator['NE']++;
+      else if (deg >= 67.5 && deg < 112.5) accumulator['E']++;
+      else if (deg >= 112.5 && deg < 157.5) accumulator['SE']++;
+      else if (deg >= 157.5 && deg < 202.5) accumulator['S']++;
+      else if (deg >= 202.5 && deg < 247.5) accumulator['SW']++;
+      else if (deg >= 247.5 && deg < 292.5) accumulator['W']++;
+      else if (deg >= 292.5 && deg < 337.5) accumulator['NW']++;
+    });
+    return Object.entries(accumulator).map(([direction, count]) => ({
+      direction,
+      count
+    }));
+  })();
+
+  // Custom Dew point calculator (approx Magnus-Tetens formula)
+  const computeDewPoint = (t: number, rh: number) => {
+    const a = 17.27;
+    const b = 237.7;
+    const alpha = ((a * t) / (b + t)) + Math.log(rh / 100);
+    const dp = (b * alpha) / (a - alpha);
+    return isNaN(dp) ? 21.5 : parseFloat(dp.toFixed(1));
+  };
+
+  // Convert wind speed value to relative string rose
+  const getWindRoseString = (deg: number) => {
+    if (deg >= 337.5 || deg < 22.5) return 'N';
+    if (deg >= 22.5 && deg < 67.5) return 'NE';
+    if (deg >= 67.5 && deg < 112.5) return 'E';
+    if (deg >= 112.5 && deg < 157.5) return 'SE';
+    if (deg >= 157.5 && deg < 202.5) return 'S';
+    if (deg >= 202.5 && deg < 247.5) return 'SW';
+    if (deg >= 247.5 && deg < 292.5) return 'W';
+    return 'NW';
+  };
+
+  // Export database metrics to CSV format
+  const exportLogsToCSV = () => {
+    const headers = ['DateTime', 'Temp (deg C)', 'Humidity (%)', 'Solar (W/m2)', 'Wave (m)', 'WaterLvl (cm)', 'WindDir (deg)', 'WindSpd (m/s)', 'Rain (mm)', 'Press (hPa)'];
+    const rows = filteredLogs.map(row => [
+      format(row.timestamp, 'yyyy-MM-dd HH:mm:ss'),
+      row.temperature,
+      row.humidity,
+      row.solarRadiation,
+      row.waveHeight,
+      row.seaLevel,
+      row.windDirection,
+      row.windSpeed,
+      row.rainfall,
+      row.pressure
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `AWS_Marine_Export_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // --- CORE AI FORECAST ENGINE MATH (PORTED FROM YOUR CONCEPT) ---
+  const aiForecastResult = (() => {
+    // 1. Live historical momentum (last 6 captured records in history, simulating 1 hour back at 10m cycle)
+    const wave_hist = history.slice(-6).map(h => h.waveHeight);
+    const wind_hist = history.slice(-6).map(h => h.windSpeed);
+    
+    // Ensure historical array has elements
+    if (wave_hist.length === 0) {
+      wave_hist.push(1.10);
+      wind_hist.push(10.0);
+    }
+
+    const currentWave = wave_hist[wave_hist.length - 1];
+    const currentWind = wind_hist[wind_hist.length - 1];
+
+    // Yesterday's Climatology Baselines as specified in your logic
+    const yestWave = CLIMATOLOGY_AVG.waveHeight;
+    const yestWind = CLIMATOLOGY_AVG.windSpeed;
+
+    // Seberapa cepat momentum pergerakan 1 jam terakhir 
+    let waveMomentum = 0;
+    let windMomentum = 0;
+    if (wave_hist.length > 1) {
+      waveMomentum = (currentWave - wave_hist[0]) / wave_hist.length;
+      windMomentum = (currentWind - wind_hist[0]) / wind_hist.length;
+    }
+
+    // ANOMALY OVERRIDE: Jika saat ini beda ekstrem dengan kemarin (> 50% atau sudah berbahaya)
+    // Jika True = ADA BADAI / SQUALL, abaikan sejarah, fokus pada bacaan sensor live!
+    const isWaveStorm = Math.abs(currentWave - yestWave) > (yestWave * 0.5) || currentWave >= 1.5;
+    const isWindStorm = Math.abs(currentWind - yestWind) > (yestWind * 0.5) || currentWind >= 15.0;
+
+    const forecastedWaves = [];
+    const forecastedWinds = [];
+    const timestamps = [];
+    const baseDate = new Date();
+
+    for (let i = 1; i <= 6; i++) {
+      const stepTime = new Date(baseDate.getTime() + i * 10 * 60000);
+      
+      // Prediksi dasar murni dari gaya dorong (momentum) sensor saat ini
+      let futureWave = currentWave + (waveMomentum * i * 0.8); // 0.8 dumper 
+      let futureWind = currentWind + (windMomentum * i * 0.8);
+
+      // Jika TIDAK ADA BADAI (Cuaca Normal), baru kita tarik ke siklus kemarin
+      if (!isWaveStorm) {
+        futureWave = (futureWave * 0.6) + (yestWave * 0.4); // 40% influence yesterday
+      }
+      if (!isWindStorm) {
+        futureWind = (futureWind * 0.6) + (yestWind * 0.4); // 40% influence yesterday
+      }
+
+      // Tambahkan sedikit turbulensi acak alami
+      futureWave += (Math.random() * 0.08 - 0.04);
+      futureWind += (Math.random() * 0.8 - 0.4);
+
+      forecastedWaves.push(parseFloat(Math.max(0.1, futureWave).toFixed(2)));
+      forecastedWinds.push(parseFloat(Math.max(1.0, futureWind).toFixed(1)));
+      timestamps.push(format(stepTime, 'HH:mm'));
+    }
+
+    // STORM THREAT PROBABILITY (25 m/s or 32 Knots Wind = 100% danger)
+    const maxFutureWind = Math.max(...forecastedWinds);
+    const stormProb = Math.min(100, Math.max(5, Math.round((maxFutureWind / 25) * 100)));
+
+    let stormStatus = 'SAFE OPERATION';
+    let stormColor = '#22c55e'; // Green
+    let stormIcon = '🚢'; // calm ship
+    let stormBg = 'bg-success/15 border-success/30';
+    let stormPulse = '';
+
+    if (stormProb > 75) {
+      stormStatus = 'GALE WARNING / PORT CLOSE';
+      stormColor = '#ef4444'; // Red
+      stormIcon = '🌀'; // rotating gale spiral
+      stormBg = 'bg-danger/20 border-danger/40';
+      stormPulse = 'animate-spin duration-3000';
+    } else if (stormProb > 45) {
+      stormStatus = 'SQUALL THREAT / CAUTION';
+      stormColor = '#f59e0b'; // Gold/Orange
+      stormIcon = '🌬️'; // wind squall
+      stormBg = 'bg-warning/20 border-warning/40';
+      stormPulse = 'animate-bounce';
+    }
+
+    // Synthesize history and future combined dataset for Recharts
+    const pastAndFutureData = [];
+    const last6 = history.slice(-6);
+    
+    // Add Past elements
+    last6.forEach(h => {
+      pastAndFutureData.push({
+        time: format(h.timestamp, 'HH:mm'),
+        pastWave: h.waveHeight,
+        pastWind: h.windSpeed,
+        futWave: null,
+        futWind: null
+      });
+    });
+
+    // Add linkage point so solid line touches dashed forecast line
+    if (pastAndFutureData.length > 0) {
+      const idx = pastAndFutureData.length - 1;
+      pastAndFutureData[idx].futWave = pastAndFutureData[idx].pastWave;
+      pastAndFutureData[idx].futWind = pastAndFutureData[idx].pastWind;
+    }
+
+    // Append Future elements
+    forecastedWaves.forEach((w, idx) => {
+      pastAndFutureData.push({
+        time: timestamps[idx],
+        pastWave: null,
+        pastWind: null,
+        futWave: w,
+        futWind: forecastedWinds[idx]
+      });
+    });
+
+    return {
+      forecastedWaves,
+      forecastedWinds,
+      timestamps,
+      stormProb,
+      stormStatus,
+      stormColor,
+      stormIcon,
+      stormBg,
+      stormPulse,
+      combinedData: pastAndFutureData
+    };
+  })();
+
+  // Direction indicator calculations
+  const parsedPierAngle = parseFloat(config.pierAngle) || 0;
+  const relativeVesselWind = (currentData.windDirection - parsedPierAngle + 360) % 360;
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row grid-pattern">
-      {/* Sidebar Navigation - Ultra Premium Yacht Console Style */}
-      <aside className="w-full md:w-24 bg-gradient-to-b from-[#11243b] via-[#081220] to-[#03060d] border-r border-accent/25 flex flex-col items-center py-8 gap-10 z-10 shadow-[6px_0_50px_rgba(0,240,255,0.08)] relative">
-        <div className="absolute top-0 right-0 w-px h-full bg-gradient-to-b from-accent/40 via-transparent to-accent/15" />
-        <div className="w-14 h-14 bg-gradient-to-tr from-accent to-[#00a2ff]/30 rounded-2xl flex items-center justify-center text-bg font-black text-2xl shadow-[0_0_35px_rgba(0,240,255,0.45)] border border-accent/40">
-          M
+    <div className="min-h-screen flex flex-col md:flex-row grid-pattern text-slate-100">
+      {/* Dynamic Toast warning line */}
+      {systemAlert && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-[#0b1424] border border-[#00f0ff] px-6 py-3 rounded-full text-xs font-mono font-bold uppercase tracking-wider text-[#00f0ff] shadow-[0_0_30px_rgba(0,240,255,0.4)] flex items-center gap-2">
+          <span className="w-2 h-2 rounded bg-[#00f0ff] animate-ping" />
+          {systemAlert}
         </div>
-        <nav className="flex flex-col gap-8">
-          <NavItem icon={<LayoutDashboard className="w-5 h-5" />} active label="Dashboard" />
-          <NavItem icon={<History className="w-5 h-5" />} label="Logs" />
-          <NavItem icon={<Shield className="w-5 h-5" />} label="Security" />
+      )}
+
+      {/* SIDEBAR NAVIGATION - Styled directly like a high-end Yacht Terminal Console */}
+      <aside className="w-full md:w-28 bg-gradient-to-b from-[#11243b] via-[#081220] to-[#03060d] border-r border-[#00f0ff]/20 flex flex-col items-center py-8 gap-8 z-10 shadow-[6px_0_50px_rgba(0,240,255,0.08)] relative">
+        <div className="absolute top-0 right-0 w-px h-full bg-gradient-to-b from-[#00f0ff]/40 via-transparent to-[#00f0ff]/15" />
+        
+        {/* RMS Yacht Logo */}
+        <div className="w-16 h-16 bg-gradient-to-br from-[#00f0ff] to-[#3b82f6]/40 rounded-2xl flex flex-col items-center justify-center shadow-[0_0_35px_rgba(0,240,255,0.3)] border border-[#00f0ff]/30 cursor-pointer" onClick={() => setActiveTab('realtime')}>
+          <span className="text-bg text-black font-black text-2xl tracking-tighter leading-none">RMS</span>
+          <span className="text-[7.5px] text-white tracking-[0.2em] font-extrabold uppercase mt-1">PRO v3</span>
+        </div>
+
+        <nav className="flex flex-col gap-5 w-full px-3">
+          <button 
+            onClick={() => setActiveTab('realtime')}
+            className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border ${activeTab === 'realtime' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
+          >
+            <LayoutDashboard className="w-4.5 h-4.5" />
+            <span className="text-[9px]">REALTIME</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('analyst')}
+            className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border ${activeTab === 'analyst' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
+          >
+            <RefreshCw className="w-4.5 h-4.5" />
+            <span className="text-[9px]">ANALYST</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('database')}
+            className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border ${activeTab === 'database' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
+          >
+            <Database className="w-4.5 h-4.5" />
+            <span className="text-[9px]">DATABASE</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('settings')}
+            className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border ${activeTab === 'settings' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
+          >
+            <Settings className="w-4.5 h-4.5" />
+            <span className="text-[9px]">OPTION</span>
+          </button>
         </nav>
+
+        {/* Station Indicator */}
+        <div className="mt-auto text-center">
+          <div className="text-[8.5px] font-mono opacity-50 uppercase font-black text-slate-400">Station ID</div>
+          <div className="text-[11px] font-mono tracking-wider font-black text-[#00f0ff] mt-1 bg-white/5 px-2.5 py-1 rounded border border-[#00f0ff]/20">{config.idStation}</div>
+        </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 p-6 md:p-10 space-y-10 max-w-full w-full overflow-hidden">
-        <header className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center bg-gradient-to-r from-paper/90 via-paper/50 to-bg/90 backdrop-blur-xl p-6 rounded-[2rem] border border-accent/20 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative">
-          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-accent/40 rounded-tl-xl" />
-          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-accent/40 rounded-br-xl" />
+      {/* MAIN CONTAINER */}
+      <main className="flex-1 p-5 md:p-8 space-y-6 max-w-full w-full overflow-hidden flex flex-col justify-between">
+        
+        {/* SHARED HEADER CONTROLLER */}
+        <header className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center bg-gradient-to-r from-[#0b1424]/90 via-[#0b1424]/50 to-bg/90 backdrop-blur-xl p-5 md:p-6 rounded-[1.5rem] border border-[#00f0ff]/20 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative">
+          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-[#00f0ff]/40 rounded-tl-xl" />
+          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-[#00f0ff]/40 rounded-br-xl" />
 
-          <div className="flex items-center gap-6">
-            <div>
-              <h1 className="text-3xl font-black tracking-tighter text-white flex items-center gap-3">
-                MARITIME<span className="text-accent underline decoration-accent/30 underline-offset-4">OS</span> 
-                <span className="text-[9px] uppercase font-mono bg-accent/10 text-accent py-1 px-4 rounded-full border border-accent/30 tracking-[0.25em] font-black">VESSEL_TLM_H</span>
-              </h1>
-              <p className="text-[9.5px] opacity-60 mt-1.5 uppercase tracking-[0.25em] font-bold flex items-center gap-2 font-mono text-accent/80">
-                <span className="w-2.5 h-2.5 bg-success rounded-full animate-ping absolute"></span>
-                <span className="w-2.5 h-2.5 bg-success rounded-full"></span>
-                Active Telemetry Feed • 106.8833° E 6.1033° S
-              </p>
+          <div>
+            <div className="text-[8px] uppercase tracking-[0.3em] font-mono text-[#00f0ff]/80 font-extrabold flex items-center gap-2 mb-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+              </span>
+              <span>SCADA CONNECTION: {config.transport}</span>
             </div>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-white uppercase flex items-baseline gap-2">
+              AWS MARINE BOARD <span className="text-[#00f0ff] text-xs font-mono lowercase tracking-[0.05em] bg-[#00f0ff]/10 py-0.5 px-3 rounded border border-[#00f0ff]/30 font-bold">Pro RMS v3</span>
+            </h1>
+            <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-bold">
+              Kondisi Operasional Port & Log Terminal Cuaca Maritim
+            </p>
           </div>
-          
-          <div className="flex items-center gap-8 w-full lg:w-auto justify-between lg:justify-end border-t lg:border-t-0 border-white/5 pt-4 lg:pt-0">
-            <div className="hidden xl:flex gap-8">
-              <div className="text-right">
-                <div className="text-[8.5px] uppercase font-bold opacity-40 tracking-widest text-accent font-mono">Cons_Health</div>
-                <div className="text-[10px] font-mono font-bold text-success">99.99% SECURE</div>
+
+          <div className="flex items-center gap-6 self-stretch lg:self-auto justify-between lg:justify-end border-t lg:border-t-0 border-white/5 pt-3 lg:pt-0">
+            <div className="hidden xl:flex gap-6 text-right">
+              <div>
+                <div className="text-[8px] uppercase font-bold opacity-40 tracking-wider text-[#00f0ff]">DB STATUS</div>
+                <div className="text-[10px] font-mono font-bold text-emerald-400">CONNECT_SECURE</div>
               </div>
-              <div className="text-right">
-                <div className="text-[8.5px] uppercase font-bold opacity-40 tracking-widest text-accent font-mono">Feed Latency</div>
-                <div className="text-[10px] font-mono font-bold text-secondary">0.08 MS</div>
+              <div>
+                <div className="text-[8px] uppercase font-bold opacity-40 tracking-wider text-[#00f0ff]">PIER ALIGNMENT</div>
+                <div className="text-[10px] font-mono font-bold text-[#3b82f6]">{config.pierAngle}° CLOCKWISE</div>
               </div>
             </div>
-            <div className="h-10 w-px bg-accent/20 hidden xl:block" />
-            <div className="text-right flex lg:flex-col items-baseline lg:items-end justify-between lg:justify-start w-full lg:w-auto gap-4 lg:gap-0">
-              <div className="text-[10px] font-mono opacity-50 uppercase tracking-[0.1em] text-accent font-bold">{format(Date.now(), 'EEEE, dd MMM yyyy')}</div>
-              <div className="text-2xl font-black data-mono tracking-tighter text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.08)]">{format(Date.now(), 'HH:mm:ss')}</div>
+            <div className="h-8 w-px bg-white/10 hidden xl:block" />
+            <div className="text-right">
+              <div className="text-[9.5px] font-mono opacity-50 uppercase tracking-widest text-[#00f0ff] font-semibold">{format(Date.now(), 'EEEE, dd MMM yyyy')}</div>
+              <div className="text-2xl font-black font-mono tracking-tighter text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.08)] bg-white/5 py-0.5 px-3 rounded-xl border border-white/5 mt-0.5">{format(Date.now(), 'HH:mm:ss')}</div>
             </div>
           </div>
         </header>
 
-        {/* AWS Triage Layout - Balanced Full Screen */}
-        <section className="grid grid-cols-1 xl:grid-cols-5 gap-10 items-start">
-          
-          {/* LEFT TELEMETRY: MARITIME (1/5) */}
-          <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between px-3 py-1 border-b border-accent/15">
-              <div className="text-[11px] uppercase font-bold tracking-[0.25em] text-accent flex items-center gap-2">
-                <Waves className="w-3.5 h-3.5 text-secondary" /> Maritime Sensors
-              </div>
-              <div className="text-[8.5px] font-mono opacity-40 text-accent font-bold">NODE_ALPHA</div>
-            </div>
-            <StatCard label="Wave Height" value={currentData.waveHeight.toFixed(2)} unit="Meters" icon={<Waves />} alertLevel={currentData.waveHeight > 1.5 ? 'Warning' : 'Normal'} />
-            <StatCard label="Sea Level" value={currentData.seaLevel.toFixed(1)} unit="CM" icon={<MoveDown />} />
-            <StatCard label="Station Tide" value={(currentData.seaLevel * 0.8).toFixed(1)} unit="CM" icon={<Waves />} />
+        {/* PAGE tab 1: REALTIME DASH */}
+        {activeTab === 'realtime' && (
+          <>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+            
+            {/* COLUMN 1: KONDISI ATMOSFER (width 3/12 on large screens) */}
+            <div className="lg:col-span-3 flex flex-col space-y-6 h-full justify-between">
+              
+              {/* Thermal group */}
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-5 rounded-2xl border border-white/5 space-y-4">
+                <div className="text-[10.5px] font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
+                  <Thermometer className="w-3.5 h-3.5 text-[#22c55e]" />
+                  <span>Thermal Sensors</span>
+                </div>
 
-            <div className="tech-card p-6 bg-gradient-to-b from-paper/60 to-bg border-accent/15 mt-4 relative">
-              <div className="absolute top-0 right-0 w-16 h-[1.5px] bg-gradient-to-r from-transparent to-accent" />
-              <div className="flex items-center gap-2 mb-4">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-success"></span>
+                {/* Primary Air temp StatCard */}
+                <div className="bg-[#0b1424] border-t-2 border-[#22c55e] border-x border-b border-white/5 rounded-xl p-4 text-center">
+                  <div className="text-[9px] uppercase font-bold text-slate-400 tracking-wider mb-1">Air Temperature</div>
+                  <div className="flex justify-center items-baseline">
+                    <span className="text-4xl font-extrabold font-mono tracking-tight text-white">{currentData.temperature.toFixed(1)}</span>
+                    <span className="text-sm font-bold text-[#22c55e] ml-1">°C</span>
+                  </div>
+                </div>
+
+                {/* Avg, Max, Min grid row inside column 1 */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-2 text-center">
+                    <div className="text-[8px] uppercase font-semibold text-slate-500 tracking-wider">Avg</div>
+                    <div className="text-sm font-bold text-[#e0f2fe] font-mono mt-0.5">{tempStats.avg}</div>
+                  </div>
+                  <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-2 text-center">
+                    <div className="text-[8px] uppercase font-semibold text-slate-500 tracking-wider text-rose-400">Max</div>
+                    <div className="text-sm font-bold text-rose-400 font-mono mt-0.5">{tempStats.max}</div>
+                  </div>
+                  <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-2 text-center">
+                    <div className="text-[8px] uppercase font-semibold text-slate-500 tracking-wider text-teal-400">Min</div>
+                    <div className="text-sm font-bold text-teal-400 font-mono mt-0.5">{tempStats.min}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Hygrometry group */}
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-5 rounded-2xl border border-white/5 space-y-4">
+                <div className="text-[10.5px] font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
+                  <Droplets className="w-3.5 h-3.5 text-[#00f0ff]" />
+                  <span>Hygrometry</span>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="bg-[#0b1424] border-t-2 border-[#00f0ff] border-x border-b border-white/5 rounded-xl p-3.5 flex justify-between items-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Humidity</span>
+                    <div className="text-right">
+                      <span className="text-2xl font-extrabold font-mono text-white">{currentData.humidity}</span>
+                      <span className="text-[10px] text-[#00f0ff] ml-1.5 font-bold">%</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0b1424] border-t-2 border-[#00f0ff] border-x border-b border-white/5 rounded-xl p-3.5 flex justify-between items-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Dew Point</span>
+                    <div className="text-right">
+                      <span className="text-xl font-extrabold font-mono text-white">
+                        {computeDewPoint(currentData.temperature, currentData.humidity)}
+                      </span>
+                      <span className="text-[10px] text-[#00f0ff] ml-1.5 font-bold">°C</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Atmospheric pressure STN */}
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between">
+                <div>
+                  <div className="text-[10.5px] font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
+                    <Gauge className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Pressure STN</span>
+                  </div>
+                </div>
+                <div className="flex-1 flex flex-col justify-center py-2.5">
+                  <div className="bg-[#0b1424] border-t-2 border-amber-500 border-x border-b border-white/5 rounded-xl p-4 text-center">
+                    <div className="text-[9px] uppercase font-bold text-slate-400 tracking-wider mb-1">Barometric Air Pressure</div>
+                    <div className="flex justify-center items-baseline">
+                      <span className="text-3xl font-extrabold font-mono tracking-tight text-white">{currentData.pressure.toFixed(1)}</span>
+                      <span className="text-[10px] text-amber-500 ml-1.5 font-bold uppercase tracking-wider">HPa</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* COLUMN 2: COMMAND CENTER WIND COMPASS (width 6/12 on large screens) */}
+            <div className="lg:col-span-6 bg-gradient-to-br from-[#0d1726]/80 to-bg border border-[#00f0ff]/20 p-6 rounded-3xl relative min-h-[500px] flex flex-col justify-between shadow-[0_30px_70px_rgba(0,0,0,0.9)] h-full">
+              <div className="absolute top-0 right-0 w-24 h-[1px] bg-gradient-to-r from-transparent via-[#00f0ff]/30 to-transparent" />
+              
+              <div className="text-center font-bold">
+                <h3 className="text-xs uppercase font-extrabold tracking-[0.25em] text-[#00f0ff] flex items-center justify-center gap-2 mb-1">
+                  🌐 Live Wind Vector & Port Orientation ({config.pierAngle}°)
+                </h3>
+                <span className="text-[8.5px] font-mono text-slate-500 uppercase tracking-widest bg-white/5 py-0.5 px-3 rounded">
+                  CONSOLE_INTEGRATION_ONLINE
                 </span>
-                <h4 className="text-[9px] font-bold text-accent uppercase tracking-[0.25em] font-mono">Telemetry Status</h4>
               </div>
-              <div className="space-y-3.5">
-                <div className="flex justify-between items-center text-[10px] border-b border-white/5 pb-2">
-                  <span className="opacity-40 uppercase font-bold text-[8.5px] tracking-wider">L-H Broadcast</span>
-                  <span className="font-mono font-bold text-success tracking-widest text-[9px]">ONLINE_SECURE</span>
+
+              {/* Dynamic Maritime Hazard Alert Panel (EWS) */}
+              {(() => {
+                const isAnginKencang = currentData.windSpeed >= 12.0;
+                const isGelombangTinggi = currentData.waveHeight >= 1.2;
+                
+                if (isAnginKencang && isGelombangTinggi) {
+                  return (
+                    <div className="mx-auto mt-2.5 px-4 py-2 border border-rose-500/50 bg-rose-950/40 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.25)] select-none">
+                      <span className="flex h-2 w-2 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                      </span>
+                      <span className="text-[10px] font-extrabold text-rose-400 uppercase tracking-wider font-mono text-center">
+                        🔥 SIAGA 1: DOUBLE HAZARD (WIND & WAVE WARN)
+                      </span>
+                    </div>
+                  );
+                } else if (isAnginKencang) {
+                  return (
+                    <div className="mx-auto mt-2.5 px-4 py-2 border border-amber-500/40 bg-amber-950/30 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse select-none shadow-[0_0_10px_rgba(245,158,11,0.15)]">
+                      <span className="flex h-2 w-2 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                      </span>
+                      <span className="text-[10px] font-extrabold text-amber-400 uppercase tracking-wider font-mono text-center">
+                        ⚠️ WARNING: ANGIN KENCANG ({currentData.windSpeed.toFixed(1)} m/s)
+                      </span>
+                    </div>
+                  );
+                } else if (isGelombangTinggi) {
+                  return (
+                    <div className="mx-auto mt-2.5 px-4 py-2 border border-cyan-500/40 bg-[#082f49]/40 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse select-none shadow-[0_0_10px_rgba(6,182,212,0.15)]">
+                      <span className="flex h-2 w-2 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                      </span>
+                      <span className="text-[10px] font-extrabold text-cyan-400 uppercase tracking-wider font-mono text-center">
+                        🌊 WARNING: GELOMBANG TINGGI ({currentData.waveHeight}m)
+                      </span>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="mx-auto mt-2.5 px-4 py-1.5 border border-emerald-500/20 bg-emerald-950/10 rounded-xl flex items-center gap-2 justify-center max-w-xs select-none">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider font-mono text-center">
+                        🟢 STATUS OPERASI: AMAN & NORMAL
+                      </span>
+                    </div>
+                  );
+                }
+              })()}
+
+              {/* WIND COMPASS PORT-REPRESENTATION (PORT & STD) */}
+              <div className="flex justify-center items-center my-6 relative">
+                
+                {/* PORT STD side panels labels */}
+                <div className="absolute left-6 md:left-12 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-3 rounded-xl max-w-[150px] shadow-25 select-none font-sans">
+                  <div className="text-[10px] font-black text-[#00f0ff] uppercase tracking-wider mb-1">PORT (Kiri)</div>
+                  <div className="text-[8px] text-slate-400 font-semibold">LEFT VESSEL</div>
                 </div>
-                <div className="flex justify-between items-center text-[10px] border-b border-white/5 pb-2">
-                  <span className="opacity-40 uppercase font-bold text-[8.5px] tracking-wider">Protocol</span>
-                  <span className="font-mono font-bold opacity-85 text-[9px]">MQTT-TLS_v3.2</span>
+
+                {/* Compass Ring wrapper with dynamic warning colors */}
+                {(() => {
+                  const isAnginKencang = currentData.windSpeed >= 12.0;
+                  const isGelombangTinggi = currentData.waveHeight >= 1.2;
+                  
+                  let ringBorderColor = "border-slate-700 shadow-[#00f0ff]/5";
+                  if (isAnginKencang && isGelombangTinggi) {
+                    ringBorderColor = "border-rose-900/80 shadow-[0_0_20px_rgba(239,68,68,0.2)] animate-pulse";
+                  } else if (isAnginKencang) {
+                    ringBorderColor = "border-amber-700/80 shadow-[0_0_15px_rgba(245,158,11,0.15)]";
+                  } else if (isGelombangTinggi) {
+                    ringBorderColor = "border-cyan-800/80 shadow-[0_0_15px_rgba(6,182,212,0.15)]";
+                  }
+
+                  return (
+                    <div className={`relative w-72 h-72 rounded-full border-[12px] transition-all duration-700 flex items-center justify-center bg-radial-gradient from-[#00f0ff]/10 to-[#0284c7]/30 shadow-[inset_0_0_30px_rgba(0,0,0,0.8)] ${ringBorderColor}`}>
+                      {/* Water ring container inside */}
+                      <div className="absolute w-[180px] h-[180px] rounded-full border border-white/5 bg-transparent pointer-events-none" />
+                      
+                      {/* Direction characters */}
+                      <span className="absolute top-1 text-slate-200 text-xs font-black tracking-widest font-sans">N</span>
+                      <span className="absolute bottom-1 text-slate-200 text-xs font-black tracking-widest font-sans">S</span>
+                      <span className="absolute right-3 text-slate-200 text-xs font-black tracking-widest font-sans font-extrabold">E</span>
+                      <span className="absolute left-3 text-slate-200 text-xs font-black tracking-widest font-sans font-extrabold">W</span>
+
+                      {/* Ship Silhouette Wrapper rotated strictly with visual pierAngle state */}
+                      <div 
+                        className="absolute w-full h-full flex items-center justify-center transition-all duration-1000 ease-out"
+                        style={{ transform: `rotate(${config.pierAngle}deg)` }}
+                      >
+                        {/* Ship body with real containers area and bridge */}
+                        <div className="w-10 h-32 bg-slate-500 border-2 border-slate-900 rounded-full flex flex-col items-center justify-between py-4 shadow-[5px_5px_15px_rgba(0,0,0,0.7)] relative">
+                          <div className="absolute top-1 w-2.5 h-2.5 rounded-full bg-[#00f0ff] shadow-[0_0_10px_#00f0ff]" />
+                          <div className="w-7 h-14 bg-gradient-to-b from-[#22c55e]/90 via-[#1e293b] to-[#3b82f6]/90 border border-slate-950 rounded mt-2 flex items-center justify-center p-1">
+                            <span className="text-[6.5px] font-mono leading-none tracking-tight opacity-40 uppercase">cargo</span>
+                          </div>
+                          <div className="w-8 h-4 bg-slate-100 border border-slate-900 rounded-sm mb-1 shadow" />
+                        </div>
+                      </div>
+
+                      {/* Pointer rotating Wind Arrow strictly matching live wind arah direction */}
+                      <div 
+                        className="absolute w-full h-full flex items-center justify-center transition-all duration-1000 ease-out pointer-events-none"
+                        style={{ transform: `rotate(${currentData.windDirection}deg)` }}
+                      >
+                        {/* Orange-Red Gradient pointer trail & arrow */}
+                        <div className="absolute top-[8px] bottom-[8px] w-[2.5px] bg-gradient-to-b from-rose-500 via-amber-500 to-transparent flex flex-col items-center">
+                          {/* Pointer Head strictly pointing to ship */}
+                          <div className="w-4 h-4 bg-rose-500 border border-white rounded mt-1.5 shadow-[0_0_12px_rgba(239,68,68,0.8)] rotate-45" />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* STARBOARD std side panel labels */}
+                <div className="absolute right-6 md:right-12 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-3 rounded-xl max-w-[150px] shadow-25 select-none font-sans">
+                  <div className="text-[10px] font-black text-[#22c55e] uppercase tracking-wider mb-1">STARBOARD (Kan)</div>
+                  <div className="text-[8px] text-slate-400 font-semibold">RIGHT VESSEL</div>
                 </div>
-                <div className="flex justify-between items-center text-[10px]">
-                  <span className="opacity-40 uppercase font-bold text-[8.5px] tracking-wider">Encryption</span>
-                  <span className="font-mono font-bold text-secondary text-[9px]">AES_256_GCM</span>
+
+              </div>
+
+              {/* Angle display relative wind and wind digital specifications */}
+              <div className="grid grid-cols-2 gap-4 items-center mb-6 max-w-md mx-auto bg-[#050a12]/70 p-3.5 rounded-2xl border border-white/5 text-center font-mono text-xs">
+                <div className="border-r border-white/10 pr-2">
+                  <span className="text-slate-400 uppercase text-[9px] tracking-wider block font-sans">Relative Wind</span>
+                  <span className="text-sm font-extrabold text-[#00f0ff]">{relativeVesselWind.toFixed(0)}° Azimuth</span>
+                </div>
+                <div className="pl-2">
+                  <span className="text-slate-400 uppercase text-[9px] tracking-wider block font-sans">Arah & Rose</span>
+                  <span className="text-sm font-extrabold text-[#f59e0b]">{currentData.windDirection}° ({getWindRoseString(currentData.windDirection)})</span>
                 </div>
               </div>
+
+              {/* Bottom horizontal grid showing: Marine & Wind Data digital */}
+              <div className="border border-[#00f0ff]/15 bg-gradient-to-b from-[#0b1424]/70 to-bg p-4.5 rounded-2xl relative">
+                <div className="text-[9.5px] uppercase tracking-[0.25em] font-extrabold text-slate-300 mb-3 font-sans flex items-center justify-between">
+                  <span>⚓ Marine & Wind Digital Indicators</span>
+                  <span className="text-[8.5px] font-mono text-[#00f0ff]/50">ACC_SYS_01</span>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2.5">
+                  <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center">
+                    <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Wind Dir</span>
+                    <span className="text-base font-black font-mono text-[#00f0ff]">{currentData.windDirection}°</span>
+                  </div>
+                  <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center">
+                    <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Wind Spd</span>
+                    <span className="text-base font-black font-mono text-[#00f0ff]">{currentData.windSpeed.toFixed(1)} <span className="text-[8px] font-sans">m/s</span></span>
+                  </div>
+                  <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center">
+                    <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Wave Ht.</span>
+                    <span className="text-base font-black font-mono text-[#22c55e]">{currentData.waveHeight}m</span>
+                  </div>
+                  <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center">
+                    <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Water Lvl</span>
+                    <span className="text-base font-black font-mono text-[#3b82f6]">{currentData.seaLevel.toFixed(1)}m</span>
+                  </div>
+                </div>
+              </div>
+
             </div>
+
+            {/* COLUMN 3: RAIN, SOLAR & WIND ROSE ACC (3/12 on large screens) */}
+            <div className="lg:col-span-3 flex flex-col space-y-6 h-full justify-between">
+              
+              {/* Rain group */}
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-5 rounded-2xl border border-white/5 space-y-4">
+                <div className="text-[10.5px] font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
+                  <CloudRain className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Precipitation</span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="bg-[#0b1424] border-t-2 border-sky-400 border-x border-b border-white/5 rounded-xl p-3.5 flex justify-between items-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Rain Rate</span>
+                    <div className="text-right font-mono">
+                      <span className="text-xl font-extrabold text-white">{currentData.rainfall.toFixed(1)}</span>
+                      <span className="text-[8px] uppercase tracking-wider ml-1.5 text-sky-400 font-bold">MM/H</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0b1424] border-t-2 border-sky-400 border-x border-b border-white/5 rounded-xl p-3.5 flex justify-between items-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Accumulation</span>
+                    <div className="text-right font-mono">
+                      <span className="text-xl font-extrabold text-white">{rainAccum}</span>
+                      <span className="text-[8px] uppercase tracking-wider ml-1.5 text-sky-400 font-bold">MM</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Solar Irradiation group (compact and elegant) */}
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4 rounded-2xl border border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="bg-[#f59e0b]/10 p-2 rounded-xl border border-[#f59e0b]/20">
+                    <Sun className="w-4 h-4 text-[#f59e0b]" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-[#00f0ff] uppercase tracking-[0.1em] block">Solar Radiation</span>
+                    <span className="text-[8px] text-slate-400 font-mono">Irradiance</span>
+                  </div>
+                </div>
+                <div className="text-right font-mono flex items-baseline gap-1 bg-[#0b1424] px-3.5 py-1.5 rounded-xl border border-white/5">
+                  <span className="text-lg font-extrabold text-white">{currentData.solarRadiation}</span>
+                  <span className="text-[8px] text-[#f59e0b] font-black uppercase">W/m²</span>
+                </div>
+              </div>
+
+              {/* Pressure ATN group (compact & premium layout) */}
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between">
+                <div>
+                  <div className="text-[10px] font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
+                    <Gauge className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Pressure ATN Info</span>
+                  </div>
+                </div>
+                
+                <div className="flex-1 flex flex-col justify-center py-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center">
+                      <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-0.5">STN (Station)</span>
+                      <span className="text-sm font-black font-mono text-[#00f0ff]">{currentData.pressure.toFixed(1)} <span className="text-[7.5px] font-sans text-slate-400">hPa</span></span>
+                    </div>
+                    <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center">
+                      <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-0.5">QFE (Elevation)</span>
+                      <span className="text-sm font-black font-mono text-[#00f0ff]">{currentData.pressure.toFixed(1)} <span className="text-[7.5px] font-sans text-slate-400">hPa</span></span>
+                    </div>
+                    <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center">
+                      <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-0.5">QFF (Sea Lvl)</span>
+                      <span className="text-sm font-black font-mono text-emerald-400">{(currentData.pressure + 2.1).toFixed(1)} <span className="text-[7.5px] font-sans text-slate-400">hPa</span></span>
+                    </div>
+                    <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center">
+                      <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-0.5">QNH (Std Atm)</span>
+                      <span className="text-sm font-black font-mono text-emerald-400">{(currentData.pressure - 1.2).toFixed(1)} <span className="text-[7.5px] font-sans text-slate-400">hPa</span></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
           </div>
 
-          {/* CENTER HUB: WIND & PRIMARY CHARTS (3/5) */}
-          <div className="xl:col-span-3 flex flex-col gap-8">
-            {/* WIND HUB */}
-            <WindCompass 
-              speed={currentData.windSpeed} 
-              direction={currentData.windDirection} 
-              unit="KNOTS" 
-              dominantRange={getDominantRange(history)}
-            />
+          {/* LOWER PORTION: DAILY WIND SPEED & WIND VECTOR ANALYSIS GRID */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
             
-            {/* COMPACT CHART CONTAINER */}
-            <div className="bg-gradient-to-tr from-paper to-bg border border-accent/15 rounded-[2rem] p-4 shadow-inner">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <WeatherChart 
-                  data={history} 
-                  dataKey="temperature" 
-                  label="Surface Temperature" 
-                  unit="°C" 
-                  color="#00f0ff" 
-                />
-                <WeatherChart 
-                  data={history} 
-                  dataKey="waveHeight" 
-                  label="Oceanic Swell" 
-                  unit="m" 
-                  color="#3b82f6" 
-                />
-                <WeatherChart 
-                  data={history} 
-                  dataKey="windSpeed" 
-                  label="Wind Velocity" 
-                  unit="Knots" 
-                  color="#10b981" 
-                />
-                <WeatherChart 
-                  data={history} 
-                  dataKey="pressure" 
-                  label="Barometric Pressure" 
-                  unit="HPA" 
-                  color="#fbbf24" 
-                />
-              </div>
-            </div>
-          </div>
+            {/* Daily Wind speed chart (lg:col-span-7) */}
+            <div className="lg:col-span-7 bg-gradient-to-b from-[#0b1424]/40 to-bg border border-white/5 p-5 rounded-3xl space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                <div className="text-[11px] font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2">
+                  <Wind className="w-4 h-4 text-amber-400 animate-pulse" />
+                  <span>Daily Wind Speed & Peak Tracker</span>
+                </div>
+                {/* Find daily wind speed peak time inside history */}
+                {(() => {
+                  let maxWind = 0;
+                  let peakTime = 'N/A';
+                  
+                  history.slice(-48).forEach(row => {
+                    if (row.windSpeed > maxWind) {
+                      maxWind = row.windSpeed;
+                      peakTime = format(row.timestamp, 'HH:mm');
+                    }
+                  });
 
-          {/* RIGHT TELEMETRY: ATMOSPHERIC (1/5) */}
-          <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between px-3 py-1 border-b border-accent/15">
-              <div className="text-[11px] uppercase font-bold tracking-[0.25em] text-accent flex items-center gap-2">
-                <Gauge className="w-3.5 h-3.5 text-secondary" /> Atmospheric Sensors
+                  return (
+                    <span className="text-[10px] font-mono font-black text-rose-400 bg-rose-500/10 py-1 px-3 rounded border border-rose-500/20">
+                      ⚡ PEAK: {maxWind.toFixed(1)} m/s at {peakTime} WIB
+                    </span>
+                  );
+                })()}
               </div>
-              <div className="text-[8.5px] font-mono opacity-40 text-accent font-bold font-mono">NODE_BETA</div>
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-1 gap-6">
-              <StatCard label="Temperature" value={currentData.temperature.toFixed(1)} unit="°C" icon={<Thermometer />} />
-              <StatCard label="Humidity" value={currentData.humidity.toFixed(0)} unit="%" icon={<Droplets />} />
-            </div>
-            <StatCard label="Barometric Pressure" value={currentData.pressure.toFixed(1)} unit="HPA" icon={<Gauge />} />
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="tech-card p-5 flex flex-col items-center justify-center bg-gradient-to-br from-paper to-bg border-accent/10 relative">
-                <div className="absolute top-1 right-2 w-1 h-1 rounded-full bg-accent/40" />
-                <div className="text-[8px] uppercase tracking-[0.2em] font-bold text-accent mb-2 font-mono">Solar Rad</div>
-                <div className="text-sm font-extrabold text-white font-mono">{currentData.solarRadiation.toFixed(0)}</div>
-                <div className="text-[7px] text-accent/50 font-mono mt-1 font-semibold uppercase">W/M²</div>
-              </div>
-              <div className="tech-card p-5 flex flex-col items-center justify-center bg-gradient-to-br from-paper to-bg border-accent/10 relative">
-                <div className="absolute top-1 right-2 w-1 h-1 rounded-full bg-secondary/40" />
-                <div className="text-[8px] uppercase tracking-[0.2em] font-bold text-accent mb-2 font-mono">Precipitation</div>
-                <div className="text-sm font-extrabold text-white font-mono">{currentData.rainfall.toFixed(1)}</div>
-                <div className="text-[7px] text-accent/50 font-mono mt-1 font-semibold uppercase">MM/H</div>
+
+              <div className="h-[210px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={history.slice(-24)} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorDailyWindSpd" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.4}/>
+                        <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.01}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                    <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 9 }} />
+                    <YAxis tick={{ fill: '#94a3b8', fontSize: 9 }} />
+                    <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#f59e0b' }} labelFormatter={(val) => format(val, 'dd-MM-yyyy HH:mm')} />
+                    <Area type="monotone" dataKey="windSpeed" name="Wind Speed (m/s)" stroke="#f59e0b" fillOpacity={1} fill="url(#colorDailyWindSpd)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
+
+            {/* Wind Vector shift visual compass plot (lg:col-span-5) */}
+            <div className="lg:col-span-5 bg-gradient-to-b from-[#0b1424]/40 to-bg border border-white/5 p-5 rounded-3xl flex flex-col justify-between min-h-[300px]">
+              <div>
+                {/* Title */}
+                <div className="text-[11px] font-bold text-[#00f0ff] uppercase tracking-widest flex justify-between items-center pb-2 border-b border-white/5 mb-3">
+                  <div className="flex items-center gap-2">
+                    <Navigation className="w-4 h-4 text-[#00f0ff] animate-pulse" />
+                    <span>Wind Vector Flow Path</span>
+                  </div>
+                  <span className="text-[8px] font-mono text-slate-500">24H TRACE</span>
+                </div>
+
+                {/* Top Section Layout: Compass (left) & Info Stats Card (right) */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-center">
+                  
+                  {/* SVG circular grid for plotting wind vector trail */}
+                  <div className="sm:col-span-6 flex justify-center">
+                    <div className="relative w-[130px] h-[130px] rounded-full border border-white/10 flex items-center justify-center bg-[#050a12]/80 shadow-[inset_0_0_15px_rgba(0,0,0,0.6)]">
+                      
+                      {/* Outer & Inner markers */}
+                      <span className="absolute top-1 text-[8px] font-bold text-slate-500">N</span>
+                      <span className="absolute right-1 text-[8px] font-bold text-slate-500">E</span>
+                      <span className="absolute bottom-1 text-[8px] font-bold text-slate-500">S</span>
+                      <span className="absolute left-1 text-[8px] font-bold text-slate-500">W</span>
+
+                      <div className="absolute w-10 h-10 rounded-full border border-white/5" />
+                      <div className="absolute w-20 h-20 rounded-full border border-white/5 border-dashed" />
+                      <div className="absolute w-[100px] h-[100px] rounded-full border border-white/10" />
+
+                      {/* SVG vector arrow plot */}
+                      <svg className="absolute w-full h-full pointer-events-none" viewBox="0 0 100 100">
+                        {(() => {
+                          const traceLogs = history.slice(-8);
+                          if (traceLogs.length === 0) return null;
+
+                          const points = traceLogs.map((log) => {
+                            const angleRad = ((log.windDirection - 90) * Math.PI) / 180;
+                            const radius = Math.min(42, Math.max(8, (log.windSpeed / 20) * 42));
+                            const x = 50 + radius * Math.cos(angleRad);
+                            const y = 50 + radius * Math.sin(angleRad);
+                            return { x, y, speed: log.windSpeed, dir: log.windDirection };
+                          });
+
+                          return (
+                            <>
+                              <path 
+                                d={`M ${points.map(p => `${p.x} ${p.y}`).join(' L ')}`} 
+                                fill="none" 
+                                stroke="url(#vectorTrailGrad)" 
+                                strokeWidth={1.5} 
+                                strokeDasharray="2 1"
+                              />
+                              
+                              <defs>
+                                <linearGradient id="vectorTrailGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.2} />
+                                  <stop offset="50%" stopColor="#a855f7" stopOpacity={0.6} />
+                                  <stop offset="100%" stopColor="#00f0ff" stopOpacity={1} />
+                                </linearGradient>
+                              </defs>
+
+                              {points.map((p, idx) => {
+                                const isLast = idx === points.length - 1;
+                                const arrowAngle = p.dir;
+                                return (
+                                  <g key={idx} transform={`translate(${p.x}, ${p.y}) rotate(${arrowAngle})`}>
+                                    <circle r={isLast ? 2 : 1} fill={isLast ? '#00f0ff' : '#a855f7'} />
+                                    <line 
+                                      x1={0} 
+                                      y1={0} 
+                                      x2={0} 
+                                      y2={-5} 
+                                      stroke={isLast ? '#00f0ff' : '#6366f1'} 
+                                      strokeWidth={isLast ? 1.5 : 1} 
+                                    />
+                                    <polyline 
+                                      points="-1.5,-3.5 0,-5 1.5,-3.5" 
+                                      fill="none" 
+                                      stroke={isLast ? '#00f0ff' : '#6366f1'} 
+                                      strokeWidth={isLast ? 1.5 : 1} 
+                                    />
+                                  </g>
+                                );
+                              })}
+                            </>
+                          );
+                        })()}
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* High Tech Vector Statistics Side Card */}
+                  <div className="sm:col-span-6 space-y-1.5 text-[10px] font-sans">
+                    <div className="bg-[#050a12]/70 p-2.5 rounded-xl border border-white/5 space-y-1.5">
+                      <span className="text-[7.5px] uppercase font-bold tracking-widest text-[#00f0ff]/80 block">Vector Statistics</span>
+                      
+                      <div className="flex justify-between items-center py-0.5 border-b border-white/5">
+                        <span className="text-slate-400">Avg Speed:</span>
+                        <span className="font-extrabold text-white font-mono">
+                          {(history.reduce((sum, h) => sum + h.windSpeed, 0) / Math.max(1, history.length)).toFixed(1)} <span className="text-[7px]">m/s</span>
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center py-0.5 border-b border-white/5">
+                        <span className="text-slate-400">Dominant:</span>
+                        <span className="font-extrabold text-amber-400 font-mono">
+                          {(() => {
+                            const sectors = history.slice(-24).map(h => getWindRoseString(h.windDirection));
+                            const occurrences: { [key: string]: number } = {};
+                            let maxSector = 'N/A';
+                            let maxCount = 0;
+                            sectors.forEach(s => {
+                              occurrences[s] = (occurrences[s] || 0) + 1;
+                              if (occurrences[s] > maxCount) {
+                                maxCount = occurrences[s];
+                                maxSector = s;
+                              }
+                            });
+                            return `${maxSector} (${maxCount}x)`;
+                          })()}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center py-0.5 text-[9px]">
+                        <span className="text-slate-500 font-mono">SAMPLE RUN</span>
+                        <span className="text-[#3b82f6] font-mono font-bold">{history.slice(-24).length} logs / 24H</span>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Bottom Section: Chronological sequence of latest 5 logs visually rendered as a horizontal track */}
+              <div className="space-y-1.5 mt-3 pt-2 border-t border-white/5">
+                <div className="flex justify-between items-center text-[8.5px] text-slate-400 uppercase tracking-widest font-sans">
+                  <span>Recent Wind Vectors (Sequence)</span>
+                  <span className="text-[7.5px] font-mono text-[#00f0ff]/50">CHRONO FLOW ➡️</span>
+                </div>
+                
+                <div className="grid grid-cols-5 gap-1.5">
+                  {history.slice(-5).reverse().map((row, idx) => {
+                    const directionName = getWindRoseString(row.windDirection);
+                    return (
+                      <div key={idx} className="bg-[#050a12] border border-white/5 p-1 rounded-lg text-center space-y-0.5 hover:border-[#00f0ff]/20 transition-all">
+                        <span className="text-[7.5px] text-slate-500 font-mono block">{format(row.timestamp, 'HH:mm')}</span>
+                        
+                        {/* Interactive compass arrow visually rotated */}
+                        <div className="flex justify-center py-0.5">
+                          <Navigation 
+                            className="w-3 h-3 text-[#00f0ff]" 
+                            style={{ transform: `rotate(${row.windDirection}deg)` }}
+                          />
+                        </div>
+                        
+                        <div className="text-[9px] font-black text-slate-200">{directionName}</div>
+                        <div className="text-[7.5px] font-mono font-bold text-amber-500 bg-amber-500/10 rounded-sm py-0.2">
+                          {row.windSpeed.toFixed(0)} <span className="text-[6px]">m/s</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
           </div>
-        </section>
+          </>
+        )}
+
+        {/* PAGE tab 2: CHART ANALYST */}
+        {activeTab === 'analyst' && (
+          <div className="space-y-8">
+            
+            {/* Calendar filters & action panels */}
+            <div className="bg-gradient-to-b from-[#0b1424] to-bg p-5 rounded-2xl border border-white/10 flex flex-wrap gap-5 items-end">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-2 font-sans">Start Analysis Date</label>
+                <input 
+                  type="date" 
+                  value={dbStartDate}
+                  onChange={(e) => setDbStartDate(e.target.value)}
+                  className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-2 px-3.5 rounded-lg outline-none focus:border-[#00f0ff] transition" 
+                />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-2 font-sans">End Analysis Date</label>
+                <input 
+                  type="date" 
+                  value={dbEndDate}
+                  onChange={(e) => setDbEndDate(e.target.value)}
+                  className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-2 px-3.5 rounded-lg outline-none focus:border-[#00f0ff] transition" 
+                />
+              </div>
+              <button 
+                onClick={filterLogsData}
+                className="bg-[#00f0ff] hover:bg-[#00d0f0] transition text-[#050a12] text-xs font-bold font-mono py-2.5 px-6 rounded-lg uppercase flex items-center gap-2 cursor-pointer"
+              >
+                <RefreshCw className="w-4 h-4" />
+                REFRESH ANALYTICS DATA
+              </button>
+            </div>
+
+            {/* Row of 3 charts containing: Temp, Hum, Solar */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+              
+              {/* Temp Area Chart */}
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3">
+                <div className="text-[10.5px] uppercase font-bold text-[#00f0ff] tracking-[0.2em] font-sans pb-2 border-b border-white/5">
+                  📈 Air Temperature History (°C)
+                </div>
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={history.slice(-25)}>
+                      <defs>
+                        <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.4}/>
+                          <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#38bdf8' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
+                      <Area type="monotone" dataKey="temperature" stroke="#38bdf8" fillOpacity={1} fill="url(#colorTemp)" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Humidity Area Chart */}
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3">
+                <div className="text-[10.5px] uppercase font-bold text-[#22c55e] tracking-[0.2em] font-sans pb-2 border-b border-white/5">
+                  📈 Relative Humidity History (%)
+                </div>
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={history.slice(-25)}>
+                      <defs>
+                        <linearGradient id="colorHum" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#22c55e" stopOpacity={0.4}/>
+                          <stop offset="100%" stopColor="#22c55e" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#22c55e' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
+                      <Area type="monotone" dataKey="humidity" stroke="#22c55e" fillOpacity={1} fill="url(#colorHum)" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Solar Radiation Spline Chart */}
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3">
+                <div className="text-[10.5px] uppercase font-bold text-[#f59e0b] tracking-[0.2em] font-sans pb-2 border-b border-white/5">
+                  📈 Solar Irradiance Acc. (W/m²)
+                </div>
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={history.slice(-25)}>
+                      <defs>
+                        <linearGradient id="colorSolar" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.4}/>
+                          <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#f59e0b' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
+                      <Area type="monotone" dataKey="solarRadiation" stroke="#f59e0b" fillOpacity={1} fill="url(#colorSolar)" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+            </div>
+
+            {/* AI MARINE PORT FORECAST ENGINE (PURPLE GLOW HIGH CONTRAST BOX) */}
+            <div className="border-[1.5px] border-purple-500/30 rounded-3xl p-6 bg-gradient-to-tr from-[#160f26] via-[#0b1424] to-bg relative shadow-[0_0_50px_rgba(168,85,247,0.15)] flex flex-col gap-6">
+              
+              <div className="absolute top-0 right-10 w-24 h-[1px] bg-gradient-to-r from-transparent via-purple-400 to-transparent" />
+              
+              <div className="flex flex-col md:flex-row pb-4 border-b border-white/10 items-start md:items-center justify-between gap-4">
+                <div>
+                  <h4 className="text-sm font-black text-purple-400 uppercase tracking-[0.25em] flex items-center gap-2">
+                    ⚡ AI MARINE PORT FORECAST ENGINE
+                  </h4>
+                  <p className="text-[9px] text-[#cbd5e1] font-mono mt-1 opacity-70">
+                    Sistem Prediksi Real-Time Berdasarkan Live Momentum Sensor Versus Database Kemarin (60m Ahead)
+                  </p>
+                </div>
+                <div className="bg-purple-900/40 border border-purple-500/30 font-mono text-[8px] font-bold py-1 px-4 tracking-widest text-[#e9d5ff] rounded">
+                  ENGINE STATUS: AUTOMATIC_MOMENTUM
+                </div>
+              </div>
+
+              {/* Rows of Forecast line charts containing: Wave, Wind & Safety Warning panel */}
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-stretch">
+                
+                {/* 1-Hour Wave Height Line Chart */}
+                <div className="xl:col-span-4 bg-[#050a12]/70 border border-white/5 p-4 rounded-xl flex flex-col justify-between">
+                  <div className="text-[10px] uppercase font-bold text-slate-300 tracking-[0.15em] mb-3 flex justify-between">
+                    <span>🌊 Wave Height Forecast (m)</span>
+                    <span className="text-[8px] font-mono text-purple-400">10m Steps</span>
+                  </div>
+                  <div className="h-[210px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={aiForecastResult.combinedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                        <XAxis dataKey="time" tick={{ fill: '#94a3b8', fontSize: 9 }} />
+                        <YAxis tick={{ fill: '#94a3b8', fontSize: 9 }} domain={['auto', 'auto']} />
+                        <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#a855f7' }} />
+                        <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'monospace' }} />
+                        <Line type="monotone" dataKey="pastWave" name="Past" stroke="#0ea5e9" strokeWidth={2.5} dot={false} connectNulls />
+                        <Line type="monotone" dataKey="futWave" name="Forecast" stroke="#a855f7" strokeWidth={3} strokeDasharray="5 5" dot={false} connectNulls />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* 1-Hour Wind Gust Line Chart */}
+                <div className="xl:col-span-4 bg-[#050a12]/70 border border-white/5 p-4 rounded-xl flex flex-col justify-between">
+                  <div className="text-[10px] uppercase font-bold text-slate-300 tracking-[0.15em] mb-3 flex justify-between">
+                    <span>💨 Wind Force Forecast (m/s)</span>
+                    <span className="text-[8px] font-mono text-purple-400">10m Steps</span>
+                  </div>
+                  <div className="h-[210px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={aiForecastResult.combinedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                        <XAxis dataKey="time" tick={{ fill: '#94a3b8', fontSize: 9 }} />
+                        <YAxis tick={{ fill: '#94a3b8', fontSize: 9 }} domain={['auto', 'auto']} />
+                        <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#f59e0b' }} />
+                        <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'monospace' }} />
+                        <Line type="monotone" dataKey="pastWind" name="Past" stroke="#fbbf24" strokeWidth={2.5} dot={false} connectNulls />
+                        <Line type="monotone" dataKey="futWind" name="Forecast" stroke="#ef4444" strokeWidth={3} strokeDasharray="5 5" dot={false} connectNulls />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Storm & Gale Threat Radar warning interactive block */}
+                <div className={`xl:col-span-4 border rounded-2xl p-5 ${aiForecastResult.stormBg} flex flex-col justify-between text-center`}>
+                  <div className="text-[10px] uppercase font-bold text-slate-200 tracking-[0.15em] mb-2 flex justify-between">
+                    <span>⚠️ Storm & Gale Threat Radar</span>
+                    <span className="text-[8.5px] font-mono opacity-50">STORM_RDR_05</span>
+                  </div>
+
+                  <div className="my-auto flex flex-col items-center justify-center py-4">
+                    {/* Visual representation of radar danger: Gale wind spinner or boat */}
+                    <div className={`text-6xl mb-3 tracking-wider ${aiForecastResult.stormPulse}`}>
+                      {aiForecastResult.stormIcon}
+                    </div>
+
+                    {/* Threat indicator risk percent */}
+                    <div className="text-3xl font-mono tracking-tighter text-white font-black drop-shadow" style={{ color: aiForecastResult.stormColor, textShadow: `0 0 20px ${aiForecastResult.stormColor}50` }}>
+                      {aiForecastResult.stormProb}% Risk
+                    </div>
+
+                    {/* Standardised threat bar */}
+                    <div className="w-4/5 h-2.5 bg-white/5 rounded-full overflow-hidden mt-4 relative">
+                      <div 
+                        className="h-full rounded-full transition-all duration-1000 ease-out" 
+                        style={{ width: `${aiForecastResult.stormProb}%`, backgroundColor: aiForecastResult.stormColor, boxShadow: `0 0 10px ${aiForecastResult.stormColor}` }} 
+                      />
+                    </div>
+
+                    {/* Human Weather Status indicator */}
+                    <div 
+                      className="border border-white/10 rounded-full font-mono text-[10px] py-1.5 px-6 font-black uppercase inline-block mt-4"
+                      style={{ color: aiForecastResult.stormColor, borderColor: aiForecastResult.stormColor }}
+                    >
+                      {aiForecastResult.stormStatus}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
+        {/* PAGE tab 3: DATABASE LOG */}
+        {activeTab === 'database' && (
+          <div className="space-y-6">
+            
+            {/* Filter Log panel with CSV exporter */}
+            <div className="bg-gradient-to-b from-[#0b1424] to-bg p-5 rounded-2xl border border-white/10 flex flex-wrap gap-5 items-end justify-between">
+              <div className="flex flex-wrap gap-5 items-end">
+                <div>
+                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-[#00f0ff] mb-2 block font-sans">Start Log Period</span>
+                  <input 
+                    type="date" 
+                    value={dbStartDate}
+                    onChange={(e) => setDbStartDate(e.target.value)}
+                    className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-2 px-3 rounded-lg outline-none focus:border-[#00f0ff] transition" 
+                  />
+                </div>
+                <div>
+                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-[#00f0ff] mb-2 block font-sans">End Log Period</span>
+                  <input 
+                    type="date" 
+                    value={dbEndDate}
+                    onChange={(e) => setDbEndDate(e.target.value)}
+                    className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-2 px-3 rounded-lg outline-none focus:border-[#00f0ff] transition" 
+                  />
+                </div>
+                <div>
+                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-[#00f0ff] mb-2 block font-sans">Search Metrics</span>
+                  <input 
+                    type="text" 
+                    placeholder="Search temp, wind..."
+                    value={dbSearchTerm}
+                    onChange={(e) => setDbSearchTerm(e.target.value)}
+                    className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-2 px-3 rounded-lg outline-none focus:border-[#00f0ff] transition placeholder:text-slate-600" 
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button 
+                  onClick={filterLogsData}
+                  className="bg-[#00f0ff] hover:bg-[#00d0f0] transition text-[#050a12] text-xs font-bold font-mono py-2.5 px-6 rounded-lg uppercase cursor-pointer"
+                >
+                  Apply Filter
+                </button>
+                <button 
+                  onClick={exportLogsToCSV}
+                  className="bg-emerald-500 hover:bg-emerald-600 transition text-[#050a12] text-xs font-bold font-mono py-2.5 px-6 rounded-lg uppercase cursor-pointer text-slate-950"
+                >
+                  Export CSV File
+                </button>
+              </div>
+            </div>
+
+            {/* Industrial logs Table */}
+            <div className="bg-[#0b1424] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-[12px] text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[#050a12] border-b border-[#00f0ff]/20">
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-[10px]">DateTime</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-[10px]">Temp (°C)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-[10px]">Hum (%)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-[10px]">Rad (W/m²)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#22c55e] text-center text-[10px]">Wave (m)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-[10px]">W-Level (m)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-[10px]">W-Dir (°)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-[10px]">W-Spd (m/s)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-sky-400 text-center text-[10px]">Rain (mm)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-slate-400 text-center text-[10px]">Press (hPa)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 font-mono">
+                    {filteredLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="p-8 text-center uppercase tracking-widest text-slate-500 text-[10px]">
+                          No logged matching rows found. Adjust criteria.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredLogs.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-white/5 transition-colors">
+                          <td className="p-3 text-center border-r border-white/5 text-slate-300 font-sans">{format(item.timestamp, 'dd-MM-yyyy HH:mm:ss')}</td>
+                          <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.temperature.toFixed(1)}</td>
+                          <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.humidity}%</td>
+                          <td className="p-3 text-center border-r border-white/5 text-[#f59e0b]">{item.solarRadiation}</td>
+                          <td className="p-3 text-center border-r border-white/5 text-emerald-400 font-bold">{item.waveHeight.toFixed(2)}</td>
+                          <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">{item.seaLevel.toFixed(1)}m</td>
+                          <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.windDirection}°</td>
+                          <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">{item.windSpeed.toFixed(1)}</td>
+                          <td className="p-3 text-center border-r border-white/5 text-[#38bdf8]">{item.rainfall.toFixed(1)}</td>
+                          <td className="p-3 text-center text-slate-300 pr-4 text-right">{item.pressure.toFixed(1)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* PAGE tab 4: SETTINGS OPT */}
+        {activeTab === 'settings' && (
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+            
+            {/* COLUMN 1: Hardware & Network (width 4/12) */}
+            <div className="xl:col-span-4 space-y-6">
+              
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-4">
+                <div className="text-[11px] uppercase font-bold text-[#f59e0b] tracking-[0.2em] border-b border-white/5 pb-2">
+                  🔒 Hardware & Network Config
+                </div>
+
+                <div className="space-y-3 font-sans">
+                  <div>
+                    <label className="text-[8.5px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1">Logger Mode</label>
+                    <select 
+                      value={config.transport} 
+                      onChange={(e) => setConfig({ ...config, transport: e.target.value })}
+                      className="w-full bg-[#050a12] border border-white/10 font-mono text-xs select-none p-2 text-white rounded outline-none"
+                    >
+                      <option value="OFF">OFF</option>
+                      <option value="SERIAL">SERIAL COM</option>
+                      <option value="TCP">TCP/IP SERVER</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[8.5px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1">Splitter Char</label>
+                    <input 
+                      type="text" 
+                      value={config.splitchar} 
+                      onChange={(e) => setConfig({ ...config, splitchar: e.target.value })}
+                      className="w-full bg-[#050a12] border border-white/10 font-mono text-xs text-center p-2 text-white rounded outline-none" 
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[8.5px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1">COM / IP PC</label>
+                      <input 
+                        type="text" 
+                        value={config.serialcom} 
+                        onChange={(e) => setConfig({ ...config, serialcom: e.target.value })}
+                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs text-center p-2 text-white rounded outline-none" 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[8.5px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1">Baudrate / Port</label>
+                      <input 
+                        type="text" 
+                        value={config.baudrate} 
+                        onChange={(e) => setConfig({ ...config, baudrate: e.target.value })}
+                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs text-center p-2 text-white rounded outline-none" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="border-t border-white/5 pt-3">
+                    <label className="text-[8.5px] uppercase font-bold text-emerald-400 tracking-wider block mb-1">Visual Terminal Angle (Degrees 0-360)</label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      max="360"
+                      value={config.pierAngle} 
+                      onChange={(e) => setConfig({ ...config, pierAngle: e.target.value })}
+                      className="w-full bg-[#050a12] border border-white/15 font-mono text-sm text-center p-2 text-emerald-400 font-black rounded outline-none cursor-pointer" 
+                    />
+                  </div>
+
+                  {/* Cloud Mode configs */}
+                  <div className="border-t border-white/5 pt-3 space-y-2">
+                    <div>
+                      <label className="text-[8.5px] uppercase font-bold text-[#22c55e] tracking-wider block mb-1">Cloud Mode</label>
+                      <select 
+                        value={config.cloudMode}
+                        onChange={(e) => setConfig({ ...config, cloudMode: e.target.value })}
+                        className="w-full bg-[#050a12] border border-[#22c55e]/25 font-mono text-xs p-2 text-white rounded outline-none"
+                      >
+                        <option value="OFF">OFF</option>
+                        <option value="HTTP">HTTP API</option>
+                        <option value="FTP">FTP</option>
+                        <option value="BOTH">BOTH</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[8.5px] uppercase font-bold text-slate-400 tracking-wider block mb-1">HTTP API URL</label>
+                      <input 
+                        type="text" 
+                        value={config.httpUrl}
+                        onChange={(e) => setConfig({ ...config, httpUrl: e.target.value })}
+                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs text-left p-2 text-slate-300 rounded outline-none" 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Scrolling Raw Stream Monitor */}
+              <div className="bg-[#020408] border border-[#22c55e]/30 rounded-2xl overflow-hidden shadow-xl flex flex-col justify-between">
+                <div className="bg-gradient-to-r from-slate-900 to bg p-3 border-b border-[#22c55e]/20 text-[9.5px] uppercase font-mono font-bold text-[#22c55e] flex justify-between items-center">
+                  <span>📟 Raw Stream Monitor</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                </div>
+                <textarea 
+                  readOnly 
+                  value={streamLogs}
+                  className="w-full h-44 bg-[#010306] border-none text-[10.5px] font-mono leading-relaxed p-4 text-emerald-400 outline-none resize-none"
+                />
+              </div>
+
+            </div>
+
+            {/* COLUMN 2: Channel mappings & indices (width 8/12) */}
+            <div className="xl:col-span-8 space-y-6">
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gradient-to-b from-[#0b1424] to-bg p-4.5 rounded-xl border border-white/10 flex justify-between items-center">
+                  <div>
+                    <span className="text-[8.5px] uppercase tracking-wider text-[#00f0ff] font-bold block mb-1">Date Time Index</span>
+                    <select 
+                      value={config.ind_date}
+                      onChange={(e) => setConfig({ ...config, ind_date: e.target.value })}
+                      className="bg-[#050a12] border border-white/10 font-mono text-xs p-1 text-white rounded outline-none"
+                    >
+                      {[...Array(20)].map((_, i) => (
+                        <option key={i} value={i}>{i}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="bg-[#050a12] border border-yellow-500 rounded p-2 text-center text-xs font-mono font-black text-yellow-500 min-w-[70px]">
+                    {format(new Date(), 'dd-MM-yyyy')}
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-b from-[#0b1424] to-bg p-4.5 rounded-xl border border-white/10 flex justify-between items-center">
+                  <div>
+                    <span className="text-[8.5px] uppercase tracking-wider text-[#00f0ff] font-bold block mb-1">Station ID Index</span>
+                    <select 
+                      value={config.ind_id}
+                      onChange={(e) => setConfig({ ...config, ind_id: e.target.value })}
+                      className="bg-[#050a12] border border-white/10 font-mono text-xs p-1 text-white rounded outline-none"
+                    >
+                      {[...Array(20)].map((_, i) => (
+                        <option key={i} value={i}>{i}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="bg-[#050a12] border border-[#00f0ff] rounded p-2 text-center text-xs font-mono font-black text-[#00f0ff] min-w-[70px]">
+                    {config.idStation}
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid of channels to index splits mapping (17 metrics) */}
+              <div className="bg-gradient-to-br from-[#0c1625] to-bg border border-white/10 p-6 rounded-3xl">
+                <div className="text-[11px] font-bold text-[#00f0ff] uppercase tracking-widest mb-6 pb-2 border-b border-white/5">
+                  🕹️ Sensor Channel Mapping Indexes
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { label: 'Air Temp', key: 'ch_0', color: '#4ade80', source: currentData.temperature.toFixed(1) + ' °C' },
+                    { label: 'Temp Avg', key: 'ch_2', color: '#4ade80', source: tempStats.avg + ' °C' },
+                    { label: 'Temp Max', key: 'ch_4', color: '#f87171', source: tempStats.max + ' °C' },
+                    { label: 'Temp Min', key: 'ch_6', color: '#22d3ee', source: tempStats.min + ' °C' },
+                    { label: 'Humidity', key: 'ch_8', color: '#00f0ff', source: currentData.humidity + ' %' },
+                    { label: 'Dew Point', key: 'ch_12', color: '#00f0ff', source: computeDewPoint(currentData.temperature, currentData.humidity) + ' °C' },
+                    { label: 'Rain Rate', key: 'ch_1', color: '#38bdf8', source: currentData.rainfall.toFixed(1) + ' mm/h' },
+                    { label: 'Rain Acc.', key: 'ch_3', color: '#38bdf8', source: rainAccum + ' mm' },
+                    { label: 'Solar Rad.', key: 'ch_5', color: '#f59e0b', source: currentData.solarRadiation + ' W/m²' },
+                    { label: 'Wave Ht.', key: 'ch_14', color: '#3b82f6', source: currentData.waveHeight + ' m' },
+                    { label: 'Water Lvl', key: 'ch_15', color: '#3b82f6', source: currentData.seaLevel.toFixed(1) + ' m' },
+                    { label: 'Wind Dir', key: 'ch_16', color: '#fbbf24', source: currentData.windDirection + ' °' },
+                    { label: 'Wind Spd', key: 'ch_17', color: '#fbbf24', source: currentData.windSpeed.toFixed(1) + ' m/s' },
+                    { label: 'Pres QFE', key: 'ch_9', color: '#94a3b8', source: currentData.pressure.toFixed(1) + ' hPa' },
+                    { label: 'Pres QFF', key: 'ch_11', color: '#94a3b8', source: (currentData.pressure + 2.1).toFixed(1) + ' hPa' },
+                    { label: 'Pres QNH', key: 'ch_13', color: '#94a3b8', source: (currentData.pressure - 1.2).toFixed(1) + ' hPa' },
+                    { label: 'Pres STN', key: 'ch_7', color: '#94a3b8', source: currentData.pressure.toFixed(1) + ' hPa' }
+                  ].map((sensor, s_idx) => (
+                    <div key={s_idx} className="bg-[#050a12]/70 border border-white/5 p-3 rounded-lg flex flex-col justify-between gap-1">
+                      <span className="text-[8.5px] uppercase font-mono tracking-wider font-extrabold text-slate-400 block">{sensor.label} ({sensor.key})</span>
+                      <div className="flex gap-2 items-center">
+                        <select 
+                          value={config.sensors[sensor.key as keyof typeof config.sensors]}
+                          onChange={(e) => {
+                            const updatedSensors = { ...config.sensors, [sensor.key]: e.target.value };
+                            setConfig({ ...config, sensors: updatedSensors });
+                          }}
+                          className="bg-[#050a12] border border-white/10 font-mono text-[9px] w-[50px] text-white p-1 rounded outline-none"
+                        >
+                          <option value="OFF">OFF</option>
+                          {[...Array(25)].map((_, i) => (
+                            <option key={i} value={i}>{i}</option>
+                          ))}
+                        </select>
+                        <div className="flex-1 bg-[#010306] border border-white/5 py-1 px-2 rounded font-mono text-[10px] text-center font-black truncate" style={{ color: sensor.color }}>
+                          {sensor.source}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action indicators and manual buttons */}
+              <div className="grid grid-cols-2 gap-4">
+                <button 
+                  onClick={() => {
+                    localStorage.removeItem('aws_config');
+                    setConfig(DEFAULT_CONFIG);
+                    showToastNotification('Config Reset to Factory Default');
+                  }}
+                  className="bg-amber-500 hover:bg-amber-600 font-mono rounded-lg p-3 text-xs font-bold text-slate-950 uppercase cursor-pointer text-center"
+                >
+                  FACTORY RESET OPT
+                </button>
+                <button 
+                  onClick={() => handleSaveConfig(config)}
+                  className="bg-emerald-500 hover:bg-emerald-600 font-mono rounded-lg p-3 text-xs font-black text-slate-950 uppercase cursor-pointer text-center"
+                >
+                  SAVE ACTIVE CONFIG
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
       </main>
-      
-      {/* HUD Overlays */}
-      <div className="fixed bottom-4 right-6 pointer-events-none opacity-40 flex flex-col items-end gap-1">
-        <div className="text-[8px] font-mono uppercase text-accent font-bold tracking-widest">System: AIS_PORT_RELAY_PROX_v1.5</div>
-        <div className="text-[8px] font-mono uppercase tracking-[0.1em] text-white">Lat: -6.1033 | Lon: 106.8833</div>
-      </div>
-    </div>
-  );
-}
 
-function NavItem({ icon, active = false, label }: { icon: React.ReactNode, active?: boolean, label: string }) {
-  return (
-    <div className={`group relative cursor-pointer p-4 rounded-xl transition-all duration-300 ${active ? 'bg-accent/15 text-accent border border-accent/30 shadow-[0_0_20px_rgba(0,240,255,0.25)]' : 'text-white/40 hover:text-white/80 hover:bg-white/5'}`}>
-      {icon}
-      <div className="absolute left-full ml-4 px-3 py-1.5 bg-paper text-white text-[9.5px] tracking-widest font-bold uppercase rounded-lg border border-accent/20 shadow-xl opacity-0 group-hover:opacity-100 transition-all transform translate-x-[-10px] group-hover:translate-x-0 whitespace-nowrap pointer-events-none z-50 font-mono">
-        {label}
-      </div>
-      {active && <motion.div layoutId="nav-pill" className="absolute left-0 top-1/4 bottom-1/4 w-0.5 bg-accent rounded-full" />}
+      {/* Decorative subtle console metadata footer */}
+      <footer className="fixed bottom-3 right-6 pointer-events-none opacity-20 flex flex-col items-end gap-0.5">
+        <span className="text-[7.5px] font-mono tracking-widest text-[#00f0ff] uppercase">RMS SYS STN: CONNECTED SECURE</span>
+        <span className="text-[7.5px] font-mono tracking-widest text-slate-500">UTC: 2026-06-06 UTC+7 LOCAL SYSTEM</span>
+      </footer>
     </div>
   );
 }
