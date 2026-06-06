@@ -140,4 +140,4 @@ Selain menangkap data, sistem terminal aplikasi cerdas ini mampu melakukan "Smar
     *   Aplikasi dapat mengunggah cadangan log dalam bentuk file XML standar atau biner aman ke server FTP cadangan secara otomatis menggunakan pengaturan kredensial FTP (`Host`, `User`, `Pass`, dan `Directory Path`).
 
 ---
-*Dokumen ini dibuat secara otomatis oleh sistem asisten virtual AI Studio sebagai panduan operasional integrasi aplikasi.*
+
