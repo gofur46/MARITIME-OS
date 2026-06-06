@@ -9,6 +9,7 @@ export interface WeatherData {
   rainfall: number; // mm
   waveHeight: number; // meters
   seaLevel: number; // cm (relative to mean)
+  waterPh: number; // pH scale 0-14
 }
 
 export type AlertLevel = 'Normal' | 'Caution' | 'Warning' | 'Critical';

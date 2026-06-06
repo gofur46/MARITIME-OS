@@ -31,6 +31,7 @@ Menampilkan data metrik krusial atmosfer dan maritim secara langsung dengan resp
     *   *Barometric Air Pressure STN*: Tekanan atmosfer murni stasiun dengan visualisasi data box taktis bergaris batas sejajar.
 4.  **Sektor Kanan & Sensor Akumulasi**:
     *   *Solar Radiation Irradiance*: Radiasi matahari (W/m²) tampil eksklusif dalam kotak instrumen premium yang ringkas dan hemat ruang.
+    *   *Sea Water pH Quality Indicator*: Parameter sensor pH air laut terbaru untuk memantau kelestarian ekosistem pelabuhan dan tingkat keasaman air pelabuhan. Dilengkapi dengan status penanda otomatis (Ideal/Netral, Asam, Basa, atau Bahaya Eksitasi).
     *   *Pressure ATN Info*: Detail tekanan atmosfer yang sejajar tinggi vertikalnya, terdiri dari parameter:
         *   **STN (Station Pressure)**: Tekanan nyata stasiun.
         *   **QFE (Elevation Pressure)**: Koreksi ketinggian landasan.
@@ -45,11 +46,12 @@ Menampilkan data metrik krusial atmosfer dan maritim secara langsung dengan resp
 *   **Storm & Gale Threat Radar**: Visualisasi zona interaktif untuk menganalisis badai, pusaran angin kencang (*gale*), serta potensi bahaya cuaca buruk lainnya di sekitar wilayah perairan pelabuhan.
 
 ### C. Basis Data & Log Historis (Tab Database)
-*   **Data Telemetry Ledger**: Tabel komprehensif berisi seluruh riwayat pembacaan sensor cuaca menit-demi-menit.
-*   **Filter & Navigasi**: Kemudahan membaca data historis, status ekspor data, hingga pencarian log berbahaya secara instan demi kebutuhan investigasi keselamatan operasi kapal.
+*   **Data Telemetry Ledger**: Tabel komprehensif berisi seluruh riwayat pembacaan sensor cuaca menit-demi-menit, kini dilengkapi kolom khusus **pH Air** untuk analisis pencemaran lingkungan laut pelabuhan secara berkala.
+*   **Filter & Navigasi**: Kemudahan membaca data historis, status ekspor data (*CSV File Export with pH*), hingga pencarian log berbahaya secara instan demi kebutuhan investigasi keselamatan operasi kapal.
 
 ### D. Pengaturan Konsol (Tab Settings)
 *   **Pier Angle Adjustment**: Pengaturan dinamis orientasi spasial dermaga kapal (dalam derajat) untuk menyesuaikan layout geografis asli pelabuhan Anda.
+*   **Water pH Alarm Limits**: Konfigurasi nilai ambang batas minimum (*Acid Limit* standar: `6.5`) dan batas maksimum (*Alkali Limit* standar: `8.5`) untuk menjamin kepatuhan baku mutu air laut pelabuhan dan memicu alarm visual di dashboard realtime secara otomatis.
 *   **Sensitivitas Threshold**: Mengganti toleransi batas maksimum parameter alarm angin dan gelombang tinggi.
 *   **Feed Mode**: Pilihan untuk beralih antara simulasi sensor dinamis atau integrasi umpan data real-time stasiun cuaca.
 
@@ -76,3 +78,66 @@ Aplikasi dibangun menggunakan struktur kode tangguh standar industri modern:
 
 ---
 
+## 📡 5. KONEKTIVITAS & TRANSMISI TELEMETRI (SERIAL & TCP)
+
+Sistem ini didesain dengan fleksibilitas industri tinggi untuk mendukung akuisisi data dari berbagai instrumen sensor lapangan (*automatic weather station*) melalui protokol komunikasi standardisasi industri maritim.
+
+### A. Protokol Antarmuka Fisik & Jaringan
+Aplikasi mendukung tiga mode transportasi transmisi utama yang dapat dikonfigurasi melalui tab **Settings**:
+
+1.  **Koneksi Serial Hardware (RS232 / RS485 / USB-to-Serial)**
+    *   **Port Komunikasi**: Dukungan pemilihan port COM kustom (misal: `COM1` s/d `COM8`) secara dinamis.
+    *   **Baud Rate (Kecepatan Simbol)**: Mendukung kecepatan baud industri standar (`1200`, `2400`, `4800`, `9600`, `19200`, `38400`, `57600`, `115200` bps).
+    *   **Data Protokol**: Mengalirkan paket string sensor mentah per detik secara asinkronus ke server terminal konsol.
+2.  **Koneksi Jaringan TCP/IP Socket (TCP Server/Client)**
+    *   **Metode Transmisi**: Menggunakan paket soket TCP biner atau string beralamat IP lokal/publik pelabuhan.
+    *   **Keunggulan**: Memungkinkan pembacaan nirkabel (*wireless*) jarak jauh melalui infrastruktur Wi-Fi pelabuhan, Radio Link, atau jaringan seluler 4G/5G dari modul transmisi telemetri di tengah laut.
+3.  **Mode Pengiriman Non-Aktif (OFF)**
+    *   Sistem berjalan dalam mode terisolasi (*stand-alone simulator*) menggunakan generator stochastic untuk pemeliharaan sistem (*maintenance mode*) tanpa interupsi eksternal.
+
+---
+
+### B. Format Paket Data Aliran Masuk (Raw Data Telemetry Packet)
+Data telemetry ditransmisikan dalam format baris teks terkompresi dengan pemisah karakter (*delimiter*) kustom (contoh default menggunakan semicolon `;`). Format ini sangat hemat bandwidth dan ramah terhadap mikrokompresor mikrokontroler.
+
+#### 📝 Formula Struktur String Data:
+```text
+[ID_STATION][SPLIT_CHAR][DATE_TIME][SPLIT_CHAR][AIR_TEMP][SPLIT_CHAR][HUMIDITY][SPLIT_CHAR][SOLAR_RAD][SPLIT_CHAR][RAIN_RATE][SPLIT_CHAR][WAVE_HEIGHT][SPLIT_CHAR][WATER_LEVEL][SPLIT_CHAR][WATER_PH][SPLIT_CHAR][WIND_DIR][SPLIT_CHAR][WIND_SPD][SPLIT_CHAR][BARO_PRES]
+```
+
+#### 📊 Skema Kamus Indeks Variabel:
+
+| No | Nama Parameter | Simbol / Satuan | Contoh Nilai | Deskripsi Teknis |
+| :--- | :--- | :---: | :---: | :--- |
+| **1** | **Station ID** | *Alphanumeric* | `SYS1000` | Kode identitas otentikasi hardware stasiun cuaca pelabuhan |
+| **2** | **Timestamp** | `DD-MM-YYYY HH:mm:ss` | `06-06-2026 10:45:00` | Waktu lokal pencatatan sensor terkalibrasi waktu satelit / NTP |
+| **3** | **Air Temperature** | `°C` | `28.5` | Suhu termal sekitar lingkungan pelabuhan udara terbuka |
+| **4** | **Humidity** | `%` | `78` | Kelembapan relatif atmosfer laut |
+| **5** | **Solar Radiation** | `W/m²` | `480` | Intensitas penyinaran energi matahari langsung |
+| **6** | **Rain Rate** | `mm/hr` | `0.0` | Derajat intensitas curah hujan seketika (*instantaneous rainfall*) |
+| **7** | **Wave Height** | `meter` | `0.85` | Tinggi gelombang laut efektif di area dermaga luar |
+| **8** | **Water Level** | `cm` | `145.2` | Ketinggian permukaan air laut absolut berpatokan pada sensor pasut |
+| **9** | **Water pH** | *pH Scale* | `7.82` | Tingkat keasaman air laut pelabuhan untuk pencegahan korosi lambung kapal |
+| **10** | **Wind Direction** | `degree (°)` | `165` | Arah datangnya angin (0° - 359° searah jarum jam utara murni) |
+| **11** | **Wind Speed** | `m/s` | `4.2` | Kecepatan laju tiupan angin permukaan dermaga maritim |
+| **12** | **Barometric Pressure** | `hPa` | `1012.3` | Sensor barik stasiun murni sebelum normalisasi sea level |
+
+#### 📨 Contoh Paket Data Asli Seri SERIAL/TCP Terkirim:
+```syslog
+SYS1000;06-06-2026 10:45:02;28.5;78;480;0.0;0.85;145.2;7.82;165;4.2;1012.3
+```
+
+---
+
+### C. Sistem Pengiriman Eksternal Integrasi Cloud (Cloud Push Upward)
+Selain menangkap data, sistem terminal aplikasi cerdas ini mampu melakukan "Smart Forwarding" ke cloud server eksternal:
+
+1.  **HTTP REST API Webhook Client**
+    *   **Protokol**: HTTP POST Request dengan payload terstruktur.
+    *   **Endpoint**: URL tujuan kustom (default: `https://api.portmarine.gov/aws/v1`) untuk integrasi data tingkat nasional atau instansi BMKG daerah setempat.
+    *   **Interval**: Mengirimkan bundle log telemetry maritim secara berkala sesuai frekuensi sinkronisasi yang ditentukan.
+2.  **FTP Server Automated Archiver**
+    *   Aplikasi dapat mengunggah cadangan log dalam bentuk file XML standar atau biner aman ke server FTP cadangan secara otomatis menggunakan pengaturan kredensial FTP (`Host`, `User`, `Pass`, dan `Directory Path`).
+
+---
+*Dokumen ini dibuat secara otomatis oleh sistem asisten virtual AI Studio sebagai panduan operasional integrasi aplikasi.*

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Thermometer, Droplets, Wind, Navigation, Gauge, Sun, CloudRain, 
+  Thermometer, Droplets, Droplet, Wind, Navigation, Gauge, Sun, CloudRain, 
   Waves, MoveDown, LayoutDashboard, History, Settings, FileText,
   AlertTriangle, Play, RefreshCw, Send, CheckCircle, Database
 } from 'lucide-react';
@@ -32,6 +32,8 @@ const DEFAULT_CONFIG = {
   ftpPath: '/data/xml',
   ind_date: '1',
   ind_id: '0',
+  minPhThreshold: '6.5', // Default min safe pH
+  maxPhThreshold: '8.5', // Default max safe pH
   sensors: {
     'ch_0': '2',   // Air Temp
     'ch_2': '2',   // Temp Avg (let's map to Temp source with average)
@@ -49,7 +51,8 @@ const DEFAULT_CONFIG = {
     'ch_7': '12',  // Pressure STN
     'ch_9': '12',  // Pres QFE
     'ch_11': '12', // Pres QFF
-    'ch_13': '12'  // Pres QNH
+    'ch_13': '12', // Pres QNH
+    'ch_18': '13'  // Water pH
   }
 };
 
@@ -71,7 +74,8 @@ const generateInitialLogs = (count: number): WeatherData[] => {
       solarRadiation: Math.round(250 + Math.random() * 400),
       rainfall: Math.random() > 0.88 ? parseFloat((Math.random() * 4).toFixed(1)) : 0,
       waveHeight: parseFloat((0.4 + Math.random() * 1.5).toFixed(2)),
-      seaLevel: parseFloat((120 + Math.random() * 50).toFixed(1)) // cm
+      seaLevel: parseFloat((120 + Math.random() * 50).toFixed(1)), // cm
+      waterPh: parseFloat((7.6 + Math.random() * 0.8).toFixed(2)) // pH
     });
   }
   return data;
@@ -136,6 +140,7 @@ export default function App() {
       const nextRainRate = Math.random() > 0.9 ? parseFloat((Math.random() * 6).toFixed(1)) : 0;
       const nextWave = parseFloat((0.3 + Math.random() * 1.6).toFixed(2));
       const nextSeaLvl = parseFloat((110 + Math.random() * 60).toFixed(1));
+      const nextPh = parseFloat((7.4 + Math.random() * 0.8).toFixed(2));
 
       // Append rain accum if raining
       if (nextRainRate > 0) {
@@ -152,7 +157,8 @@ export default function App() {
         solarRadiation: nextSolar,
         rainfall: nextRainRate,
         waveHeight: nextWave,
-        seaLevel: nextSeaLvl
+        seaLevel: nextSeaLvl,
+        waterPh: nextPh
       };
 
       setHistory(prev => {
@@ -168,8 +174,8 @@ export default function App() {
       // Update terminal stream simulator
       if (config.transport !== 'OFF') {
         const dateStr = format(pctime, 'dd-MM-yyyy HH:mm:ss');
-        // Synthesize string like: "SYS1000;26-05-2026 15:33:02;28.5;28.3;29.4;27.6;79.2;14.2;0.0;0.5;420.0;1.12;14.50;90.2;10.5;1011.2;1011.5;1011.1"
-        const rawString = `${config.idStation}${config.splitchar}${dateStr}${config.splitchar}${newRecord.temperature.toFixed(1)}${config.splitchar}${newRecord.humidity}${config.splitchar}${newRecord.solarRadiation}${config.splitchar}${newRecord.rainfall.toFixed(1)}${config.splitchar}${newRecord.waveHeight.toFixed(2)}${config.splitchar}${newRecord.seaLevel.toFixed(1)}${config.splitchar}${newRecord.windDirection}${config.splitchar}${newRecord.windSpeed.toFixed(1)}${config.splitchar}${newRecord.pressure.toFixed(1)}`;
+        // Synthesize string containing all variables
+        const rawString = `${config.idStation}${config.splitchar}${dateStr}${config.splitchar}${newRecord.temperature.toFixed(1)}${config.splitchar}${newRecord.humidity}${config.splitchar}${newRecord.solarRadiation}${config.splitchar}${newRecord.rainfall.toFixed(1)}${config.splitchar}${newRecord.waveHeight.toFixed(2)}${config.splitchar}${newRecord.seaLevel.toFixed(1)}${config.splitchar}${newRecord.waterPh.toFixed(2)}${config.splitchar}${newRecord.windDirection}${config.splitchar}${newRecord.windSpeed.toFixed(1)}${config.splitchar}${newRecord.pressure.toFixed(1)}`;
         
         setStreamLogs(prev => {
           const lines = prev.split('\n');
@@ -198,7 +204,8 @@ export default function App() {
         row.temperature.toString().includes(dbSearchTerm) ||
         row.windSpeed.toString().includes(dbSearchTerm) ||
         row.windDirection.toString().includes(dbSearchTerm) ||
-        row.pressure.toString().includes(dbSearchTerm)
+        row.pressure.toString().includes(dbSearchTerm) ||
+        (row.waterPh && row.waterPh.toString().includes(dbSearchTerm))
       ) : true;
 
       return startMatch && endMatch && searchMatch;
@@ -216,7 +223,8 @@ export default function App() {
     solarRadiation: 450,
     rainfall: 0,
     waveHeight: 1.1,
-    seaLevel: 140
+    seaLevel: 140,
+    waterPh: 7.8
   };
 
   // 1-Hour temperature statistics computed from the history queue
@@ -274,7 +282,7 @@ export default function App() {
 
   // Export database metrics to CSV format
   const exportLogsToCSV = () => {
-    const headers = ['DateTime', 'Temp (deg C)', 'Humidity (%)', 'Solar (W/m2)', 'Wave (m)', 'WaterLvl (cm)', 'WindDir (deg)', 'WindSpd (m/s)', 'Rain (mm)', 'Press (hPa)'];
+    const headers = ['DateTime', 'Temp (deg C)', 'Humidity (%)', 'Solar (W/m2)', 'Wave (m)', 'WaterLvl (cm)', 'Water pH', 'WindDir (deg)', 'WindSpd (m/s)', 'Rain (mm)', 'Press (hPa)'];
     const rows = filteredLogs.map(row => [
       format(row.timestamp, 'yyyy-MM-dd HH:mm:ss'),
       row.temperature,
@@ -282,6 +290,7 @@ export default function App() {
       row.solarRadiation,
       row.waveHeight,
       row.seaLevel,
+      row.waterPh || 7.8,
       row.windDirection,
       row.windSpeed,
       row.rainfall,
@@ -854,6 +863,42 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Sea Water Quality (pH Air) Indicator */}
+              {(() => {
+                const minPh = parseFloat(config.minPhThreshold || '6.5');
+                const maxPh = parseFloat(config.maxPhThreshold || '8.5');
+                const phValue = currentData.waterPh ?? 7.8;
+                const isPhUnsafe = phValue < minPh || phValue > maxPh;
+                
+                return (
+                  <div className={`bg-gradient-to-b from-[#0b1424]/40 to-bg p-4 rounded-2xl border transition-all ${isPhUnsafe ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)] animate-pulse' : 'border-white/5'} flex items-center justify-between`}>
+                    <div className="flex items-center gap-2.5">
+                      <div className={`p-2 rounded-xl border ${isPhUnsafe ? 'bg-amber-500/10 border-amber-500/20' : 'bg-pink-500/10 border-pink-500/20'}`}>
+                        <Droplet className={`w-4 h-4 ${isPhUnsafe ? 'text-amber-400 font-bold' : 'text-pink-400'}`} />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-[#00f0ff] uppercase tracking-[0.1em] block">Kualitas Air (pH)</span>
+                        <span className="text-[8px] font-mono block leading-tight">
+                          {isPhUnsafe ? (
+                            <span className="text-amber-400 uppercase font-black tracking-wide">⚠️ BAHAYA: PH EKSTRIM!</span>
+                          ) : phValue < 7.0 ? (
+                            <span className="text-rose-400">Asam / Acidic</span>
+                          ) : phValue > 8.5 ? (
+                            <span className="text-pink-400 font-bold">Basa / Alkaline</span>
+                          ) : (
+                            <span className="text-emerald-400 font-bold">Ideal / Netral</span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right font-mono flex items-baseline gap-1 bg-[#0b1424] px-3.5 py-1.5 rounded-xl border border-white/5">
+                      <span className={`text-lg font-extrabold ${isPhUnsafe ? 'text-amber-400 animate-pulse' : 'text-pink-400'}`}>{phValue.toFixed(2)}</span>
+                      <span className="text-[8px] text-pink-300 font-black uppercase">pH</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Pressure ATN group (compact & premium layout) */}
               <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between">
                 <div>
@@ -1390,6 +1435,7 @@ export default function App() {
                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-[10px]">Rad (W/m²)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#22c55e] text-center text-[10px]">Wave (m)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-[10px]">W-Level (m)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-pink-400 text-center text-[10px]">pH Air</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-[10px]">W-Dir (°)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-[10px]">W-Spd (m/s)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-sky-400 text-center text-[10px]">Rain (mm)</th>
@@ -1399,7 +1445,7 @@ export default function App() {
                   <tbody className="divide-y divide-white/5 font-mono">
                     {filteredLogs.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="p-8 text-center uppercase tracking-widest text-slate-500 text-[10px]">
+                        <td colSpan={11} className="p-8 text-center uppercase tracking-widest text-slate-500 text-[10px]">
                           No logged matching rows found. Adjust criteria.
                         </td>
                       </tr>
@@ -1412,6 +1458,7 @@ export default function App() {
                           <td className="p-3 text-center border-r border-white/5 text-[#f59e0b]">{item.solarRadiation}</td>
                           <td className="p-3 text-center border-r border-white/5 text-emerald-400 font-bold">{item.waveHeight.toFixed(2)}</td>
                           <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">{item.seaLevel.toFixed(1)}m</td>
+                          <td className="p-3 text-center border-r border-white/5 text-pink-400 font-bold">{(item.waterPh ?? 7.80).toFixed(2)}</td>
                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.windDirection}°</td>
                           <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">{item.windSpeed.toFixed(1)}</td>
                           <td className="p-3 text-center border-r border-white/5 text-[#38bdf8]">{item.rainfall.toFixed(1)}</td>
@@ -1522,6 +1569,39 @@ export default function App() {
                       />
                     </div>
                   </div>
+
+                  {/* Water pH Threshold configs */}
+                  <div className="border-t border-white/5 pt-3 space-y-2">
+                    <label className="text-[8.5px] uppercase font-bold text-pink-400 tracking-wider block">
+                      🧪 Water pH Alarm Limits
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-[7.5px] text-slate-400 uppercase font-mono block mb-1">Min Safe (Acid)</span>
+                        <input 
+                          type="number" 
+                          step="0.1"
+                          min="0"
+                          max="14"
+                          value={config.minPhThreshold ?? '6.5'}
+                          onChange={(e) => setConfig({ ...config, minPhThreshold: e.target.value })}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-center text-xs p-2 text-pink-400 font-bold rounded outline-none" 
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[7.5px] text-slate-400 uppercase font-mono block mb-1">Max Safe (Alkali)</span>
+                        <input 
+                          type="number" 
+                          step="0.1"
+                          min="0"
+                          max="14"
+                          value={config.maxPhThreshold ?? '8.5'}
+                          onChange={(e) => setConfig({ ...config, maxPhThreshold: e.target.value })}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-center text-xs p-2 text-pink-400 font-bold rounded outline-none" 
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
               </div>
@@ -1606,7 +1686,8 @@ export default function App() {
                     { label: 'Pres QFE', key: 'ch_9', color: '#94a3b8', source: currentData.pressure.toFixed(1) + ' hPa' },
                     { label: 'Pres QFF', key: 'ch_11', color: '#94a3b8', source: (currentData.pressure + 2.1).toFixed(1) + ' hPa' },
                     { label: 'Pres QNH', key: 'ch_13', color: '#94a3b8', source: (currentData.pressure - 1.2).toFixed(1) + ' hPa' },
-                    { label: 'Pres STN', key: 'ch_7', color: '#94a3b8', source: currentData.pressure.toFixed(1) + ' hPa' }
+                    { label: 'Pres STN', key: 'ch_7', color: '#94a3b8', source: currentData.pressure.toFixed(1) + ' hPa' },
+                    { label: 'Water pH', key: 'ch_18', color: '#f5d0fe', source: (currentData.waterPh ?? 7.80).toFixed(2) }
                   ].map((sensor, s_idx) => (
                     <div key={s_idx} className="bg-[#050a12]/70 border border-white/5 p-3 rounded-lg flex flex-col justify-between gap-1">
                       <span className="text-[8.5px] uppercase font-mono tracking-wider font-extrabold text-slate-400 block">{sensor.label} ({sensor.key})</span>
