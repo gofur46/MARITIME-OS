@@ -34,6 +34,9 @@ const DEFAULT_CONFIG = {
   ind_id: '0',
   minPhThreshold: '6.5', // Default min safe pH
   maxPhThreshold: '8.5', // Default max safe pH
+  dbStorageMode: 'AVG', // 'AVG' (Rata-Rata) | 'RAW' (Instan/Setiap Detik/Sesaat)
+  dbStorageInterval: 10, // 1 to 60 Minutes
+  localDbApiUrl: 'http://localhost/aws_marine/api.php',
   sensors: {
     'ch_0': '2',   // Air Temp
     'ch_2': '2',   // Temp Avg (let's map to Temp source with average)
@@ -57,15 +60,16 @@ const DEFAULT_CONFIG = {
 };
 
 // Generate highly realistic initial historical database rows (60 rows)
-const generateInitialLogs = (count: number): WeatherData[] => {
+const generateInitialLogs = (count: number, intervalMinutes: number = 10): WeatherData[] => {
   const data: WeatherData[] = [];
-  let baseTime = Date.now() - count * 600000; // 10 minute intervals
+  const spacingMs = intervalMinutes * 60 * 1000;
+  let baseTime = Date.now() - count * spacingMs;
   for (let i = 0; i < count; i++) {
     const temp = 27 + Math.random() * 4;
     const hum = 75 + Math.random() * 15;
     const windSpeed = 8 + Math.random() * 12;
     data.push({
-      timestamp: baseTime + i * 600000,
+      timestamp: baseTime + i * spacingMs,
       temperature: parseFloat(temp.toFixed(1)),
       humidity: Math.round(hum),
       windSpeed: parseFloat(windSpeed.toFixed(1)),
@@ -81,18 +85,89 @@ const generateInitialLogs = (count: number): WeatherData[] => {
   return data;
 };
 
+// Calculate statistical WMO compliant average of instant samples
+const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
+  if (buffer.length === 0) {
+    return {
+      timestamp: Date.now(),
+      temperature: 28.0,
+      humidity: 80,
+      windSpeed: 10.0,
+      windDirection: 180,
+      pressure: 1010.0,
+      solarRadiation: 300,
+      rainfall: 0,
+      waveHeight: 1.0,
+      seaLevel: 150.0,
+      waterPh: 7.8
+    };
+  }
+
+  const count = buffer.length;
+  let sumTemp = 0;
+  let sumHum = 0;
+  let sumSpeed = 0;
+  let sumPress = 0;
+  let sumSolar = 0;
+  let sumRain = 0; // Accumulation
+  let sumWave = 0;
+  let sumSea = 0;
+  let sumPh = 0;
+
+  // Vector direction variables
+  let sinSum = 0;
+  let cosSum = 0;
+
+  buffer.forEach(item => {
+    sumTemp += item.temperature;
+    sumHum += item.humidity;
+    sumSpeed += item.windSpeed;
+    sumPress += item.pressure;
+    sumSolar += item.solarRadiation;
+    sumRain += item.rainfall; // Sum accumulated rainfall
+    sumWave += item.waveHeight;
+    sumSea += item.seaLevel;
+    sumPh += item.waterPh ?? 7.8;
+
+    const rad = (item.windDirection * Math.PI) / 180;
+    sinSum += Math.sin(rad);
+    cosSum += Math.cos(rad);
+  });
+
+  let avgDirection = Math.round((Math.atan2(sinSum / count, cosSum / count) * 180) / Math.PI);
+  if (avgDirection < 0) avgDirection += 360;
+
+  return {
+    timestamp: Date.now(),
+    temperature: parseFloat((sumTemp / count).toFixed(1)),
+    humidity: Math.round(sumHum / count),
+    windSpeed: parseFloat((sumSpeed / count).toFixed(1)),
+    windDirection: avgDirection,
+    pressure: parseFloat((sumPress / count).toFixed(1)),
+    solarRadiation: Math.round(sumSolar / count),
+    rainfall: parseFloat(sumRain.toFixed(1)), // Sum accumulated rainfall
+    waveHeight: parseFloat((sumWave / count).toFixed(2)),
+    seaLevel: parseFloat((sumSea / count).toFixed(1)),
+    waterPh: parseFloat((sumPh / count).toFixed(2))
+  };
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'realtime' | 'analyst' | 'database' | 'settings'>('realtime');
   
   // Persisted state setup matching your parameters
   const [config, setConfig] = useState(() => {
     const saved = localStorage.getItem('aws_config');
-    return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
+    const parsed = saved ? JSON.parse(saved) : DEFAULT_CONFIG;
+    return {
+      ...DEFAULT_CONFIG,
+      ...parsed
+    };
   });
 
   const [history, setHistory] = useState<WeatherData[]>(() => {
     const saved = localStorage.getItem('aws_history_logs');
-    return saved ? JSON.parse(saved) : generateInitialLogs(45);
+    return saved ? JSON.parse(saved) : generateInitialLogs(45, (saved ? DEFAULT_CONFIG : config).dbStorageInterval || 10);
   });
 
   // Database start/end period filter state for tab 3
@@ -100,6 +175,67 @@ export default function App() {
   const [dbEndDate, setDbEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [filteredLogs, setFilteredLogs] = useState<WeatherData[]>([]);
   const [dbSearchTerm, setDbSearchTerm] = useState('');
+  const [dbScriptTab, setDbScriptTab] = useState<'sql' | 'php'>('sql');
+  const [isIntegratorOpen, setIsIntegratorOpen] = useState(false);
+  const [isDbConnected, setIsDbConnected] = useState(false);
+
+  // Format YYYY-MM-DD HH:mm:ss for SQL insert
+  const formatSqlDateTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const pad = (num: number) => String(num).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  };
+
+  // Gracefully post log data to local XAMPP MariaDB API
+  const postLogToLocalXampp = async (record: WeatherData) => {
+    const url = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
+    const payload = {
+      station_id: config.idStation || 'AWS001',
+      timestamp: formatSqlDateTime(record.timestamp),
+      temperature: record.temperature,
+      humidity: record.humidity,
+      solar_radiation: record.solarRadiation,
+      rainfall: record.rainfall,
+      wave_height: record.waveHeight,
+      sea_level: record.seaLevel,
+      water_ph: record.waterPh,
+      wind_direction: record.windDirection,
+      wind_speed: record.windSpeed,
+      pressure: record.pressure
+    };
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        setStreamLogs(prevLogs => {
+          const lines = prevLogs.split('\n');
+          const timeStr = format(new Date(), 'HH:mm:ss');
+          const msg = `[${timeStr} SQL LINK] 🌐 Sent to local XAMPP: HTTP 200 OK (Data recorded in tbl_sensor_logs table).`;
+          const output = [...lines, msg];
+          if (output.length > 40) return output.slice(output.length - 30).join('\n');
+          return output.join('\n');
+        });
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      setStreamLogs(prevLogs => {
+        const lines = prevLogs.split('\n');
+        const timeStr = format(new Date(), 'HH:mm:ss');
+        const msg = `[${timeStr} SQL LINK] 🔌 XAMPP Link Idle (Ensure local api.php is running at ${url} to sync data).`;
+        const output = [...lines, msg];
+        if (output.length > 40) return output.slice(output.length - 30).join('\n');
+        return output.join('\n');
+      });
+    }
+  };
 
   // Save changes helper
   const handleSaveConfig = (newConfig: typeof config) => {
@@ -126,6 +262,9 @@ export default function App() {
 
   // Store rain accumulative log
   const [rainAccum, setRainAccum] = useState(3.4);
+
+  // Active simulated buffer for WMO 10-Min (or custom min) averages
+  const [sampleBuffer, setSampleBuffer] = useState<WeatherData[]>([]);
 
   // Active simulated logger feed
   useEffect(() => {
@@ -161,25 +300,104 @@ export default function App() {
         waterPh: nextPh
       };
 
-      setHistory(prev => {
-        const keeps = [...prev, newRecord];
-        // Keep logs clean
-        if (keeps.length > 200) {
-          return keeps.slice(keeps.length - 150);
+      // Handle Storage Rules dynamically
+      const spaceMode = config.dbStorageMode || 'AVG';
+      
+      setSampleBuffer(prevBuf => {
+        const updated = [...prevBuf, newRecord];
+        // After 5 samples are compiled (simulating full period cycle for high usability live visual), we write the record according to the chosen mode (AVG vs RAW)
+        if (updated.length >= 5) {
+          let recordToSave: WeatherData;
+          let msgLog = '';
+
+          if (spaceMode === 'AVG') {
+            recordToSave = calculateAverageRecord(updated);
+            msgLog = `⏱️ compiled and saved standard WMO ${config.dbStorageInterval}-minute average based on 5 raw samples successfully.`;
+          } else {
+            // RAW mode: Save the latest instantaneous sample at the exact interval (e.g. data pada menit ke-10 atau menit ke-1)
+            recordToSave = { ...newRecord };
+            msgLog = `📦 saved raw instantaneous record for ${config.dbStorageInterval}-minute interval directly to database successfully.`;
+          }
+          
+          // Adjust simulated timestamp backward to show historical interval
+          const intervalMs = (config.dbStorageInterval || 10) * 60 * 1000;
+          recordToSave.timestamp = Date.now() - intervalMs;
+
+          // Asynchronously post to local XAMPP MariaDB script
+          postLogToLocalXampp(recordToSave);
+
+          setHistory(prevHist => {
+            const keeps = [...prevHist, recordToSave];
+            if (keeps.length > 200) {
+              return keeps.slice(keeps.length - 150);
+            }
+            localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
+            return keeps;
+          });
+
+          // Write notification in terminal
+          setStreamLogs(prevLogs => {
+            const lines = prevLogs.split('\n');
+            const timeStr = format(new Date(), 'HH:mm:ss');
+            const msg = `[${timeStr} SQL SYSTEM] ${msgLog}`;
+            const output = [...lines, msg];
+            if (output.length > 40) return output.slice(output.length - 30).join('\n');
+            return output.join('\n');
+          });
+
+          return []; // clear buffer
         }
-        localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
-        return keeps;
+        return updated;
       });
 
       // Update terminal stream simulator
       if (config.transport !== 'OFF') {
         const dateStr = format(pctime, 'dd-MM-yyyy HH:mm:ss');
-        // Synthesize string containing all variables
-        const rawString = `${config.idStation}${config.splitchar}${dateStr}${config.splitchar}${newRecord.temperature.toFixed(1)}${config.splitchar}${newRecord.humidity}${config.splitchar}${newRecord.solarRadiation}${config.splitchar}${newRecord.rainfall.toFixed(1)}${config.splitchar}${newRecord.waveHeight.toFixed(2)}${config.splitchar}${newRecord.seaLevel.toFixed(1)}${config.splitchar}${newRecord.waterPh.toFixed(2)}${config.splitchar}${newRecord.windDirection}${config.splitchar}${newRecord.windSpeed.toFixed(1)}${config.splitchar}${newRecord.pressure.toFixed(1)}`;
+        let rawString = '';
+        let prefix = '';
+
+        if (config.transport === 'MOXA_TCP') {
+          // Format based on standard Moxa output schema provided:
+          // AWS001;08-06-2026;07:51:10;0;0;58.6;-35.1;0;-35.1;50;975.2;NAN;NAN;0;27.2;27.5;0;NAN;-3.5;NAN;12.06145;28.08301
+          // Mapping:
+          // [0] Kode_Stasiun, [1] Date (DD-MM-YYYY), [2] Time (HH:mm:ss), [3] WS_meas, [4] WS_Max, [5] WD_meas, 
+          // [6] TA_meas, [7] TA_Max, [8] TA_Min, [9] RH_meas, [10] PA_meas, [11] NAN, [12] SR_meas, [13] SR_Max, 
+          // [14] water_temp, [15] water_temp_max, [16] water_temp_min, [17] water_level, [18] PH_meas, [19] "NAN", 
+          // [20] batt_volt, [21] +PTemp
+          const delimiter = config.splitchar || ';';
+          const datePart = format(pctime, 'dd-MM-yyyy');
+          const timePart = format(pctime, 'HH:mm:ss');
+          const ws_meas = Math.round(newRecord.windSpeed);
+          const ws_max = Math.round(newRecord.windSpeed + 2.4);
+          const wd_meas = newRecord.windDirection.toFixed(1);
+          const ta_meas = newRecord.temperature.toFixed(1);
+          const ta_max = (newRecord.temperature + 1.1).toFixed(1);
+          const ta_min = (newRecord.temperature - 1.4).toFixed(1);
+          const rh_meas = newRecord.humidity;
+          const pa_meas = newRecord.pressure.toFixed(1);
+          const sr_meas = newRecord.solarRadiation > 10 ? newRecord.solarRadiation : 'NAN';
+          const sr_max = newRecord.solarRadiation > 10 ? Math.round(newRecord.solarRadiation * 1.12) : 0;
+          const water_temp = (newRecord.temperature - 1.2).toFixed(1);
+          const water_temp_max = (newRecord.temperature - 0.7).toFixed(1);
+          const water_temp_min = (newRecord.temperature - 2.0).toFixed(1);
+          const water_level = isNaN(newRecord.seaLevel) ? 'NAN' : (newRecord.seaLevel / 100).toFixed(2);
+          const ph_meas = newRecord.waterPh ? newRecord.waterPh.toFixed(2) : 'NAN';
+          const batt_volt = (12.05 + Math.random() * 0.4).toFixed(5);
+          const ptemp = (newRecord.temperature + 0.08).toFixed(5);
+
+          rawString = `${config.idStation || 'AWS001'}${delimiter}${datePart}${delimiter}${timePart}${delimiter}${ws_meas}${delimiter}${ws_max}${delimiter}${wd_meas}${delimiter}${ta_meas}${delimiter}${ta_max}${delimiter}${ta_min}${delimiter}${rh_meas}${delimiter}${pa_meas}${delimiter}NAN${delimiter}${sr_meas}${delimiter}${sr_max}${delimiter}${water_temp}${delimiter}${water_temp_max}${delimiter}${water_temp_min}${delimiter}${water_level}${delimiter}${ph_meas}${delimiter}NAN${delimiter}${batt_volt}${delimiter}${ptemp}`;
+          prefix = `[TCP/IP GATEWAY MOXA] INBOUND <-`;
+        } else if (config.transport === 'TCP') {
+          rawString = `${config.idStation}${config.splitchar}${dateStr}${config.splitchar}${newRecord.temperature.toFixed(1)}${config.splitchar}${newRecord.humidity}${config.splitchar}${newRecord.solarRadiation}${config.splitchar}${newRecord.rainfall.toFixed(1)}${config.splitchar}${newRecord.waveHeight.toFixed(2)}${config.splitchar}${newRecord.seaLevel.toFixed(1)}${config.splitchar}${newRecord.waterPh.toFixed(2)}${config.splitchar}${newRecord.windDirection}${config.splitchar}${newRecord.windSpeed.toFixed(1)}${config.splitchar}${newRecord.pressure.toFixed(1)}`;
+          prefix = `[TCP SERVER] RECEIVED ->`;
+        } else {
+          rawString = `${config.idStation}${config.splitchar}${dateStr}${config.splitchar}${newRecord.temperature.toFixed(1)}${config.splitchar}${newRecord.humidity}${config.splitchar}${newRecord.solarRadiation}${config.splitchar}${newRecord.rainfall.toFixed(1)}${config.splitchar}${newRecord.waveHeight.toFixed(2)}${config.splitchar}${newRecord.seaLevel.toFixed(1)}${config.splitchar}${newRecord.waterPh.toFixed(2)}${config.splitchar}${newRecord.windDirection}${config.splitchar}${newRecord.windSpeed.toFixed(1)}${config.splitchar}${newRecord.pressure.toFixed(1)}`;
+          prefix = `[SERIAL COM] RECEIVED ->`;
+        }
         
         setStreamLogs(prev => {
           const lines = prev.split('\n');
-          const output_lines = [...lines, `DATA RECEIVED -> ${rawString}`];
+          const output_lines = [...lines, `${prefix} ${rawString}`];
           if (output_lines.length > 40) return output_lines.slice(output_lines.length - 30).join('\n');
           return output_lines.join('\n');
         });
@@ -520,7 +738,7 @@ export default function App() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
               </span>
-              <span>SCADA CONNECTION: {config.transport}</span>
+              <span>AWS OS CONNECTION: {config.transport}{config.transport !== 'OFF' && ` (${config.serialcom || '192.168.1.1'}:${config.baudrate || '4001'})`}</span>
             </div>
             <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-white uppercase flex items-baseline gap-2">
               AWS MARINE BOARD <span className="text-[#00f0ff] text-xs font-mono lowercase tracking-[0.05em] bg-[#00f0ff]/10 py-0.5 px-3 rounded border border-[#00f0ff]/30 font-bold">Pro RMS v3</span>
@@ -1374,7 +1592,7 @@ export default function App() {
         {activeTab === 'database' && (
           <div className="space-y-6">
             
-            {/* 10-Minute Average & XAMPP Integration Banner */}
+            {/* Real-time Custom Database Mode & XAMPP Integration Banner */}
             <div className="bg-gradient-to-r from-[#0a1b3a] to-[#041026] p-5 rounded-2xl border border-teal-500/30 shadow-[0_0_20px_rgba(20,184,166,0.1)] space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -1382,15 +1600,19 @@ export default function App() {
                     <Database className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-white uppercase tracking-wider">Arsip Database Terintegrasi (XAMPP & MariaDB)</h4>
+                    <h4 className="text-sm font-bold text-white uppercase tracking-wider">INTEGRATED DATABASE ENGINE (XAMPP & MariaDB)</h4>
                     <p className="text-xs text-slate-400 mt-1 max-w-[650px]">
-                      Sistem ini dirancang selaras dengan standar meteorologi pelabuhan. Data sensor yang mengalir asinkronus per detik disaring menjadi **Rata-rata Terkumpul 10 Menit** sebelum ditulis secara permanen ke database lokal untuk memaksimalkan efisiensi penyimpanan dan mencegah hilangnya riwayat telemetri.
+                      {config.dbStorageMode === 'AVG' ? (
+                        <span>The system is configured in accordance with WMO meteorology standards utilizing a compressed **{config.dbStorageInterval}-Minute Average** interval, minimizing query overhead and ensuring high database efficiency.</span>
+                      ) : (
+                        <span>The system is configured in **Instantaneous/Raw Storage Mode**, recording asynchronous sensor samples directly to the SQL server without averaging statistics at **{config.dbStorageInterval}-Minute** intervals.</span>
+                      )}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase font-mono tracking-widest bg-teal-500/10 text-teal-400 border border-teal-500/20">
-                    ⏱️ RATA-RATA 10 MENIT
+                    {config.dbStorageMode === 'AVG' ? `⏱️ LOG BIND: ${config.dbStorageInterval} MIN AVG` : `📦 LOG BIND: ${config.dbStorageInterval} MIN RAW`}
                   </span>
                   <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase font-mono tracking-widest bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 animate-pulse">
                     XAMPP PHP_MY_ADMIN READY
@@ -1398,46 +1620,375 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Collapsible phpMyAdmin Table Builder Script */}
-              <div className="bg-black/40 border border-white/5 rounded-xl p-4">
-                <div className="flex items-center justify-between pointer-events-auto">
+              {/* Dynamic Live Buffer visualizer */}
+              <div className="p-4 bg-teal-500/5 rounded-xl border border-teal-500/15 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping" />
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300">Skema SQL Pembuat Tabel (phpMyAdmin XAMPP)</span>
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-400"></span>
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wider font-black text-teal-400 font-mono">
+                      CYCLE ACCUMULATOR BUFFER ({sampleBuffer.length} / 5)
+                    </span>
                   </div>
-                  <button 
+                  <p className="text-xs text-slate-300">
+                    {config.dbStorageMode === 'AVG' ? (
+                      <span>The WMO compliant average is mathematically derived from <strong className="font-mono text-white bg-teal-500/15 px-1.5 py-0.5 rounded border border-teal-500/25">5 sensory samples</strong>. Real-time averages are computed at each {config.dbStorageInterval} minute index.</span>
+                    ) : (
+                      <span>Instantaneous telemetry is captured from the final sample at each <strong className="font-mono text-white bg-teal-500/15 px-1.5 py-0.5 rounded border border-teal-500/25">{config.dbStorageInterval} minute</strong> block, registered without mathematical processing.</span>
+                    )}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 font-mono">
+                  <button
                     onClick={() => {
-                      const sqlText = `CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry;\nUSE db_pelabuhan_telemetry;\n\nCREATE TABLE IF NOT EXISTS tbl_sensor_logs (\n    id INT AUTO_INCREMENT PRIMARY KEY,\n    station_id VARCHAR(50) NOT NULL,\n    timestamp DATETIME NOT NULL,\n    temperature DECIMAL(5,2) NOT NULL,\n    humidity INT NOT NULL,\n    solar_radiation INT NOT NULL,\n    rainfall DECIMAL(5,2) NOT NULL,\n    wave_height DECIMAL(4,2) NOT NULL,\n    sea_level DECIMAL(5,1) NOT NULL,\n    water_ph DECIMAL(4,2) NOT NULL,\n    wind_direction INT NOT NULL,\n    wind_speed DECIMAL(4,1) NOT NULL,\n    pressure DECIMAL(6,2) NOT NULL,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`;
-                      navigator.clipboard.writeText(sqlText);
-                      showToastNotification("Kueri SQL Berhasil Disalin!");
+                      if (sampleBuffer.length === 0) {
+                        showToastNotification("Accumulator buffer is empty! Please wait for next sensory cycles.");
+                        return;
+                      }
+                      
+                      let recordToSave: WeatherData;
+                      let forceMsg = '';
+
+                      if (config.dbStorageMode === 'AVG') {
+                        recordToSave = calculateAverageRecord(sampleBuffer);
+                        forceMsg = `USER FORCE AVG: Saved composite average of ${sampleBuffer.length} samples successfully.`;
+                      } else {
+                        recordToSave = { ...sampleBuffer[sampleBuffer.length - 1] };
+                        forceMsg = `USER FORCE RAW: Saved instantaneous sample from ${sampleBuffer.length} records successfully.`;
+                      }
+
+                      const intervalMs = (config.dbStorageInterval || 10) * 60 * 1000;
+                      recordToSave.timestamp = Date.now() - intervalMs;
+
+                      // Asynchronously post to local XAMPP MariaDB script
+                      postLogToLocalXampp(recordToSave);
+
+                      setHistory(prevHist => {
+                        const keeps = [...prevHist, recordToSave];
+                        if (keeps.length > 200) {
+                          return keeps.slice(keeps.length - 150);
+                        }
+                        localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
+                        return keeps;
+                      });
+
+                      setStreamLogs(prevLogs => {
+                        const lines = prevLogs.split('\n');
+                        const timeStr = format(new Date(), 'HH:mm:ss');
+                        const msg = `[${timeStr} SQL SYSTEM] ⚡ ${forceMsg}`;
+                        const output = [...lines, msg];
+                        if (output.length > 40) return output.slice(output.length - 30).join('\n');
+                        return output.join('\n');
+                      });
+
+                      setSampleBuffer([]);
+                      showToastNotification(config.dbStorageMode === 'AVG' ? "Successfully forced calculation of average record!" : "Successfully forced raw instantaneous log commit!");
                     }}
-                    className="text-[9px] bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 font-bold uppercase px-3 py-1.5 rounded-lg border border-teal-500/20 transition cursor-pointer font-mono"
+                    disabled={sampleBuffer.length === 0}
+                    className={`text-[9.5px] font-black uppercase py-2 px-3.5 rounded-lg border transition duration-250 cursor-pointer flex items-center gap-1.5 ${
+                      sampleBuffer.length === 0
+                        ? 'bg-white/5 text-slate-500 border-white/5 cursor-not-allowed'
+                        : 'bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border-teal-500/30'
+                    }`}
                   >
-                    Copy SQL Script
+                    ⚡ {config.dbStorageMode === 'AVG' ? `Force Commit Average (${sampleBuffer.length} Samples)` : `Force Commit Raw (${sampleBuffer.length} Samples)`}
                   </button>
                 </div>
-                <pre className="text-[9px] font-mono text-slate-400 mt-3 p-3 bg-black/60 rounded-lg overflow-x-auto max-h-[140px] leading-relaxed select-all">
+              </div>
+
+              {/* Sleek inline database status banner */}
+              <div className="bg-[#0b1424]/40 border border-[#00f0ff]/10 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${isDbConnected ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-500 animate-pulse'}`}>
+                    <Database className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">Layanan Status Sinkronisasi XAMPP</span>
+                      <span className={`text-[8.5px] px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider ${
+                        isDbConnected 
+                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' 
+                          : 'bg-amber-500/15 text-amber-300 border border-amber-500/20'
+                      }`}>
+                        {isDbConnected ? '🟢 CONNECTED (LIVE)' : '🟡 STANDBY / NOT TESTED'}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-slate-400 mt-1 leading-normal max-w-[620px]">
+                      {isDbConnected 
+                        ? 'Koneksi ke database XAMPP lokal teruji aktif. Sinkronisasi data telemetri otomatis beroperasi di latar belakang.' 
+                        : 'Menunggu pengujian koneksi. Klik tombol konfigurasi jika Anda ingin menyinkronkan data ke basis data lokal.'}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    onClick={() => setIsIntegratorOpen(true)}
+                    className="w-full sm:w-auto text-[9.5px] font-black uppercase py-2.5 px-4 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/30 transition duration-200 cursor-pointer flex items-center justify-center gap-1.5 font-mono font-bold"
+                  >
+                    🔧 CONFIG DB INTEGRATOR
+                  </button>
+                </div>
+              </div>
+
+              {/* Database Auto-Setup / Schema Integrator Modal */}
+              <div className={isIntegratorOpen ? "fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto" : "hidden"}>
+                <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-teal-500/30 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-[0_0_50px_rgba(0,240,255,0.15)] flex flex-col pointer-events-auto p-6 space-y-4">
+                  {/* Modal Header */}
+                  <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-pulse" />
+                        <span className="text-sm font-mono font-bold uppercase tracking-wider text-teal-400">DATABASE INTEGRATOR & SETUP UTILITIES</span>
+                      </div>
+                      <p className="text-xs text-slate-400 font-sans">
+                        Konversikan telemetri langsung ke server basis data XAMPP Anda.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => setIsIntegratorOpen(false)}
+                      className="text-xs font-bold uppercase bg-white/5 hover:bg-white/15 text-slate-300 font-mono py-1.5 px-3 rounded-lg border border-white/10 cursor-pointer transition"
+                    >
+                      ✕ Close
+                    </button>
+                  </div>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-white/5">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping" />
+                      <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-teal-400">DATABASE INTEGRATOR & SETUP UTILITIES</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-sans max-w-[600px]">
+                      Aplikasi berjalan di web browser. Browser tidak bisa langsung terhubung ke port MySQL lokal Anda (<code className="text-white font-mono bg-white/5 px-1 rounded">3306</code>) demi alasan keamanan sandboxing web. Gunakan salah satu metode di bawah ini untuk menghubungkannya secara mudah.
+                    </p>
+                  </div>
+                  
+                  {/* Selector Tabs */}
+                  <div className="flex bg-[#050a12] p-1 border border-white/10 rounded-lg self-start md:self-auto">
+                    <button
+                      onClick={() => setDbScriptTab('sql')}
+                      className={`text-[9.5px] px-3 py-1.5 rounded-md font-mono uppercase font-bold transition cursor-pointer ${
+                        dbScriptTab === 'sql' 
+                          ? 'bg-teal-500/15 text-teal-300 border border-teal-500/20' 
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      📜 Manual SQL Script
+                    </button>
+                    <button
+                      onClick={() => setDbScriptTab('php')}
+                      className={`text-[9.5px] px-3 py-1.5 rounded-md font-mono uppercase font-bold transition cursor-pointer ${
+                        dbScriptTab === 'php' 
+                          ? 'bg-teal-500/15 text-teal-300 border border-teal-500/20' 
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      ⚡ PHP Auto-Installer (Recommended)
+                    </button>
+                  </div>
+                </div>
+
+                {dbScriptTab === 'sql' ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[9.5px] font-mono text-slate-300 uppercase font-black">Metode Manual phpMyAdmin:</span>
+                      <button 
+                        onClick={() => {
+                          const sqlText = `CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry;\nUSE db_pelabuhan_telemetry;\n\nCREATE TABLE IF NOT EXISTS tbl_sensor_logs (\n    id INT AUTO_INCREMENT PRIMARY KEY,\n    station_id VARCHAR(50) NOT NULL,\n    timestamp DATETIME NOT NULL,\n    temperature DECIMAL(5,2) NOT NULL,\n    humidity INT NOT NULL,\n    solar_radiation INT NOT NULL,\n    rainfall DECIMAL(5,2) NOT NULL,\n    wave_height DECIMAL(4,2) NOT NULL,\n    sea_level DECIMAL(5,1) NOT NULL,\n    water_ph DECIMAL(4,2) NOT NULL,\n    wind_direction INT NOT NULL,\n    wind_speed DECIMAL(4,1) NOT NULL,\n    pressure DECIMAL(6,2) NOT NULL,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`;
+                          navigator.clipboard.writeText(sqlText);
+                          showToastNotification("SQL Query successfully copied to clipboard!");
+                        }}
+                        className="text-[9px] bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 font-bold uppercase px-3 py-1.5 rounded-lg border border-teal-500/20 transition cursor-pointer font-mono"
+                      >
+                        Copy SQL Script
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-normal">
+                      Copy query berikut dan paste langsung ke menu <strong>SQL</strong> di phpMyAdmin XAMPP Anda untuk membuat tabel secara manual.
+                    </p>
+                    <pre className="text-[9px] font-mono text-slate-400 p-3 bg-black/60 rounded-lg overflow-x-auto max-h-[160px] leading-relaxed select-all border border-white/5">
 {`CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry;
 USE db_pelabuhan_telemetry;
 
 CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     station_id VARCHAR(50) NOT NULL,
-    timestamp DATETIME NOT NULL, /* Berisi Waktu Mulai Interval Rata-Rata 10 Menit */
-    temperature DECIMAL(5,2) NOT NULL, /* Rata-rata 10-Menit (°C) */
-    humidity INT NOT NULL, /* Rata-rata 10-Menit (%) */
-    solar_radiation INT NOT NULL, /* Rata-rata 10-Menit (W/m²) */
-    rainfall DECIMAL(5,2) NOT NULL, /* Akumulasi Curah Hujan 10-Menit (mm) */
-    wave_height DECIMAL(4,2) NOT NULL, /* Rata-rata Tinggi Gelombang (m) */
-    sea_level DECIMAL(5,1) NOT NULL, /* Rata-rata Level Air Laut (cm) */
-    water_ph DECIMAL(4,2) NOT NULL, /* Rata-rata pH Air Laut */
-    wind_direction INT NOT NULL, /* Rata-rata Vektor Arah Wind (deg) */
-    wind_speed DECIMAL(4,1) NOT NULL, /* Rata-rata Laju Angin (m/s) */
-    pressure DECIMAL(6,2) NOT NULL, /* Rata-rata Tekanan Udara (hPa) */
+    timestamp DATETIME NOT NULL, /* Start of the average-block / instant sample */
+    temperature DECIMAL(5,2) NOT NULL,
+    humidity INT NOT NULL,
+    solar_radiation INT NOT NULL,
+    rainfall DECIMAL(5,2) NOT NULL,
+    wave_height DECIMAL(4,2) NOT NULL,
+    sea_level DECIMAL(5,1) NOT NULL,
+    water_ph DECIMAL(4,2) NOT NULL,
+    wind_direction INT NOT NULL,
+    wind_speed DECIMAL(4,1) NOT NULL,
+    pressure DECIMAL(6,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`}
-                </pre>
+                    </pre>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                      <div className="space-y-1">
+                        <span className="text-[9.5px] font-mono text-teal-400 uppercase font-black block">Metode Otomatis (1-Click Auto-Create Setup):</span>
+                        <div className="text-[9px] text-slate-500 font-mono">
+                          API URL: <span className="text-white font-bold">{config.localDbApiUrl || 'http://localhost/aws_marine/api.php'}</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button 
+                          onClick={() => {
+                            const phpCode = `<?php
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
+header("Content-Type: application/json; charset=UTF-8");
+
+if (\$_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+
+\$host = "localhost";
+\$username = "root";
+\$password = ""; // Default password kosong di XAMPP
+
+try {
+    \$conn = new PDO("mysql:host=\$host", \$username, \$password);
+    \$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    
+    // Auto-create database & table jika belum ada
+    \$conn->exec("CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
+    \$conn->exec("USE db_pelabuhan_telemetry;");
+
+    \$sql_table = "CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        station_id VARCHAR(50) NOT NULL,
+        timestamp DATETIME NOT NULL,
+        temperature DECIMAL(5,2) NOT NULL,
+        humidity INT NOT NULL,
+        solar_radiation INT NOT NULL,
+        rainfall DECIMAL(5,2) NOT NULL,
+        wave_height DECIMAL(4,2) NOT NULL,
+        sea_level DECIMAL(5,1) NOT NULL,
+        water_ph DECIMAL(4,2) NOT NULL,
+        wind_direction INT NOT NULL,
+        wind_speed DECIMAL(4,1) NOT NULL,
+        pressure DECIMAL(6,2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+    
+    \$conn->exec(\$sql_table);
+} catch (PDOException \$e) {
+    http_response_code(500);
+    echo json_encode(["status" => "error", "message" => "Setup Failed: " . \$e->getMessage()]);
+    exit();
+}
+
+if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
+    \$input = file_get_contents("php://input");
+    \$data = json_decode(\$input, true);
+
+    if (isset(\$data['station_id']) && isset(\$data['timestamp'])) {
+        try {
+            \$stmt = \$conn->prepare("INSERT INTO tbl_sensor_logs (
+                station_id, timestamp, temperature, humidity, solar_radiation, 
+                rainfall, wave_height, sea_level, water_ph, wind_direction, wind_speed, pressure
+            ) VALUES (
+                :station_id, :timestamp, :temperature, :humidity, :solar_radiation, 
+                :rainfall, :wave_height, :sea_level, :water_ph, :wind_direction, :wind_speed, :pressure
+            )");
+
+            \$stmt->execute([
+                ':station_id' => \$data['station_id'],
+                ':timestamp' => \$data['timestamp'],
+                ':temperature' => \$data['temperature'],
+                ':humidity' => \$data['humidity'],
+                ':solar_radiation' => isset(\$data['solar_radiation']) ? \$data['solar_radiation'] : 0,
+                ':rainfall' => isset(\$data['rainfall']) ? \$data['rainfall'] : 0.0,
+                ':wave_height' => isset(\$data['wave_height']) ? \$data['wave_height'] : 0.0,
+                ':sea_level' => isset(\$data['sea_level']) ? \$data['sea_level'] : 0.0,
+                ':water_ph' => isset(\$data['water_ph']) ? \$data['water_ph'] : 7.0,
+                ':wind_direction' => isset(\$data['wind_direction']) ? \$data['wind_direction'] : 0,
+                ':wind_speed' => isset(\$data['wind_speed']) ? \$data['wind_speed'] : 0.0,
+                ':pressure' => isset(\$data['pressure']) ? \$data['pressure'] : 1013.25
+            ]);
+
+            echo json_encode(["status" => "success", "message" => "Record logged successfully!"]);
+            exit();
+        } catch (PDOException \$e) {
+            http_response_code(500);
+            echo json_encode(["status" => "error", "message" => "Insertion Failed: " . \$e->getMessage()]);
+            exit();
+        }
+    }
+} else {
+    echo json_encode([
+        "status" => "success",
+        "message" => "XAMPP Gateway active! Database 'db_pelabuhan_telemetry' and Table 'tbl_sensor_logs' successfully checked/constructed."
+    ]);
+}
+?>`;
+                            navigator.clipboard.writeText(phpCode);
+                            showToastNotification("Automated PHP Hook successfully copied to clipboard!");
+                          }}
+                          className="text-[9px] bg-[#00f0ff]/10 hover:bg-[#00f0ff]/20 text-[#00f0ff] font-bold uppercase px-3 py-1.5 rounded-lg border border-[#00f0ff]/20 transition cursor-pointer font-mono"
+                        >
+                          Copy PHP Code
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            const testUrl = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
+                            showToastNotification("Contacting local XAMPP Apache endpoint...");
+                            try {
+                              const res = await fetch(testUrl, { method: 'GET' });
+                              if (res.ok) {
+                                const parsed = await res.json();
+                                showToastNotification("🟢 DATABASE CONNECTED & INITIALIZED SUCCESSFUL!");
+                                setStreamLogs(prev => {
+                                  const list = prev.split('\n');
+                                  const ts = format(new Date(), 'HH:mm:ss');
+                                  return [...list, `[${ts} SQL SYSTEM] 🟢 LIVE TEST SUCCESS: ${parsed.message || 'Auto-constructed completed successfully.'}`].join('\n');
+                                });
+                              } else {
+                                throw new Error(`HTTP ${res.status}`);
+                              }
+                            } catch (e) {
+                              showToastNotification("🔴 LINK UNREACHABLE! Start Apache first and place api.php in htdocs/aws_marine/.");
+                              setStreamLogs(prev => {
+                                const list = prev.split('\n');
+                                const ts = format(new Date(), 'HH:mm:ss');
+                                return [...list, `[${ts} SQL ERROR] 🔴 TEST FAILED: Ensure C:/xampp/htdocs/aws_marine/api.php exists & XAMPP Apache control is turned ON.`].join('\n');
+                              });
+                            }
+                          }}
+                          className="text-[9px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/25 font-bold uppercase px-3 py-1.5 rounded-lg transition cursor-pointer font-mono"
+                        >
+                          ⚡ Test Connection & Auto-Create Table
+                        </button>
+                      </div>
+                    </div>
+
+                    <pre className="text-[9px] font-mono text-slate-400 p-3 bg-black/60 rounded-lg overflow-x-auto max-h-[140px] leading-relaxed select-all border border-white/5">
+{`<?php
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
+header("Content-Type: application/json; charset=UTF-8");
+
+// ...
+// Kode Auto-Installer ini otomatis mengecek & membangun Database & Tabel pada kueri pertama Anda!
+// Anda tidak perlu menulis query CREATE TABLE manual di phpMyAdmin.
+?>`}
+                    </pre>
+                  </div>
+                )}
               </div>
+            </div>
             </div>
 
             {/* Filter Log panel with CSV exporter */}
@@ -1561,8 +2112,9 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
                       className="w-full bg-[#050a12] border border-white/10 font-mono text-xs select-none p-2 text-white rounded outline-none"
                     >
                       <option value="OFF">OFF</option>
-                      <option value="SERIAL">SERIAL COM</option>
-                      <option value="TCP">TCP/IP SERVER</option>
+                      <option value="SERIAL">SERIAL COM (RS232/RS485)</option>
+                      <option value="TCP">TCP/IP SERVER CONNECTION</option>
+                      <option value="MOXA_TCP">TCP/IP GATEWAY MOXA (ROUTER)</option>
                     </select>
                   </div>
 
@@ -1578,19 +2130,25 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[8.5px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1">COM / IP PC</label>
+                      <label className="text-[8.5px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1">
+                        {config.transport === 'SERIAL' ? 'COM Port' : 'Moxa IP / Host'}
+                      </label>
                       <input 
                         type="text" 
-                        value={config.serialcom} 
+                        value={config.serialcom || ''} 
+                        placeholder={config.transport === 'SERIAL' ? 'COM3' : '192.168.127.254'}
                         onChange={(e) => setConfig({ ...config, serialcom: e.target.value })}
                         className="w-full bg-[#050a12] border border-white/10 font-mono text-xs text-center p-2 text-white rounded outline-none" 
                       />
                     </div>
                     <div>
-                      <label className="text-[8.5px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1">Baudrate / Port</label>
+                      <label className="text-[8.5px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1">
+                        {config.transport === 'SERIAL' ? 'Baudrate' : 'Socket Port'}
+                      </label>
                       <input 
                         type="text" 
-                        value={config.baudrate} 
+                        value={config.baudrate || ''} 
+                        placeholder={config.transport === 'SERIAL' ? '9600' : '4001'}
                         onChange={(e) => setConfig({ ...config, baudrate: e.target.value })}
                         className="w-full bg-[#050a12] border border-white/10 font-mono text-xs text-center p-2 text-white rounded outline-none" 
                       />
@@ -1610,7 +2168,7 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
                   </div>
 
                   {/* Cloud Mode configs */}
-                  <div className="border-t border-white/5 pt-3 space-y-2">
+                  <div className="border-t border-white/5 pt-3 space-y-3">
                     <div>
                       <label className="text-[8.5px] uppercase font-bold text-[#22c55e] tracking-wider block mb-1">Cloud Mode</label>
                       <select 
@@ -1621,19 +2179,72 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
                         <option value="OFF">OFF</option>
                         <option value="HTTP">HTTP API</option>
                         <option value="FTP">FTP</option>
-                        <option value="BOTH">BOTH</option>
+                        <option value="BOTH">BOTH (HTTP & FTP)</option>
                       </select>
                     </div>
 
-                    <div>
-                      <label className="text-[8.5px] uppercase font-bold text-slate-400 tracking-wider block mb-1">HTTP API URL</label>
-                      <input 
-                        type="text" 
-                        value={config.httpUrl}
-                        onChange={(e) => setConfig({ ...config, httpUrl: e.target.value })}
-                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs text-left p-2 text-slate-300 rounded outline-none" 
-                      />
-                    </div>
+                    {(config.cloudMode === 'HTTP' || config.cloudMode === 'BOTH') && (
+                      <div className="space-y-1">
+                        <label className="text-[8.5px] uppercase font-bold text-slate-400 tracking-wider block">HTTP API URL</label>
+                        <input 
+                          type="text" 
+                          value={config.httpUrl}
+                          onChange={(e) => setConfig({ ...config, httpUrl: e.target.value })}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-xs text-left p-2 text-slate-300 rounded outline-none" 
+                        />
+                      </div>
+                    )}
+
+                    {(config.cloudMode === 'FTP' || config.cloudMode === 'BOTH') && (
+                      <div className="space-y-2 p-3 bg-teal-950/20 border border-teal-500/20 rounded-lg">
+                        <span className="text-[9px] font-black text-teal-400 font-mono block uppercase tracking-wider mb-1">📁 KREDENSIAL SERVER FTP</span>
+                        
+                        <div className="space-y-1">
+                          <label className="text-[7.5px] uppercase font-bold text-slate-400 block font-mono">FTP Host / Server IP</label>
+                          <input 
+                            type="text" 
+                            value={config.ftpHost}
+                            placeholder="ftp.portmarine.gov"
+                            onChange={(e) => setConfig({ ...config, ftpHost: e.target.value })}
+                            className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none text-left" 
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-[7.5px] uppercase font-bold text-slate-400 block font-mono">FTP Username</label>
+                            <input 
+                              type="text" 
+                              value={config.ftpUser}
+                              placeholder="aws_logger"
+                              onChange={(e) => setConfig({ ...config, ftpUser: e.target.value })}
+                              className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none text-left" 
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[7.5px] uppercase font-bold text-slate-400 block font-mono">FTP Password</label>
+                            <input 
+                              type="password" 
+                              value={config.ftpPass}
+                              placeholder="********"
+                              onChange={(e) => setConfig({ ...config, ftpPass: e.target.value })}
+                              className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none text-left" 
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[7.5px] uppercase font-bold text-slate-400 block font-mono">FTP Upload Path (Directory)</label>
+                          <input 
+                            type="text" 
+                            value={config.ftpPath}
+                            placeholder="/data/xml"
+                            onChange={(e) => setConfig({ ...config, ftpPath: e.target.value })}
+                            className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none text-left" 
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Water pH Threshold configs */}
@@ -1666,6 +2277,85 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
                           className="w-full bg-[#050a12] border border-white/10 font-mono text-center text-xs p-2 text-pink-400 font-bold rounded outline-none" 
                         />
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Database Storage custom configurations */}
+                  <div className="border-t border-white/5 pt-3 space-y-2">
+                    <label className="text-[8.5px] uppercase font-bold text-teal-400 tracking-wider block">
+                      📁 Database Archiving & Storage Settings
+                    </label>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-[7.5px] text-slate-400 uppercase font-mono block mb-1">Database Storage Mode</span>
+                        <select 
+                          value={config.dbStorageMode || 'AVG'} 
+                          onChange={(e) => setConfig({ ...config, dbStorageMode: e.target.value })}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-xs select-none p-2 text-teal-400 font-bold rounded outline-none"
+                        >
+                          <option value="AVG">AVG - WMO Compliant Compressed Averages</option>
+                          <option value="RAW">RAW - Instantaneous / Record Latest Sample</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <span className="text-[7.5px] text-slate-400 uppercase font-mono block mb-1">Averaging & Logging Interval ({config.dbStorageInterval || 10} Minutes)</span>
+                        <div className="flex gap-2">
+                          <input 
+                            type="range" 
+                            min="1" 
+                            max="60" 
+                            value={config.dbStorageInterval || 10} 
+                            onChange={(e) => {
+                              const calculated = parseInt(e.target.value);
+                              setConfig({ ...config, dbStorageInterval: calculated });
+                            }}
+                            className="w-full accent-teal-400"
+                          />
+                          <input 
+                            type="number" 
+                            min="1" 
+                            max="60" 
+                            value={config.dbStorageInterval || 10} 
+                            onChange={(e) => {
+                              const calculated = Math.min(60, Math.max(1, parseInt(e.target.value) || 1));
+                              setConfig({ ...config, dbStorageInterval: calculated });
+                            }}
+                            className="w-12 bg-[#050a12] border border-white/10 font-mono text-center text-xs p-1 text-white rounded outline-none"
+                          />
+                        </div>
+                        <p className="text-[8px] text-slate-500 font-mono mt-1 leading-normal">
+                          Configure storage frequency: commits data from 1 to 60 minutes per log row.
+                        </p>
+                      </div>
+
+                      {/* Local database API URL */}
+                      <div>
+                        <span className="text-[7.5px] text-slate-400 uppercase font-mono block mb-1">Local XAMPP Database API Endpoint (PHP API Link)</span>
+                        <input 
+                          type="text" 
+                          value={config.localDbApiUrl || ''} 
+                          placeholder="http://localhost/aws_marine/api.php"
+                          onChange={(e) => setConfig({ ...config, localDbApiUrl: e.target.value })}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-teal-400 rounded outline-none text-left"
+                        />
+                        <p className="text-[8px] text-slate-500 font-mono mt-1 leading-tight">
+                          Alamat file <code className="text-slate-400 bg-white/5 px-0.5 rounded">api.php</code> di htdocs XAMPP Anda. Berguna untuk sinkronisasi otomatis.
+                        </p>
+                      </div>
+
+                      <button 
+                        onClick={() => {
+                          const currentInterval = parseInt(config.dbStorageInterval) || 10;
+                          const regenerated = generateInitialLogs(45, currentInterval);
+                          setHistory(regenerated);
+                          localStorage.setItem('aws_history_logs', JSON.stringify(regenerated));
+                          showToastNotification(`Successfully regenerated database logs with a ${currentInterval}-Minute logging frequency!`);
+                        }}
+                        className="w-full bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/30 font-mono text-[9px] font-bold text-teal-300 p-2.5 rounded-lg transition text-center uppercase cursor-pointer"
+                      >
+                        🔄 RESET & REGENERATE DB HISTORY
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1797,6 +2487,42 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
                   className="bg-emerald-500 hover:bg-emerald-600 font-mono rounded-lg p-3 text-xs font-black text-slate-950 uppercase cursor-pointer text-center"
                 >
                   SAVE ACTIVE CONFIG
+                </button>
+                
+                <button 
+                  onClick={() => {
+                    const moxaSensors = {
+                      'ch_0': '6',   // Air Temp (TA_meas)
+                      'ch_2': '6',   // Temp Avg (TA_meas)
+                      'ch_4': '7',   // Temp Max (TA_Max)
+                      'ch_6': '8',   // Temp Min (TA_Min)
+                      'ch_8': '9',   // Humidity (RH_meas)
+                      'ch_12': '6',  // Dew point is computed
+                      'ch_1': 'OFF', // Rain rate not mapped
+                      'ch_3': 'OFF', // Rain acc. not mapped
+                      'ch_5': '12',  // Solar Rad
+                      'ch_14': 'OFF',// Wave Height not mapped
+                      'ch_14_label': 'OFF',
+                      'ch_15': '17', // Water Level (m)
+                      'ch_16': '5',  // Wind Dir (WD_meas)
+                      'ch_17': '3',  // Wind Spd (WS_meas)
+                      'ch_7': '10',  // Pres STN
+                      'ch_9': '10',  // Pres QFE
+                      'ch_11': '10', // Pres QFF
+                      'ch_13': '10', // Pres QNH
+                      'ch_18': '18'  // Water pH (PH_meas)
+                    };
+                    setConfig({
+                      ...config,
+                      transport: 'MOXA_TCP',
+                      splitchar: ';',
+                      sensors: moxaSensors
+                    });
+                    showToastNotification('Moxa TCP/IP Channel Mapping Loaded!');
+                  }}
+                  className="col-span-2 bg-gradient-to-r from-teal-500 to-indigo-600 hover:from-teal-600 hover:to-indigo-700 font-mono rounded-lg p-3.5 text-xs font-extrabold text-white uppercase cursor-pointer text-center shadow-lg transition-all"
+                >
+                  📡 LOAD MOXA TELEMETRY PRESETS
                 </button>
               </div>
 

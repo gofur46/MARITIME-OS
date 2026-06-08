@@ -174,7 +174,127 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
 
 ---
 
-### B. Mekanisme Proteksi Data Hilang (Offline Buffer Storage)
+### B. Integrasi Otomatis & Konektor PHP (api.php) untuk XAMPP
+
+Aplikasi ini berjalan langsung dari dalam cloud sandbox browser Anda. Karena pembatasan keamanan web (*browser sandboxing*), web browser tidak diizinkan membuat koneksi mentah binner TCP langsung ke port database lokal MySQL (`3306`) Anda. Untuk menjembatani pengiriman data otomatis secara real-time ke database XAMPP Anda, jembatan API PHP yang ringan sangat direkomendasikan.
+
+#### 🔧 Panduan Penyusunan Konektor PHP (api.php):
+
+1. **Langkah 1: Buat Folder di htdocs**
+   Buat folder baru bernama `aws_marine` di dalam folder `htdocs` instalasi XAMPP Anda. Biasanya terletak di jalur default:
+   * **Windows**: `C:\xampp\htdocs\aws_marine\`
+   * **macOS / Linux**: `/opt/lampp/htdocs/aws_marine/` atau `/var/www/html/aws_marine/`
+
+2. **Langkah 2: Buat File api.php**
+   Salin kode PHP di bawah ini, buat file teks baru bernama `api.php` di dalam direkotori `aws_marine` tersebut, lalu tempel kodenya dan simpan.
+
+   ```php
+   <?php
+   // Mengizinkan CORS demi kelancaran pertukaran data asinkron dari browser
+   header("Access-Control-Allow-Origin: *");
+   header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+   header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
+   header("Content-Type: application/json; charset=UTF-8");
+
+   if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+       http_response_code(200);
+       exit();
+   }
+
+   $host = "localhost";
+   $username = "root";
+   $password = ""; // Secara default, password root di XAMPP kosong
+
+   try {
+       $conn = new PDO("mysql:host=$host", $username, $password);
+       $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+       
+       // Otomatis membuat database jika belum ada
+       $conn->exec("CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
+       $conn->exec("USE db_pelabuhan_telemetry;");
+
+       // Otomatis membuat tabel struktur sensor jika belum ada (Auto-Installer)
+       $sql_table = "CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
+           id INT AUTO_INCREMENT PRIMARY KEY,
+           station_id VARCHAR(50) NOT NULL,
+           timestamp DATETIME NOT NULL,
+           temperature DECIMAL(5,2) NOT NULL,
+           humidity INT NOT NULL,
+           solar_radiation INT NOT NULL,
+           rainfall DECIMAL(5,2) NOT NULL,
+           wave_height DECIMAL(4,2) NOT NULL,
+           sea_level DECIMAL(5,1) NOT NULL,
+           water_ph DECIMAL(4,2) NOT NULL,
+           wind_direction INT NOT NULL,
+           wind_speed DECIMAL(4,1) NOT NULL,
+           pressure DECIMAL(6,2) NOT NULL,
+           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+       
+       $conn->exec($sql_table);
+   } catch (PDOException $e) {
+       http_response_code(500);
+       echo json_encode(["status" => "error", "message" => "Database Setup Failed: " . $e->getMessage()]);
+       exit();
+   }
+
+   // Memproses pengiriman log telemetri baru (POST Request)
+   if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+       $input = file_get_contents("php://input");
+       $data = json_decode($input, true);
+
+       if (isset($data['station_id']) && isset($data['timestamp'])) {
+           try {
+               $stmt = $conn->prepare("INSERT INTO tbl_sensor_logs (
+                   station_id, timestamp, temperature, humidity, solar_radiation, 
+                   rainfall, wave_height, sea_level, water_ph, wind_direction, wind_speed, pressure
+               ) VALUES (
+                   :station_id, :timestamp, :temperature, :humidity, :solar_radiation, 
+                   :rainfall, :wave_height, :sea_level, :water_ph, :wind_direction, :wind_speed, :pressure
+               )");
+
+               $stmt->execute([
+                   ':station_id' => $data['station_id'],
+                   ':timestamp' => $data['timestamp'],
+                   ':temperature' => $data['temperature'],
+                   ':humidity' => $data['humidity'],
+                   ':solar_radiation' => isset($data['solar_radiation']) ? $data['solar_radiation'] : 0,
+                   ':rainfall' => isset($data['rainfall']) ? $data['rainfall'] : 0.0,
+                   ':wave_height' => isset($data['wave_height']) ? $data['wave_height'] : 0.0,
+                   ':sea_level' => isset($data['sea_level']) ? $data['sea_level'] : 0.0,
+                   ':water_ph' => isset($data['water_ph']) ? $data['water_ph'] : 7.0,
+                   ':wind_direction' => isset($data['wind_direction']) ? $data['wind_direction'] : 0,
+                   ':wind_speed' => isset($data['wind_speed']) ? $data['wind_speed'] : 0.0,
+                   ':pressure' => isset($data['pressure']) ? $data['pressure'] : 1013.25
+               ]);
+
+               echo json_encode(["status" => "success", "message" => "Record logged successfully!"]);
+               exit();
+           } catch (PDOException $e) {
+               http_response_code(500);
+               echo json_encode(["status" => "error", "message" => "Insertion Failed: " . $e->getMessage()]);
+               exit();
+           }
+       }
+   } else {
+       // GET Request atau Test Connection biasa
+       echo json_encode([
+           "status" => "success",
+           "message" => "XAMPP Gateway active! Database 'db_pelabuhan_telemetry' and Table 'tbl_sensor_logs' successfully checked/constructed."
+       ]);
+   }
+   ?>
+   ```
+
+3. **Langkah 3: Jalankan Layanan di XAMPP Control Panel**
+   Buka panel control XAMPP Anda, pastikan layanan **Apache** dan **MySQL** telah dihidupkan (berwarna hijau).
+
+4. **Langkah 4: Jalankan Test Connection dari Dashboard**
+   Dari dalam menu database aplikasi UI ini, Anda dapat langsung mengklik tombol **"⚡ Test Connection & Auto-Create Table"**. Jembatan API akan merespon dengan status sukses dan secara ajaib membuat database `db_pelabuhan_telemetry` serta tabel `tbl_sensor_logs` untuk pertama kalinya secara otomatis tanpa perlu melakukan copy-paste manual query di phpMyAdmin.
+
+---
+
+### C. Mekanisme Proteksi Data Hilang (Offline Buffer Storage)
 Aplikasi ini memiliki sistem **Penyimpanan Lokal Mandiri (Local Offline Cache Buffer)** terintegrasi untuk menangani kondisi darurat ketika jaringan internet terputus, atau server penerima (*HTTP/FTP upstream*) padam:
 
 1.  **Local Memory State Queue + LocalStorage Recovery**
