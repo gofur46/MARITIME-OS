@@ -38,6 +38,7 @@ const DEFAULT_CONFIG = {
   dbStorageInterval: 10, // 1 to 60 Minutes
   localDbApiUrl: 'http://localhost/aws_marine/api.php',
   uiZoom: '115', // Default font size scale (%) for excellent laptop reading
+  isSimulationOn: 'ON', // ON / OFF simulation mode
   sensors: {
     'ch_0': '2',   // Air Temp
     'ch_2': '2',   // Temp Avg (let's map to Temp source with average)
@@ -179,6 +180,16 @@ export default function App() {
   const [dbScriptTab, setDbScriptTab] = useState<'sql' | 'php'>('sql');
   const [isIntegratorOpen, setIsIntegratorOpen] = useState(false);
   const [isDbConnected, setIsDbConnected] = useState(false);
+  const [dbTestResult, setDbTestResult] = useState<{
+    status: 'idle' | 'loading' | 'success' | 'error';
+    message: string;
+    details?: string;
+  }>({ status: 'idle', message: '' });
+  
+  // Real Serial port and manual inbound controller states
+  const [serialPort, setSerialPort] = useState<any>(null);
+  const [isReadingSerial, setIsReadingSerial] = useState(false);
+  const [manualInboundLine, setManualInboundLine] = useState('');
 
   // Format YYYY-MM-DD HH:mm:ss for SQL insert
   const formatSqlDateTime = (timestamp: number) => {
@@ -238,6 +249,181 @@ export default function App() {
     }
   };
 
+  // Modern Web Serial API & Manual Inbound Parser Engine
+  const parseIncomingSentence = (line: string, source: 'SERIAL' | 'TCP' | 'MOXA_TCP' | 'MANUAL') => {
+    const delimiter = config.splitchar || ';';
+    const tokens = line.split(delimiter).map(t => t.trim());
+    
+    if (tokens.length < 5) {
+      return;
+    }
+
+    try {
+      let record: WeatherData;
+      const now = Date.now();
+
+      // Detection of Moxa Schema vs General CSV Schema 
+      if (source === 'MOXA_TCP' || tokens.length >= 20) {
+        // MOXA 22-field scheme:
+        // [0] Kode_Stasiun, [1] Date (DD-MM-YYYY), [2] Time (HH:mm:ss), [3] WS_meas, [5] WD_meas, 
+        // [6] TA_meas, [9] RH_meas, [10] PA_meas, [12] SR_meas, [17] water_level (m), [18] PH_meas
+        const ws_meas = parseFloat(tokens[3]) || 0;
+        const wd_meas = parseInt(tokens[5]) || 0;
+        const ta_meas = parseFloat(tokens[6]) || 28.0;
+        const rh_meas = parseInt(tokens[9]) || 80;
+        const pa_meas = parseFloat(tokens[10]) || 1010.0;
+        const sr_meas = tokens[12] === 'NAN' ? 0 : (parseInt(tokens[12]) || 0);
+        const water_level = tokens[17] === 'NAN' ? 140.0 : parseFloat(tokens[17]) * 100; // convert m to cm
+        const ph_meas = tokens[18] === 'NAN' ? 7.8 : parseFloat(tokens[18]) || 7.8;
+
+        record = {
+          timestamp: now,
+          temperature: ta_meas,
+          humidity: rh_meas,
+          windSpeed: ws_meas,
+          windDirection: wd_meas,
+          pressure: pa_meas,
+          solarRadiation: sr_meas,
+          rainfall: 0.0,
+          waveHeight: 1.10, // constant base
+          seaLevel: water_level, 
+          waterPh: ph_meas
+        };
+      } else {
+        // Standard payload scheme (Standard 11 properties):
+        // [0] ID, [1] Date Time, [2] Temp, [3] Hum, [4] Solar, [5] Rain, [6] WaveHr, [7] SeaLvl, [8] pH, [9] WindDir, [10] WindSpd, [11] Press
+        const temp = parseFloat(tokens[2]) || 28.0;
+        const hum = parseInt(tokens[3]) || 80;
+        const solar = parseInt(tokens[4]) || 0;
+        const rain = parseFloat(tokens[5]) || 0.0;
+        const wave = parseFloat(tokens[6]) || 1.10;
+        const sea = parseFloat(tokens[7]) || 140.0;
+        const ph = parseFloat(tokens[8]) || 7.80;
+        const wd = parseInt(tokens[9]) || 0;
+        const ws = parseFloat(tokens[10]) || 0.0;
+        const press = parseFloat(tokens[11]) || 1010.0;
+
+        record = {
+          timestamp: now,
+          temperature: temp,
+          humidity: hum,
+          solarRadiation: solar,
+          rainfall: rain,
+          waveHeight: wave,
+          seaLevel: sea,
+          waterPh: ph,
+          windDirection: wd,
+          windSpeed: ws,
+          pressure: press
+        };
+      }
+
+      // Add mapped record to live memory history immediately
+      setHistory(prev => {
+        const updated = [...prev, record];
+        const keeps = updated.length > 200 ? updated.slice(updated.length - 150) : updated;
+        localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
+        return keeps;
+      });
+
+      // Forward directly to local database (XAMPP api.php) if configured
+      postLogToLocalXampp(record);
+
+      // Append clean report to stream logs tab
+      setStreamLogs(prev => {
+        const list = prev.split('\n');
+        const ts = format(new Date(), 'HH:mm:ss');
+        const dir = getWindRoseString(record.windDirection);
+        const logLine = `[${ts} ${source} INBOUND] 🟢 SUCCESS PARSED PAYLOAD -> Temp: ${record.temperature}°C, WS: ${record.windSpeed}m/s (${dir}), pH: ${record.waterPh}`;
+        const output = [...list, logLine];
+        return (output.length > 40 ? output.slice(output.length - 30) : output).join('\n');
+      });
+
+    } catch (parseErr) {
+      setStreamLogs(prev => {
+        const list = prev.split('\n');
+        const ts = format(new Date(), 'HH:mm:ss');
+        return [...list, `[${ts} PARSER ERROR] 🔴 Invalid tokens: ${parseErr}`].join('\n');
+      });
+    }
+  };
+
+  // Handler to open Web Serial API from client browser
+  const connectSerial = async () => {
+    if (!('serial' in navigator)) {
+      showToastNotification("Web Serial API is tidak didukung di browser ini. Harap gunakan Google Chrome atau MS Edge!");
+      return;
+    }
+
+    try {
+      const port = await (navigator as any).serial.requestPort();
+      const baud = parseInt(config.baudrate) || 9600;
+      await port.open({ baudRate: baud });
+      setStreamLogs(prev => {
+        const list = prev.split('\n');
+        const ts = format(new Date(), 'HH:mm:ss');
+        return [...list, `[${ts} SERIAL Port] 🔌 Connected to hardware COM port successfully. Parsing stream...`].join('\n');
+      });
+      setSerialPort(port);
+      setIsReadingSerial(true);
+      showToastNotification("🟢 BERHASIL TERBUG KONEKSI SERIAL!");
+      
+      // Infinite read loop
+      readSerialLoop(port);
+    } catch (err) {
+      showToastNotification(`🔴 Gagal membuka Serial COM: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  const disconnectSerial = async () => {
+    try {
+      setIsReadingSerial(false);
+      if (serialPort) {
+        setSerialPort(null);
+      }
+      showToastNotification("🔌 Serial COM dinonaktifkan.");
+      setStreamLogs(prev => {
+        const list = prev.split('\n');
+        const ts = format(new Date(), 'HH:mm:ss');
+        return [...list, `[${ts} SERIAL Port] 🛑 Closed connection to COM.`].join('\n');
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const readSerialLoop = async (port: any) => {
+    const textDecoder = new TextDecoder();
+    const reader = port.readable.getReader();
+    let bufferStr = '';
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+        const text = textDecoder.decode(value);
+        bufferStr += text;
+
+        if (bufferStr.includes('\n')) {
+          const lines = bufferStr.split('\n');
+          bufferStr = lines.pop() || '';
+          for (const line of lines) {
+            const clean = line.trim();
+            if (clean) {
+              parseIncomingSentence(clean, 'SERIAL');
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Serial stream read terminated:", err);
+    } finally {
+      reader.releaseLock();
+    }
+  };
+
   // Save changes helper
   const handleSaveConfig = (newConfig: typeof config) => {
     setConfig(newConfig);
@@ -270,6 +456,9 @@ export default function App() {
   // Active simulated logger feed
   useEffect(() => {
     const interval = setInterval(() => {
+      if (config.isSimulationOn === 'OFF') {
+        return;
+      }
       const pctime = new Date();
       const nextTemp = 27 + Math.random() * 4;
       const nextHum = 70 + Math.floor(Math.random() * 25);
@@ -1859,19 +2048,19 @@ if (\$_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-\$host = "localhost";
-\$username = "root";
-\$password = ""; // Default password kosong di XAMPP
+$host = "localhost";
+$username = "root";
+$password = ""; // Default password kosong di XAMPP
 
 try {
-    \$conn = new PDO("mysql:host=\$host", \$username, \$password);
-    \$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $conn = new PDO("mysql:host=$host", $username, $password);
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
     // Auto-create database & table jika belum ada
-    \$conn->exec("CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
-    \$conn->exec("USE db_pelabuhan_telemetry;");
+    $conn->exec("CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
+    $conn->exec("USE db_pelabuhan_telemetry;");
 
-    \$sql_table = "CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
+    $sql_table = "CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
         id INT AUTO_INCREMENT PRIMARY KEY,
         station_id VARCHAR(50) NOT NULL,
         timestamp DATETIME NOT NULL,
@@ -1888,20 +2077,20 @@ try {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
     
-    \$conn->exec(\$sql_table);
-} catch (PDOException \$e) {
+    $conn->exec($sql_table);
+} catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(["status" => "error", "message" => "Setup Failed: " . \$e->getMessage()]);
+    echo json_encode(["status" => "error", "message" => "Setup Failed: " . $e->getMessage()]);
     exit();
 }
 
-if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
-    \$input = file_get_contents("php://input");
-    \$data = json_decode(\$input, true);
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $input = file_get_contents("php://input");
+    $data = json_decode($input, true);
 
-    if (isset(\$data['station_id']) && isset(\$data['timestamp'])) {
+    if (isset($data['station_id']) && isset($data['timestamp'])) {
         try {
-            \$stmt = \$conn->prepare("INSERT INTO tbl_sensor_logs (
+            $stmt = $conn->prepare("INSERT INTO tbl_sensor_logs (
                 station_id, timestamp, temperature, humidity, solar_radiation, 
                 rainfall, wave_height, sea_level, water_ph, wind_direction, wind_speed, pressure
             ) VALUES (
@@ -1909,26 +2098,26 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
                 :rainfall, :wave_height, :sea_level, :water_ph, :wind_direction, :wind_speed, :pressure
             )");
 
-            \$stmt->execute([
-                ':station_id' => \$data['station_id'],
-                ':timestamp' => \$data['timestamp'],
-                ':temperature' => \$data['temperature'],
-                ':humidity' => \$data['humidity'],
-                ':solar_radiation' => isset(\$data['solar_radiation']) ? \$data['solar_radiation'] : 0,
-                ':rainfall' => isset(\$data['rainfall']) ? \$data['rainfall'] : 0.0,
-                ':wave_height' => isset(\$data['wave_height']) ? \$data['wave_height'] : 0.0,
-                ':sea_level' => isset(\$data['sea_level']) ? \$data['sea_level'] : 0.0,
-                ':water_ph' => isset(\$data['water_ph']) ? \$data['water_ph'] : 7.0,
-                ':wind_direction' => isset(\$data['wind_direction']) ? \$data['wind_direction'] : 0,
-                ':wind_speed' => isset(\$data['wind_speed']) ? \$data['wind_speed'] : 0.0,
-                ':pressure' => isset(\$data['pressure']) ? \$data['pressure'] : 1013.25
+            $stmt->execute([
+                ':station_id' => $data['station_id'],
+                ':timestamp' => $data['timestamp'],
+                ':temperature' => $data['temperature'],
+                ':humidity' => $data['humidity'],
+                ':solar_radiation' => isset($data['solar_radiation']) ? $data['solar_radiation'] : 0,
+                ':rainfall' => isset($data['rainfall']) ? $data['rainfall'] : 0.0,
+                ':wave_height' => isset($data['wave_height']) ? $data['wave_height'] : 0.0,
+                ':sea_level' => isset($data['sea_level']) ? $data['sea_level'] : 0.0,
+                ':water_ph' => isset($data['water_ph']) ? $data['water_ph'] : 7.0,
+                ':wind_direction' => isset($data['wind_direction']) ? $data['wind_direction'] : 0,
+                ':wind_speed' => isset($data['wind_speed']) ? $data['wind_speed'] : 0.0,
+                ':pressure' => isset($data['pressure']) ? $data['pressure'] : 1013.25
             ]);
 
             echo json_encode(["status" => "success", "message" => "Record logged successfully!"]);
             exit();
-        } catch (PDOException \$e) {
+        } catch (PDOException $e) {
             http_response_code(500);
-            echo json_encode(["status" => "error", "message" => "Insertion Failed: " . \$e->getMessage()]);
+            echo json_encode(["status" => "error", "message" => "Insertion Failed: " . $e->getMessage()]);
             exit();
         }
     }
@@ -1942,44 +2131,89 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
                             navigator.clipboard.writeText(phpCode);
                             showToastNotification("Automated PHP Hook successfully copied to clipboard!");
                           }}
-                          className="text-[9px] bg-[#00f0ff]/10 hover:bg-[#00f0ff]/20 text-[#00f0ff] font-bold uppercase px-3 py-1.5 rounded-lg border border-[#00f0ff]/20 transition cursor-pointer font-mono"
+                          className="text-xs bg-[#00f0ff]/10 hover:bg-[#00f0ff]/20 text-[#00f0ff] font-bold uppercase px-4 py-2.5 rounded-lg border border-[#00f0ff]/20 transition cursor-pointer font-mono flex items-center justify-center gap-1"
                         >
-                          Copy PHP Code
+                          📋 Copy PHP Code
                         </button>
                         <button 
                           onClick={async () => {
                             const testUrl = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
-                            showToastNotification("Contacting local XAMPP Apache endpoint...");
+                            showToastNotification("🔧 Menguji hubungan ke XAMPP...");
+                            setDbTestResult({ status: 'loading', message: `Menghubungi endpoint lokal pada: ${testUrl}...`, details: 'Mengirimkan HTTP GET request ke web server Apache lokal Anda.' });
                             try {
                               const res = await fetch(testUrl, { method: 'GET' });
                               if (res.ok) {
                                 const parsed = await res.json();
-                                showToastNotification("🟢 DATABASE CONNECTED & INITIALIZED SUCCESSFUL!");
+                                setIsDbConnected(true);
+                                setDbTestResult({
+                                  status: 'success',
+                                  message: '🟢 KONEKSI DAN INISIALISASI DATABASE BERHASIL!',
+                                  details: `${parsed.message || 'Server XAMPP merespon dengan OK.'}\nStatus: ${parsed.status || 'success'}`
+                                });
+                                showToastNotification("🟢 DATABASE KONEKSI SUKSES!");
                                 setStreamLogs(prev => {
                                   const list = prev.split('\n');
                                   const ts = format(new Date(), 'HH:mm:ss');
                                   return [...list, `[${ts} SQL SYSTEM] 🟢 LIVE TEST SUCCESS: ${parsed.message || 'Auto-constructed completed successfully.'}`].join('\n');
                                 });
                               } else {
-                                throw new Error(`HTTP ${res.status}`);
+                                throw new Error(`HTTP ${res.status} dari server.`);
                               }
                             } catch (e) {
-                              showToastNotification("🔴 LINK UNREACHABLE! Start Apache first and place api.php in htdocs/aws_marine/.");
+                              setIsDbConnected(false);
+                              setDbTestResult({
+                                status: 'error',
+                                message: '🔴 TIDAK DAPAT MENGHUBUNGI API DATABASE!',
+                                details: `Link tujuan (${testUrl}) tidak merespon atau memicu Error CORS/Network.\nKesalahan detail: ${e instanceof Error ? e.message : String(e)}`
+                              });
+                              showToastNotification("🔴 KONEKSI DATABASE GAGAL!");
                               setStreamLogs(prev => {
                                 const list = prev.split('\n');
                                 const ts = format(new Date(), 'HH:mm:ss');
-                                return [...list, `[${ts} SQL ERROR] 🔴 TEST FAILED: Ensure C:/xampp/htdocs/aws_marine/api.php exists & XAMPP Apache control is turned ON.`].join('\n');
+                                return [...list, `[${ts} SQL ERROR] 🔴 TEST FAILED: Pastikan XAMPP Apache aktif & api.php diletakkan di htdocs/aws_marine/`].join('\n');
                               });
                             }
                           }}
-                          className="text-[9px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/25 font-bold uppercase px-3 py-1.5 rounded-lg transition cursor-pointer font-mono"
+                          className="text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/35 font-bold uppercase px-4 py-2.5 rounded-lg transition cursor-pointer font-mono flex items-center justify-center gap-1 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
                         >
                           ⚡ Test Connection & Auto-Create Table
                         </button>
                       </div>
                     </div>
 
-                    <pre className="text-[9px] font-mono text-slate-400 p-3 bg-black/60 rounded-lg overflow-x-auto max-h-[140px] leading-relaxed select-all border border-white/5">
+                    {/* DYNAMIC troubleshooting outcome alert box for ultimate feedback */}
+                    {dbTestResult.status !== 'idle' && (
+                      <div className={`p-4 rounded-xl border font-mono text-xs ${
+                        dbTestResult.status === 'loading' ? 'bg-blue-500/10 border-blue-500/30 text-blue-300 animate-pulse' :
+                        dbTestResult.status === 'success' ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' :
+                        'bg-red-500/15 border-red-500/30 text-red-300'
+                      }`}>
+                        <div className="flex items-center gap-2 font-bold text-sm uppercase mb-1.5">
+                          {dbTestResult.status === 'loading' && <span>⏳ SEDANG MENGUJI...</span>}
+                          {dbTestResult.status === 'success' && <span>🟢 KONEKSI DATABASE BERHASIL (SUCCESS)</span>}
+                          {dbTestResult.status === 'error' && <span>🔴 KONEKSI DATABASE GAGAL (FAILED)</span>}
+                        </div>
+                        <p className="mb-1 leading-relaxed font-sans text-slate-200">{dbTestResult.message}</p>
+                        {dbTestResult.details && (
+                          <div className="p-2.5 bg-black/60 rounded border border-white/5 mt-2 text-slate-300 text-[11px] whitespace-pre-wrap leading-relaxed overflow-x-auto font-mono">
+                            {dbTestResult.details}
+                          </div>
+                        )}
+                        {dbTestResult.status === 'error' && (
+                          <div className="mt-3 text-amber-300 text-[10.5px] leading-relaxed border-t border-red-500/15 pt-2 font-sans">
+                            💡 <strong>PETUNJUK PENYELESAIAN MASALAH:</strong>
+                            <ul className="list-disc pl-4 mt-1.5 space-y-1 text-slate-300 text-xs">
+                              <li>Apakah <strong>XAMPP Control Panel</strong> sudah dibuka di laptop Anda? Pastikan tombol <strong className="text-emerald-400">Apache</strong> dan <strong className="text-emerald-400">MySQL</strong> sudah dinyalakan sampai berwarna hijau.</li>
+                              <li>Masukkan file <strong className="text-white">api.php</strong> di jalur direktori XAMPP lokal Anda: <code className="text-teal-300 bg-black/50 px-1 border border-white/5 font-mono text-xs">C:\xampp\htdocs\aws_marine\api.php</code>.</li>
+                              <li>Gunakan URL API di setelan Settings: <code className="text-white bg-black/50 px-1 font-mono text-xs">{config.localDbApiUrl || 'http://localhost/aws_marine/api.php'}</code>.</li>
+                              <li>Pastikan XAMPP berjalan di port standar (port 80). Jika menggunakan port custom (misal: 8080), sesuaikan URL anda menjadi <code className="text-white font-mono text-xs">http://localhost:8080/aws_marine/api.php</code>.</li>
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <pre className="text-xs font-mono text-slate-400 p-4 bg-black/60 rounded-lg overflow-x-auto max-h-[140px] leading-relaxed select-all border border-white/5">
 {`<?php
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: Content-Type");
@@ -1998,34 +2232,34 @@ header("Content-Type: application/json; charset=UTF-8");
             </div>
 
             {/* Filter Log panel with CSV exporter */}
-            <div className="bg-gradient-to-b from-[#0b1424] to-bg p-5 rounded-2xl border border-white/10 flex flex-wrap gap-5 items-end justify-between">
+            <div className="bg-gradient-to-b from-[#0b1424] to-bg p-5 rounded-2xl border border-white/10 flex flex-wrap gap-5 items-end justify-between shadow-lg">
               <div className="flex flex-wrap gap-5 items-end">
                 <div>
-                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-[#00f0ff] mb-2 block font-sans">Start Log Period</span>
+                  <span className="text-xs md:text-xs uppercase font-bold tracking-wider text-[#00f0ff] mb-2 block font-mono">📅 Start Log Period</span>
                   <input 
                     type="date" 
                     value={dbStartDate}
                     onChange={(e) => setDbStartDate(e.target.value)}
-                    className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-2 px-3 rounded-lg outline-none focus:border-[#00f0ff] transition" 
+                    className="bg-[#050a12] border border-[#00f0ff]/25 text-white text-xs md:text-sm font-mono py-2.5 px-3.5 rounded-lg outline-none focus:border-[#00f0ff] transition focus:ring-1 focus:ring-[#00f0ff]/30" 
                   />
                 </div>
                 <div>
-                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-[#00f0ff] mb-2 block font-sans">End Log Period</span>
+                  <span className="text-xs md:text-xs uppercase font-bold tracking-wider text-[#00f0ff] mb-2 block font-mono">📅 End Log Period</span>
                   <input 
                     type="date" 
                     value={dbEndDate}
                     onChange={(e) => setDbEndDate(e.target.value)}
-                    className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-2 px-3 rounded-lg outline-none focus:border-[#00f0ff] transition" 
+                    className="bg-[#050a12] border border-[#00f0ff]/25 text-white text-xs md:text-sm font-mono py-2.5 px-3.5 rounded-lg outline-none focus:border-[#00f0ff] transition focus:ring-1 focus:ring-[#00f0ff]/30" 
                   />
                 </div>
                 <div>
-                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-[#00f0ff] mb-2 block font-sans">Search Metrics</span>
+                  <span className="text-xs md:text-xs uppercase font-bold tracking-wider text-[#00f0ff] mb-2 block font-mono">🔍 Search Metrics</span>
                   <input 
                     type="text" 
                     placeholder="Search temp, wind..."
                     value={dbSearchTerm}
                     onChange={(e) => setDbSearchTerm(e.target.value)}
-                    className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-2 px-3 rounded-lg outline-none focus:border-[#00f0ff] transition placeholder:text-slate-600" 
+                    className="bg-[#050a12] border border-[#00f0ff]/25 text-white text-xs md:text-sm font-mono py-2.5 px-4 rounded-lg outline-none focus:border-[#00f0ff] transition placeholder:text-slate-500 focus:ring-1 focus:ring-[#00f0ff]/30 min-w-[210px]" 
                   />
                 </div>
               </div>
@@ -2033,13 +2267,13 @@ header("Content-Type: application/json; charset=UTF-8");
               <div className="flex gap-3">
                 <button 
                   onClick={filterLogsData}
-                  className="bg-[#00f0ff] hover:bg-[#00d0f0] transition text-[#050a12] text-xs font-bold font-mono py-2.5 px-6 rounded-lg uppercase cursor-pointer"
+                  className="bg-[#00f0ff] hover:bg-[#00d0f0] transition text-[#050a12] text-xs md:text-sm font-bold font-mono py-2.5 px-6 rounded-lg uppercase cursor-pointer shadow-[0_0_15px_rgba(0,240,255,0.25)]"
                 >
                   Apply Filter
                 </button>
                 <button 
                   onClick={exportLogsToCSV}
-                  className="bg-emerald-500 hover:bg-emerald-600 transition text-[#050a12] text-xs font-bold font-mono py-2.5 px-6 rounded-lg uppercase cursor-pointer text-slate-950"
+                  className="bg-emerald-500 hover:bg-emerald-600 transition text-[#050a12] text-xs md:text-sm font-bold font-mono py-2.5 px-6 rounded-lg uppercase cursor-pointer text-slate-950 font-bold shadow-[0_0_15px_rgba(16,185,129,0.25)]"
                 >
                   Export CSV File
                 </button>
@@ -2104,18 +2338,18 @@ header("Content-Type: application/json; charset=UTF-8");
             {/* COLUMN 1: Hardware & Network (width 4/12) */}
             <div className="xl:col-span-4 space-y-6">
               
-              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-4">
-                <div className="text-[11px] uppercase font-bold text-[#f59e0b] tracking-[0.2em] border-b border-white/5 pb-2">
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-4 shadow-xl">
+                <div className="text-xs md:text-sm uppercase font-bold text-[#f59e0b] tracking-[0.2em] border-b border-white/5 pb-2">
                   🔒 Hardware & Network Config
                 </div>
 
                 <div className="space-y-3 font-sans">
                   <div>
-                    <label className="text-[8.5px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1">Logger Mode</label>
+                    <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">📡 Logger Mode</label>
                     <select 
                       value={config.transport} 
                       onChange={(e) => setConfig({ ...config, transport: e.target.value })}
-                      className="w-full bg-[#050a12] border border-white/10 font-mono text-xs select-none p-2 text-white rounded outline-none"
+                      className="w-full bg-[#050a12] border border-[#00f0ff]/20 font-mono text-xs md:text-sm p-3 text-white rounded-lg outline-none focus:border-[#00f0ff]"
                     >
                       <option value="OFF">OFF</option>
                       <option value="SERIAL">SERIAL COM (RS232/RS485)</option>
@@ -2124,19 +2358,56 @@ header("Content-Type: application/json; charset=UTF-8");
                     </select>
                   </div>
 
+                  {/* Web Serial Action Buttons for Physical Port Connections */}
+                  {config.transport === 'SERIAL' && (
+                    <div className="pt-1 pb-2 border-b border-white/5 space-y-1.5">
+                      <span className="text-[10.5px] text-slate-400 font-mono block">Web Serial Control:</span>
+                      {isReadingSerial ? (
+                        <button
+                          onClick={disconnectSerial}
+                          className="w-full text-xs font-bold font-mono py-2.5 px-4 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-lg transition duration-200 cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          🛑 OFF PORT: {config.serialcom || 'COM'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={connectSerial}
+                          className="w-full text-xs font-bold font-mono py-2.5 px-4 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/35 rounded-lg transition duration-200 cursor-pointer flex items-center justify-center gap-1.5 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.15)]"
+                        >
+                          🔌 CONNECT COM PORT
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   <div>
-                    <label className="text-[8.5px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1">Splitter Char</label>
+                    <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">🕹️ Mode Simulasi Data</label>
+                    <select 
+                      value={config.isSimulationOn || 'ON'} 
+                      onChange={(e) => setConfig({ ...config, isSimulationOn: e.target.value })}
+                      className="w-full bg-[#050a12] border border-[#00f0ff]/20 font-mono text-xs md:text-sm p-3 text-sky-300 font-bold rounded-lg outline-none focus:border-[#00f0ff]"
+                    >
+                      <option value="ON">🟢 ON (Simulasi Otomatis Berjalan)</option>
+                      <option value="OFF">🔴 OFF (Data Riil Mengandalkan Serial & Payload)</option>
+                    </select>
+                    <p className="text-[10px] text-slate-400 font-sans mt-1 leading-normal">
+                      Pilih <strong>OFF</strong> jika laptop Anda telah disambungkan ke sensor serial fisik atau gateway Moxa sesungguhnya.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">✂️ Splitter Char</label>
                     <input 
                       type="text" 
                       value={config.splitchar} 
                       onChange={(e) => setConfig({ ...config, splitchar: e.target.value })}
-                      className="w-full bg-[#050a12] border border-white/10 font-mono text-xs text-center p-2 text-white rounded outline-none" 
+                      className="w-full bg-[#050a12] border border-white/10 font-mono text-xs md:text-sm text-center p-3 text-white rounded-lg outline-none focus:border-[#00f0ff]" 
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[8.5px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1">
+                      <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">
                         {config.transport === 'SERIAL' ? 'COM Port' : 'Moxa IP / Host'}
                       </label>
                       <input 
@@ -2144,11 +2415,11 @@ header("Content-Type: application/json; charset=UTF-8");
                         value={config.serialcom || ''} 
                         placeholder={config.transport === 'SERIAL' ? 'COM3' : '192.168.127.254'}
                         onChange={(e) => setConfig({ ...config, serialcom: e.target.value })}
-                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs text-center p-2 text-white rounded outline-none" 
+                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs md:text-sm text-center p-3 text-white rounded-lg outline-none focus:border-[#00f0ff]" 
                       />
                     </div>
                     <div>
-                      <label className="text-[8.5px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1">
+                      <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">
                         {config.transport === 'SERIAL' ? 'Baudrate' : 'Socket Port'}
                       </label>
                       <input 
@@ -2156,29 +2427,29 @@ header("Content-Type: application/json; charset=UTF-8");
                         value={config.baudrate || ''} 
                         placeholder={config.transport === 'SERIAL' ? '9600' : '4001'}
                         onChange={(e) => setConfig({ ...config, baudrate: e.target.value })}
-                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs text-center p-2 text-white rounded outline-none" 
+                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs md:text-sm text-center p-3 text-white rounded-lg outline-none focus:border-[#00f0ff]" 
                       />
                     </div>
                   </div>
 
                   <div className="border-t border-white/5 pt-3">
-                    <label className="text-[8.5px] uppercase font-bold text-emerald-400 tracking-wider block mb-1">Visual Terminal Angle (Degrees 0-360)</label>
+                    <label className="text-xs md:text-xs uppercase font-bold text-emerald-400 font-mono tracking-wider block mb-1.5">🔄 Visual Pier Angle (Degrees 0-360)</label>
                     <input 
                       type="number" 
                       min="0"
                       max="360"
                       value={config.pierAngle} 
                       onChange={(e) => setConfig({ ...config, pierAngle: e.target.value })}
-                      className="w-full bg-[#050a12] border border-white/15 font-mono text-sm text-center p-2 text-emerald-400 font-black rounded outline-none cursor-pointer" 
+                      className="w-full bg-[#050a12] border border-white/15 font-mono text-sm text-center p-3 text-emerald-400 font-black rounded-lg outline-none cursor-pointer focus:border-emerald-400" 
                     />
                   </div>
 
                   <div className="border-t border-white/5 pt-3">
-                    <label className="text-xs uppercase font-bold text-sky-400 tracking-wider block mb-1">🔍 Skala Ukuran Teks & UI (Zoom)</label>
+                    <label className="text-xs uppercase font-bold text-sky-400 tracking-wider block mb-1.5">🔍 Skala Ukuran Teks & UI (Zoom)</label>
                     <select 
                       value={config.uiZoom || '115'} 
                       onChange={(e) => setConfig({ ...config, uiZoom: e.target.value })}
-                      className="w-full bg-[#050a12] border border-white/15 font-mono text-xs p-2 text-sky-300 font-bold rounded outline-none cursor-pointer"
+                      className="w-full bg-[#050a12] border border-white/15 font-mono text-xs md:text-sm p-3 text-sky-300 font-bold rounded-lg outline-none cursor-pointer focus:border-sky-400"
                     >
                       <option value="100">100% (Standar / Layar Lebar)</option>
                       <option value="110">110% (Sedang)</option>
@@ -2187,7 +2458,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       <option value="125">125% (Sangat Besar)</option>
                       <option value="130">130% (Resolusi Tinggi / High DPI)</option>
                     </select>
-                    <p className="text-[9px] text-slate-400 font-mono mt-1 leading-tight">
+                    <p className="text-[10px] text-slate-400 font-sans mt-1 leading-normal">
                       Sesuaikan skala ukuran teks untuk kenyamanan membaca di layar laptop Anda.
                     </p>
                   </div>
@@ -2247,7 +2518,7 @@ header("Content-Type: application/json; charset=UTF-8");
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-[7.5px] uppercase font-bold text-slate-400 block font-mono">FTP Password</label>
+                            <label className="text-xs font-bold tracking-wide text-slate-400 block font-mono mb-1">FTP Password</label>
                             <input 
                               type="password" 
                               value={config.ftpPass}
@@ -2259,7 +2530,7 @@ header("Content-Type: application/json; charset=UTF-8");
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-[7.5px] uppercase font-bold text-slate-400 block font-mono">FTP Upload Path (Directory)</label>
+                          <label className="text-xs font-bold tracking-wide text-slate-400 block font-mono mb-1">FTP Upload Path (Directory)</label>
                           <input 
                             type="text" 
                             value={config.ftpPath}
@@ -2274,12 +2545,12 @@ header("Content-Type: application/json; charset=UTF-8");
 
                   {/* Water pH Threshold configs */}
                   <div className="border-t border-white/5 pt-3 space-y-2">
-                    <label className="text-[8.5px] uppercase font-bold text-pink-400 tracking-wider block">
+                    <label className="text-xs uppercase font-bold text-pink-400 tracking-wider block font-mono mb-1">
                       🧪 Water pH Alarm Limits
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <span className="text-[7.5px] text-slate-400 uppercase font-mono block mb-1">Min Safe (Acid)</span>
+                        <span className="text-[10px] md:text-xs text-slate-400 uppercase font-mono block mb-1">Min Safe (Acid)</span>
                         <input 
                           type="number" 
                           step="0.1"
@@ -2287,11 +2558,11 @@ header("Content-Type: application/json; charset=UTF-8");
                           max="14"
                           value={config.minPhThreshold ?? '6.5'}
                           onChange={(e) => setConfig({ ...config, minPhThreshold: e.target.value })}
-                          className="w-full bg-[#050a12] border border-white/10 font-mono text-center text-xs p-2 text-pink-400 font-bold rounded outline-none" 
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-center text-xs p-2.5 text-pink-400 font-bold rounded" 
                         />
                       </div>
                       <div>
-                        <span className="text-[7.5px] text-slate-400 uppercase font-mono block mb-1">Max Safe (Alkali)</span>
+                        <span className="text-[10px] md:text-xs text-slate-400 uppercase font-mono block mb-1">Max Safe (Alkali)</span>
                         <input 
                           type="number" 
                           step="0.1"
@@ -2299,7 +2570,7 @@ header("Content-Type: application/json; charset=UTF-8");
                           max="14"
                           value={config.maxPhThreshold ?? '8.5'}
                           onChange={(e) => setConfig({ ...config, maxPhThreshold: e.target.value })}
-                          className="w-full bg-[#050a12] border border-white/10 font-mono text-center text-xs p-2 text-pink-400 font-bold rounded outline-none" 
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-center text-xs p-2.5 text-pink-400 font-bold rounded" 
                         />
                       </div>
                     </div>
