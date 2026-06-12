@@ -181,11 +181,40 @@ export default function App() {
   const [dbScriptTab, setDbScriptTab] = useState<'sql' | 'php'>('sql');
   const [isIntegratorOpen, setIsIntegratorOpen] = useState(false);
   const [isDbConnected, setIsDbConnected] = useState(false);
+  const [lastDbSaveTime, setLastDbSaveTime] = useState<number>(Date.now());
   const [dbTestResult, setDbTestResult] = useState<{
     status: 'idle' | 'loading' | 'success' | 'error';
     message: string;
     details?: string;
   }>({ status: 'idle', message: '' });
+
+  // Auto-connect and check database on mount (helpful when laptop restarts and XAMPP launches)
+  useEffect(() => {
+    const autoTestConnection = async () => {
+      const testUrl = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
+      try {
+        const res = await fetch(testUrl, { method: 'GET' });
+        if (res.ok) {
+          const parsed = await res.json();
+          setIsDbConnected(true);
+          setDbTestResult({
+            status: 'success',
+            message: '🟢 KONEKSI DATABASE OTOMATIS SUKSES!',
+            details: `${parsed.message || 'Server XAMPP merespon dengan OK.'}\nStatus: ${parsed.status || 'success'}`
+          });
+          setStreamLogs(prev => {
+            const list = prev.split('\n');
+            const ts = format(new Date(), 'HH:mm:ss');
+            return [...list, `[${ts} SQL SYSTEM] 🟢 AUTO-CONNECT SUCCESS: Database local teruji aktif secara otomatis.`].join('\n');
+          });
+        }
+      } catch (e) {
+        // Silent standby if XAMPP isn't ready on startup
+        setIsDbConnected(false);
+      }
+    };
+    autoTestConnection();
+  }, []);
   
   // Real Serial port and manual inbound controller states
   const [serialPort, setSerialPort] = useState<any>(null);
@@ -327,8 +356,54 @@ export default function App() {
         return keeps;
       });
 
-      // Forward directly to local database (XAMPP api.php) if configured
-      postLogToLocalXampp(record);
+      // Added support to buffer and save at the custom selected minute logging interval (e.g., 10 minutes) instead of every second
+      setSampleBuffer(prevBuf => {
+        const updated = [...prevBuf, record];
+        const now = Date.now();
+        const elapsedMs = now - lastDbSaveTime;
+        const intervalMs = (config.dbStorageInterval || 10) * 60 * 1000;
+
+        // Check if the configured minute interval has elapsed
+        if (elapsedMs >= intervalMs && updated.length > 0) {
+          // Wrap side-effects in a microtask to keep the state reducer pure
+          setTimeout(() => {
+            let recordToSave: WeatherData;
+            let msgLog = '';
+
+            const spaceMode = config.dbStorageMode || 'AVG';
+            if (spaceMode === 'AVG') {
+              recordToSave = calculateAverageRecord(updated);
+              msgLog = `⏱️ compiled and saved standard WMO ${config.dbStorageInterval}-minute average based on ${updated.length} raw samples successfully.`;
+            } else {
+              recordToSave = { ...record };
+              msgLog = `📦 saved raw instantaneous record for ${config.dbStorageInterval}-minute interval directly to database successfully.`;
+            }
+
+            // Adjust timestamp of record to reflect the completed logging window
+            recordToSave.timestamp = Date.now() - intervalMs;
+
+            // Asynchronously post to local XAMPP MariaDB backend
+            postLogToLocalXampp(recordToSave);
+
+            // Append SQL success notification to terminal logs
+            setStreamLogs(prevLogs => {
+              const lines = prevLogs.split('\n');
+              const timeStr = format(new Date(), 'HH:mm:ss');
+              const msg = `[${timeStr} SQL SYSTEM] ${msgLog}`;
+              const output = [...lines, msg];
+              if (output.length > 40) return output.slice(output.length - 30).join('\n');
+              return output.join('\n');
+            });
+
+            // Reset the last saved time mark
+            setLastDbSaveTime(Date.now());
+          }, 0);
+
+          return []; // Clear the buffer
+        }
+
+        return updated; // Keep gathering raw measurements
+      });
 
       // Append clean report to stream logs tab
       setStreamLogs(prev => {
@@ -1880,6 +1955,7 @@ export default function App() {
                       });
 
                       setSampleBuffer([]);
+                      setLastDbSaveTime(Date.now());
                       showToastNotification(config.dbStorageMode === 'AVG' ? "Successfully forced calculation of average record!" : "Successfully forced raw instantaneous log commit!");
                     }}
                     disabled={sampleBuffer.length === 0}
