@@ -38,7 +38,7 @@ const DEFAULT_CONFIG = {
   dbStorageInterval: 10, // 1 to 60 Minutes
   localDbApiUrl: 'http://localhost/aws_marine/api.php',
   uiZoom: '115', // Default font size scale (%) for excellent laptop reading
-  isSimulationOn: 'ON', // ON / OFF simulation mode
+  isSimulationOn: 'OFF', // ON / OFF simulation mode
   sensors: {
     'ch_0': '2',   // Air Temp
     'ch_2': '2',   // Temp Avg (let's map to Temp source with average)
@@ -163,7 +163,8 @@ export default function App() {
     const parsed = saved ? JSON.parse(saved) : DEFAULT_CONFIG;
     return {
       ...DEFAULT_CONFIG,
-      ...parsed
+      ...parsed,
+      isSimulationOn: 'OFF' // Force simulation to OFF as per user request
     };
   });
 
@@ -2380,18 +2381,11 @@ header("Content-Type: application/json; charset=UTF-8");
                     </div>
                   )}
 
-                  <div>
-                    <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">🕹️ Mode Simulasi Data</label>
-                    <select 
-                      value={config.isSimulationOn || 'ON'} 
-                      onChange={(e) => setConfig({ ...config, isSimulationOn: e.target.value })}
-                      className="w-full bg-[#050a12] border border-[#00f0ff]/20 font-mono text-xs md:text-sm p-3 text-sky-300 font-bold rounded-lg outline-none focus:border-[#00f0ff]"
-                    >
-                      <option value="ON">🟢 ON (Simulasi Otomatis Berjalan)</option>
-                      <option value="OFF">🔴 OFF (Data Riil Mengandalkan Serial & Payload)</option>
-                    </select>
+                  <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-1">
+                    <label className="text-xs md:text-xs uppercase font-bold text-emerald-400 font-mono tracking-wider block mb-1">🔌 Mode Pengoperasian</label>
+                    <div className="text-xs text-slate-100 font-bold font-mono">📡 HARDWARE REAL-TIME RECEIVER</div>
                     <p className="text-xs text-slate-400 font-sans mt-1 leading-normal">
-                      Pilih <strong>OFF</strong> jika laptop Anda telah disambungkan ke sensor serial fisik atau gateway Moxa sesungguhnya.
+                      Simulasi dinonaktifkan sepenuhnya. Sistem memproses data real-time langsung melalui physical receiver.
                     </p>
                   </div>
 
