@@ -2658,19 +2658,6 @@ header("Content-Type: application/json; charset=UTF-8");
 
               </div>
 
-              {/* Scrolling Raw Stream Monitor */}
-              <div className="bg-[#020408] border border-[#22c55e]/30 rounded-2xl overflow-hidden shadow-xl flex flex-col justify-between">
-                <div className="bg-gradient-to-r from-slate-900 to bg p-3 border-b border-[#22c55e]/20 text-[9.5px] uppercase font-mono font-bold text-[#22c55e] flex justify-between items-center">
-                  <span>📟 Raw Stream Monitor</span>
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                </div>
-                <textarea 
-                  readOnly 
-                  value={streamLogs}
-                  className="w-full h-44 bg-[#010306] border-none text-[10.5px] font-mono leading-relaxed p-4 text-emerald-400 outline-none resize-none"
-                />
-              </div>
-
             </div>
 
             {/* COLUMN 2: Channel mappings & indices (width 8/12) */}
@@ -2820,6 +2807,20 @@ header("Content-Type: application/json; charset=UTF-8");
                 >
                   📡 LOAD MOXA TELEMETRY PRESETS
                 </button>
+
+                {/* Scrolling Raw Stream Monitor positioned directly below the Presets button */}
+                <div className="col-span-2 bg-[#020408] border border-[#22c55e]/40 rounded-2xl overflow-hidden shadow-xl flex flex-col justify-between mt-2">
+                  <div className="bg-gradient-to-r from-slate-900 to bg p-3 border-b border-[#22c55e]/25 text-xs uppercase font-mono font-bold text-[#c2fcd5] flex justify-between items-center">
+                    <span>📟 Raw Stream Monitor</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                  </div>
+                  <textarea 
+                    readOnly 
+                    value={streamLogs}
+                    className="w-full h-44 bg-[#010306] border-none text-xs font-mono leading-relaxed p-4 text-emerald-400 outline-none resize-none"
+                    placeholder="Menunggu stream data dari sensor..."
+                  />
+                </div>
               </div>
 
             </div>
