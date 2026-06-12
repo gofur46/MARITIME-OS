@@ -875,7 +875,7 @@ export default function App() {
         {/* RMS Yacht Logo */}
         <div className="w-16 h-16 bg-gradient-to-br from-[#00f0ff] to-[#3b82f6]/40 rounded-2xl flex flex-col items-center justify-center shadow-[0_0_35px_rgba(0,240,255,0.3)] border border-[#00f0ff]/30 cursor-pointer" onClick={() => setActiveTab('realtime')}>
           <span className="text-bg text-black font-black text-2xl tracking-tighter leading-none">RMS</span>
-          <span className="text-[7.5px] text-white tracking-[0.2em] font-extrabold uppercase mt-1">PRO v3</span>
+          <span className="text-xs text-white tracking-[0.2em] font-extrabold uppercase mt-1">PRO v3</span>
         </div>
 
         <nav className="flex flex-col gap-5 w-full px-3">
@@ -884,7 +884,7 @@ export default function App() {
             className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border ${activeTab === 'realtime' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
           >
             <LayoutDashboard className="w-4.5 h-4.5" />
-            <span className="text-[9px]">REALTIME</span>
+            <span className="text-xs">REALTIME</span>
           </button>
 
           <button 
@@ -892,7 +892,7 @@ export default function App() {
             className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border ${activeTab === 'analyst' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
           >
             <RefreshCw className="w-4.5 h-4.5" />
-            <span className="text-[9px]">ANALYST</span>
+            <span className="text-xs">ANALYST</span>
           </button>
 
           <button 
@@ -900,7 +900,7 @@ export default function App() {
             className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border ${activeTab === 'database' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
           >
             <Database className="w-4.5 h-4.5" />
-            <span className="text-[9px]">DATABASE</span>
+            <span className="text-xs">DATABASE</span>
           </button>
 
           <button 
@@ -908,14 +908,14 @@ export default function App() {
             className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border ${activeTab === 'settings' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
           >
             <Settings className="w-4.5 h-4.5" />
-            <span className="text-[9px]">OPTION</span>
+            <span className="text-xs">OPTION</span>
           </button>
         </nav>
 
         {/* Station Indicator */}
         <div className="mt-auto text-center">
-          <div className="text-[8.5px] font-mono opacity-50 uppercase font-black text-slate-400">Station ID</div>
-          <div className="text-[11px] font-mono tracking-wider font-black text-[#00f0ff] mt-1 bg-white/5 px-2.5 py-1 rounded border border-[#00f0ff]/20">{config.idStation}</div>
+          <div className="text-xs font-mono opacity-50 uppercase font-black text-slate-400">Station ID</div>
+          <div className="text-xs font-mono tracking-wider font-black text-[#00f0ff] mt-1 bg-white/5 px-2.5 py-1 rounded border border-[#00f0ff]/20">{config.idStation}</div>
         </div>
       </aside>
 
@@ -928,7 +928,7 @@ export default function App() {
           <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-[#00f0ff]/40 rounded-br-xl" />
 
           <div>
-            <div className="text-[8px] uppercase tracking-[0.3em] font-mono text-[#00f0ff]/80 font-extrabold flex items-center gap-2 mb-1.5">
+            <div className="text-xs uppercase tracking-[0.3em] font-mono text-[#00f0ff]/80 font-extrabold flex items-center gap-2 mb-1.5">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
@@ -938,7 +938,7 @@ export default function App() {
             <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-white uppercase flex items-baseline gap-2">
               AWS MARINE BOARD <span className="text-[#00f0ff] text-xs font-mono lowercase tracking-[0.05em] bg-[#00f0ff]/10 py-0.5 px-3 rounded border border-[#00f0ff]/30 font-bold">Pro RMS v3</span>
             </h1>
-            <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-bold">
+            <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-bold">
               Kondisi Operasional Port & Log Terminal Cuaca Maritim
             </p>
           </div>
@@ -946,17 +946,17 @@ export default function App() {
           <div className="flex items-center gap-6 self-stretch lg:self-auto justify-between lg:justify-end border-t lg:border-t-0 border-white/5 pt-3 lg:pt-0">
             <div className="hidden xl:flex gap-6 text-right">
               <div>
-                <div className="text-[8px] uppercase font-bold opacity-40 tracking-wider text-[#00f0ff]">DB STATUS</div>
-                <div className="text-[10px] font-mono font-bold text-emerald-400">CONNECT_SECURE</div>
+                <div className="text-xs uppercase font-bold opacity-40 tracking-wider text-[#00f0ff]">DB STATUS</div>
+                <div className="text-xs font-mono font-bold text-emerald-400">CONNECT_SECURE</div>
               </div>
               <div>
-                <div className="text-[8px] uppercase font-bold opacity-40 tracking-wider text-[#00f0ff]">PIER ALIGNMENT</div>
-                <div className="text-[10px] font-mono font-bold text-[#3b82f6]">{config.pierAngle}° CLOCKWISE</div>
+                <div className="text-xs uppercase font-bold opacity-40 tracking-wider text-[#00f0ff]">PIER ALIGNMENT</div>
+                <div className="text-xs font-mono font-bold text-[#3b82f6]">{config.pierAngle}° CLOCKWISE</div>
               </div>
             </div>
             <div className="h-8 w-px bg-white/10 hidden xl:block" />
             <div className="text-right">
-              <div className="text-[9.5px] font-mono opacity-50 uppercase tracking-widest text-[#00f0ff] font-semibold">{format(Date.now(), 'EEEE, dd MMM yyyy')}</div>
+              <div className="text-xs font-mono opacity-50 uppercase tracking-widest text-[#00f0ff] font-semibold">{format(Date.now(), 'EEEE, dd MMM yyyy')}</div>
               <div className="text-2xl font-black font-mono tracking-tighter text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.08)] bg-white/5 py-0.5 px-3 rounded-xl border border-white/5 mt-0.5">{format(Date.now(), 'HH:mm:ss')}</div>
             </div>
           </div>
@@ -972,14 +972,14 @@ export default function App() {
               
               {/* Thermal group */}
               <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-5 rounded-2xl border border-white/5 space-y-4">
-                <div className="text-[10.5px] font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
+                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
                   <Thermometer className="w-3.5 h-3.5 text-[#22c55e]" />
                   <span>Thermal Sensors</span>
                 </div>
 
                 {/* Primary Air temp StatCard */}
                 <div className="bg-[#0b1424] border-t-2 border-[#22c55e] border-x border-b border-white/5 rounded-xl p-4 text-center">
-                  <div className="text-[9px] uppercase font-bold text-slate-400 tracking-wider mb-1">Air Temperature</div>
+                  <div className="text-xs uppercase font-bold text-slate-400 tracking-wider mb-1">Air Temperature</div>
                   <div className="flex justify-center items-baseline">
                     <span className="text-4xl font-extrabold font-mono tracking-tight text-white">{currentData.temperature.toFixed(1)}</span>
                     <span className="text-sm font-bold text-[#22c55e] ml-1">°C</span>
@@ -989,15 +989,15 @@ export default function App() {
                 {/* Avg, Max, Min grid row inside column 1 */}
                 <div className="grid grid-cols-3 gap-2">
                   <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-2 text-center">
-                    <div className="text-[8px] uppercase font-semibold text-slate-500 tracking-wider">Avg</div>
+                    <div className="text-xs uppercase font-semibold text-slate-500 tracking-wider">Avg</div>
                     <div className="text-sm font-bold text-[#e0f2fe] font-mono mt-0.5">{tempStats.avg}</div>
                   </div>
                   <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-2 text-center">
-                    <div className="text-[8px] uppercase font-semibold text-slate-500 tracking-wider text-rose-400">Max</div>
+                    <div className="text-xs uppercase font-semibold text-slate-500 tracking-wider text-rose-400">Max</div>
                     <div className="text-sm font-bold text-rose-400 font-mono mt-0.5">{tempStats.max}</div>
                   </div>
                   <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-2 text-center">
-                    <div className="text-[8px] uppercase font-semibold text-slate-500 tracking-wider text-teal-400">Min</div>
+                    <div className="text-xs uppercase font-semibold text-slate-500 tracking-wider text-teal-400">Min</div>
                     <div className="text-sm font-bold text-teal-400 font-mono mt-0.5">{tempStats.min}</div>
                   </div>
                 </div>
@@ -1005,27 +1005,27 @@ export default function App() {
 
               {/* Hygrometry group */}
               <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-5 rounded-2xl border border-white/5 space-y-4">
-                <div className="text-[10.5px] font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
+                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
                   <Droplets className="w-3.5 h-3.5 text-[#00f0ff]" />
                   <span>Hygrometry</span>
                 </div>
                 
                 <div className="grid grid-cols-1 gap-3">
                   <div className="bg-[#0b1424] border-t-2 border-[#00f0ff] border-x border-b border-white/5 rounded-xl p-3.5 flex justify-between items-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Humidity</span>
+                    <span className="text-xs uppercase font-bold text-slate-400">Humidity</span>
                     <div className="text-right">
                       <span className="text-2xl font-extrabold font-mono text-white">{currentData.humidity}</span>
-                      <span className="text-[10px] text-[#00f0ff] ml-1.5 font-bold">%</span>
+                      <span className="text-xs text-[#00f0ff] ml-1.5 font-bold">%</span>
                     </div>
                   </div>
 
                   <div className="bg-[#0b1424] border-t-2 border-[#00f0ff] border-x border-b border-white/5 rounded-xl p-3.5 flex justify-between items-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Dew Point</span>
+                    <span className="text-xs uppercase font-bold text-slate-400">Dew Point</span>
                     <div className="text-right">
                       <span className="text-xl font-extrabold font-mono text-white">
                         {computeDewPoint(currentData.temperature, currentData.humidity)}
                       </span>
-                      <span className="text-[10px] text-[#00f0ff] ml-1.5 font-bold">°C</span>
+                      <span className="text-xs text-[#00f0ff] ml-1.5 font-bold">°C</span>
                     </div>
                   </div>
                 </div>
@@ -1034,17 +1034,17 @@ export default function App() {
               {/* Atmospheric pressure STN */}
               <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between">
                 <div>
-                  <div className="text-[10.5px] font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
+                  <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
                     <Gauge className="w-3.5 h-3.5 text-amber-500" />
                     <span>Pressure STN</span>
                   </div>
                 </div>
                 <div className="flex-1 flex flex-col justify-center py-2.5">
                   <div className="bg-[#0b1424] border-t-2 border-amber-500 border-x border-b border-white/5 rounded-xl p-4 text-center">
-                    <div className="text-[9px] uppercase font-bold text-slate-400 tracking-wider mb-1">Barometric Air Pressure</div>
+                    <div className="text-xs uppercase font-bold text-slate-400 tracking-wider mb-1">Barometric Air Pressure</div>
                     <div className="flex justify-center items-baseline">
                       <span className="text-3xl font-extrabold font-mono tracking-tight text-white">{currentData.pressure.toFixed(1)}</span>
-                      <span className="text-[10px] text-amber-500 ml-1.5 font-bold uppercase tracking-wider">HPa</span>
+                      <span className="text-xs text-amber-500 ml-1.5 font-bold uppercase tracking-wider">HPa</span>
                     </div>
                   </div>
                 </div>
@@ -1059,7 +1059,7 @@ export default function App() {
                 <h3 className="text-xs uppercase font-extrabold tracking-[0.25em] text-[#00f0ff] flex items-center justify-center gap-2 mb-1">
                   🌐 Live Wind Vector & Port Orientation ({config.pierAngle}°)
                 </h3>
-                <span className="text-[8.5px] font-mono text-slate-500 uppercase tracking-widest bg-white/5 py-0.5 px-3 rounded">
+                <span className="text-xs font-mono text-slate-500 uppercase tracking-widest bg-white/5 py-0.5 px-3 rounded">
                   CONSOLE_INTEGRATION_ONLINE
                 </span>
               </div>
@@ -1076,7 +1076,7 @@ export default function App() {
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
                       </span>
-                      <span className="text-[10px] font-extrabold text-rose-400 uppercase tracking-wider font-mono text-center">
+                      <span className="text-xs font-extrabold text-rose-400 uppercase tracking-wider font-mono text-center">
                         🔥 SIAGA 1: DOUBLE HAZARD (WIND & WAVE WARN)
                       </span>
                     </div>
@@ -1088,7 +1088,7 @@ export default function App() {
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                       </span>
-                      <span className="text-[10px] font-extrabold text-amber-400 uppercase tracking-wider font-mono text-center">
+                      <span className="text-xs font-extrabold text-amber-400 uppercase tracking-wider font-mono text-center">
                         ⚠️ WARNING: ANGIN KENCANG ({currentData.windSpeed.toFixed(1)} m/s)
                       </span>
                     </div>
@@ -1100,7 +1100,7 @@ export default function App() {
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
                       </span>
-                      <span className="text-[10px] font-extrabold text-cyan-400 uppercase tracking-wider font-mono text-center">
+                      <span className="text-xs font-extrabold text-cyan-400 uppercase tracking-wider font-mono text-center">
                         🌊 WARNING: GELOMBANG TINGGI ({currentData.waveHeight}m)
                       </span>
                     </div>
@@ -1109,7 +1109,7 @@ export default function App() {
                   return (
                     <div className="mx-auto mt-2.5 px-4 py-1.5 border border-emerald-500/20 bg-emerald-950/10 rounded-xl flex items-center gap-2 justify-center max-w-xs select-none">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider font-mono text-center">
+                      <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider font-mono text-center">
                         🟢 STATUS OPERASI: AMAN & NORMAL
                       </span>
                     </div>
@@ -1122,8 +1122,8 @@ export default function App() {
                 
                 {/* PORT STD side panels labels */}
                 <div className="absolute left-6 md:left-12 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-3 rounded-xl max-w-[150px] shadow-25 select-none font-sans">
-                  <div className="text-[10px] font-black text-[#00f0ff] uppercase tracking-wider mb-1">PORT (Kiri)</div>
-                  <div className="text-[8px] text-slate-400 font-semibold">LEFT VESSEL</div>
+                  <div className="text-xs font-black text-[#00f0ff] uppercase tracking-wider mb-1">PORT (Kiri)</div>
+                  <div className="text-xs text-slate-400 font-semibold">LEFT VESSEL</div>
                 </div>
 
                 {/* Compass Ring wrapper with dynamic warning colors */}
@@ -1160,7 +1160,7 @@ export default function App() {
                         <div className="w-10 h-32 bg-slate-500 border-2 border-slate-900 rounded-full flex flex-col items-center justify-between py-4 shadow-[5px_5px_15px_rgba(0,0,0,0.7)] relative">
                           <div className="absolute top-1 w-2.5 h-2.5 rounded-full bg-[#00f0ff] shadow-[0_0_10px_#00f0ff]" />
                           <div className="w-7 h-14 bg-gradient-to-b from-[#22c55e]/90 via-[#1e293b] to-[#3b82f6]/90 border border-slate-950 rounded mt-2 flex items-center justify-center p-1">
-                            <span className="text-[6.5px] font-mono leading-none tracking-tight opacity-40 uppercase">cargo</span>
+                            <span className="text-xs font-mono leading-none tracking-tight opacity-40 uppercase">cargo</span>
                           </div>
                           <div className="w-8 h-4 bg-slate-100 border border-slate-900 rounded-sm mb-1 shadow" />
                         </div>
@@ -1183,8 +1183,8 @@ export default function App() {
 
                 {/* STARBOARD std side panel labels */}
                 <div className="absolute right-6 md:right-12 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-3 rounded-xl max-w-[150px] shadow-25 select-none font-sans">
-                  <div className="text-[10px] font-black text-[#22c55e] uppercase tracking-wider mb-1">STARBOARD (Kan)</div>
-                  <div className="text-[8px] text-slate-400 font-semibold">RIGHT VESSEL</div>
+                  <div className="text-xs font-black text-[#22c55e] uppercase tracking-wider mb-1">STARBOARD (Kan)</div>
+                  <div className="text-xs text-slate-400 font-semibold">RIGHT VESSEL</div>
                 </div>
 
               </div>
@@ -1192,37 +1192,37 @@ export default function App() {
               {/* Angle display relative wind and wind digital specifications */}
               <div className="grid grid-cols-2 gap-4 items-center mb-6 max-w-md mx-auto bg-[#050a12]/70 p-3.5 rounded-2xl border border-white/5 text-center font-mono text-xs">
                 <div className="border-r border-white/10 pr-2">
-                  <span className="text-slate-400 uppercase text-[9px] tracking-wider block font-sans">Relative Wind</span>
+                  <span className="text-slate-400 uppercase text-xs tracking-wider block font-sans">Relative Wind</span>
                   <span className="text-sm font-extrabold text-[#00f0ff]">{relativeVesselWind.toFixed(0)}° Azimuth</span>
                 </div>
                 <div className="pl-2">
-                  <span className="text-slate-400 uppercase text-[9px] tracking-wider block font-sans">Arah & Rose</span>
+                  <span className="text-slate-400 uppercase text-xs tracking-wider block font-sans">Arah & Rose</span>
                   <span className="text-sm font-extrabold text-[#f59e0b]">{currentData.windDirection}° ({getWindRoseString(currentData.windDirection)})</span>
                 </div>
               </div>
 
               {/* Bottom horizontal grid showing: Marine & Wind Data digital */}
               <div className="border border-[#00f0ff]/15 bg-gradient-to-b from-[#0b1424]/70 to-bg p-4.5 rounded-2xl relative">
-                <div className="text-[9.5px] uppercase tracking-[0.25em] font-extrabold text-slate-300 mb-3 font-sans flex items-center justify-between">
+                <div className="text-xs uppercase tracking-[0.25em] font-extrabold text-slate-300 mb-3 font-sans flex items-center justify-between">
                   <span>⚓ Marine & Wind Digital Indicators</span>
-                  <span className="text-[8.5px] font-mono text-[#00f0ff]/50">ACC_SYS_01</span>
+                  <span className="text-xs font-mono text-[#00f0ff]/50">ACC_SYS_01</span>
                 </div>
 
                 <div className="grid grid-cols-4 gap-2.5">
                   <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center">
-                    <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Wind Dir</span>
+                    <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Wind Dir</span>
                     <span className="text-base font-black font-mono text-[#00f0ff]">{currentData.windDirection}°</span>
                   </div>
                   <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center">
-                    <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Wind Spd</span>
-                    <span className="text-base font-black font-mono text-[#00f0ff]">{currentData.windSpeed.toFixed(1)} <span className="text-[8px] font-sans">m/s</span></span>
+                    <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Wind Spd</span>
+                    <span className="text-base font-black font-mono text-[#00f0ff]">{currentData.windSpeed.toFixed(1)} <span className="text-xs font-sans">m/s</span></span>
                   </div>
                   <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center">
-                    <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Wave Ht.</span>
+                    <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Wave Ht.</span>
                     <span className="text-base font-black font-mono text-[#22c55e]">{currentData.waveHeight}m</span>
                   </div>
                   <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center">
-                    <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Water Lvl</span>
+                    <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Water Lvl</span>
                     <span className="text-base font-black font-mono text-[#3b82f6]">{currentData.seaLevel.toFixed(1)}m</span>
                   </div>
                 </div>
@@ -1235,25 +1235,25 @@ export default function App() {
               
               {/* Rain group */}
               <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-5 rounded-2xl border border-white/5 space-y-4">
-                <div className="text-[10.5px] font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
+                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
                   <CloudRain className="w-3.5 h-3.5 text-sky-400" />
                   <span>Precipitation</span>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3">
                   <div className="bg-[#0b1424] border-t-2 border-sky-400 border-x border-b border-white/5 rounded-xl p-3.5 flex justify-between items-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Rain Rate</span>
+                    <span className="text-xs uppercase font-bold text-slate-400">Rain Rate</span>
                     <div className="text-right font-mono">
                       <span className="text-xl font-extrabold text-white">{currentData.rainfall.toFixed(1)}</span>
-                      <span className="text-[8px] uppercase tracking-wider ml-1.5 text-sky-400 font-bold">MM/H</span>
+                      <span className="text-xs uppercase tracking-wider ml-1.5 text-sky-400 font-bold">MM/H</span>
                     </div>
                   </div>
 
                   <div className="bg-[#0b1424] border-t-2 border-sky-400 border-x border-b border-white/5 rounded-xl p-3.5 flex justify-between items-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Accumulation</span>
+                    <span className="text-xs uppercase font-bold text-slate-400">Accumulation</span>
                     <div className="text-right font-mono">
                       <span className="text-xl font-extrabold text-white">{rainAccum}</span>
-                      <span className="text-[8px] uppercase tracking-wider ml-1.5 text-sky-400 font-bold">MM</span>
+                      <span className="text-xs uppercase tracking-wider ml-1.5 text-sky-400 font-bold">MM</span>
                     </div>
                   </div>
                 </div>
@@ -1266,13 +1266,13 @@ export default function App() {
                     <Sun className="w-4 h-4 text-[#f59e0b]" />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-[#00f0ff] uppercase tracking-[0.1em] block">Solar Radiation</span>
-                    <span className="text-[8px] text-slate-400 font-mono">Irradiance</span>
+                    <span className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.1em] block">Solar Radiation</span>
+                    <span className="text-xs text-slate-400 font-mono">Irradiance</span>
                   </div>
                 </div>
                 <div className="text-right font-mono flex items-baseline gap-1 bg-[#0b1424] px-3.5 py-1.5 rounded-xl border border-white/5">
                   <span className="text-lg font-extrabold text-white">{currentData.solarRadiation}</span>
-                  <span className="text-[8px] text-[#f59e0b] font-black uppercase">W/m²</span>
+                  <span className="text-xs text-[#f59e0b] font-black uppercase">W/m²</span>
                 </div>
               </div>
 
@@ -1290,8 +1290,8 @@ export default function App() {
                         <Droplet className={`w-4 h-4 ${isPhUnsafe ? 'text-amber-400 font-bold' : 'text-pink-400'}`} />
                       </div>
                       <div>
-                        <span className="text-[10px] font-bold text-[#00f0ff] uppercase tracking-[0.1em] block">Kualitas Air (pH)</span>
-                        <span className="text-[8px] font-mono block leading-tight">
+                        <span className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.1em] block">Kualitas Air (pH)</span>
+                        <span className="text-xs font-mono block leading-tight">
                           {isPhUnsafe ? (
                             <span className="text-amber-400 uppercase font-black tracking-wide">⚠️ BAHAYA: PH EKSTRIM!</span>
                           ) : phValue < 7.0 ? (
@@ -1306,7 +1306,7 @@ export default function App() {
                     </div>
                     <div className="text-right font-mono flex items-baseline gap-1 bg-[#0b1424] px-3.5 py-1.5 rounded-xl border border-white/5">
                       <span className={`text-lg font-extrabold ${isPhUnsafe ? 'text-amber-400 animate-pulse' : 'text-pink-400'}`}>{phValue.toFixed(2)}</span>
-                      <span className="text-[8px] text-pink-300 font-black uppercase">pH</span>
+                      <span className="text-xs text-pink-300 font-black uppercase">pH</span>
                     </div>
                   </div>
                 );
@@ -1315,7 +1315,7 @@ export default function App() {
               {/* Pressure ATN group (compact & premium layout) */}
               <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between">
                 <div>
-                  <div className="text-[10px] font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
+                  <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
                     <Gauge className="w-3.5 h-3.5 text-amber-500" />
                     <span>Pressure ATN Info</span>
                   </div>
@@ -1324,20 +1324,20 @@ export default function App() {
                 <div className="flex-1 flex flex-col justify-center py-2.5">
                   <div className="grid grid-cols-2 gap-2">
                     <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center">
-                      <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-0.5">STN (Station)</span>
-                      <span className="text-sm font-black font-mono text-[#00f0ff]">{currentData.pressure.toFixed(1)} <span className="text-[7.5px] font-sans text-slate-400">hPa</span></span>
+                      <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-0.5">STN (Station)</span>
+                      <span className="text-sm font-black font-mono text-[#00f0ff]">{currentData.pressure.toFixed(1)} <span className="text-xs font-sans text-slate-400">hPa</span></span>
                     </div>
                     <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center">
-                      <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-0.5">QFE (Elevation)</span>
-                      <span className="text-sm font-black font-mono text-[#00f0ff]">{currentData.pressure.toFixed(1)} <span className="text-[7.5px] font-sans text-slate-400">hPa</span></span>
+                      <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-0.5">QFE (Elevation)</span>
+                      <span className="text-sm font-black font-mono text-[#00f0ff]">{currentData.pressure.toFixed(1)} <span className="text-xs font-sans text-slate-400">hPa</span></span>
                     </div>
                     <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center">
-                      <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-0.5">QFF (Sea Lvl)</span>
-                      <span className="text-sm font-black font-mono text-emerald-400">{(currentData.pressure + 2.1).toFixed(1)} <span className="text-[7.5px] font-sans text-slate-400">hPa</span></span>
+                      <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-0.5">QFF (Sea Lvl)</span>
+                      <span className="text-sm font-black font-mono text-emerald-400">{(currentData.pressure + 2.1).toFixed(1)} <span className="text-xs font-sans text-slate-400">hPa</span></span>
                     </div>
                     <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center">
-                      <span className="text-[8px] uppercase tracking-wider text-slate-500 font-bold block mb-0.5">QNH (Std Atm)</span>
-                      <span className="text-sm font-black font-mono text-emerald-400">{(currentData.pressure - 1.2).toFixed(1)} <span className="text-[7.5px] font-sans text-slate-400">hPa</span></span>
+                      <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-0.5">QNH (Std Atm)</span>
+                      <span className="text-sm font-black font-mono text-emerald-400">{(currentData.pressure - 1.2).toFixed(1)} <span className="text-xs font-sans text-slate-400">hPa</span></span>
                     </div>
                   </div>
                 </div>
@@ -1353,7 +1353,7 @@ export default function App() {
             {/* Daily Wind speed chart (lg:col-span-7) */}
             <div className="lg:col-span-7 bg-gradient-to-b from-[#0b1424]/40 to-bg border border-white/5 p-5 rounded-3xl space-y-4">
               <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                <div className="text-[11px] font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2">
+                <div className="text-xs font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2">
                   <Wind className="w-4 h-4 text-amber-400 animate-pulse" />
                   <span>Daily Wind Speed & Peak Tracker</span>
                 </div>
@@ -1370,7 +1370,7 @@ export default function App() {
                   });
 
                   return (
-                    <span className="text-[10px] font-mono font-black text-rose-400 bg-rose-500/10 py-1 px-3 rounded border border-rose-500/20">
+                    <span className="text-xs font-mono font-black text-rose-400 bg-rose-500/10 py-1 px-3 rounded border border-rose-500/20">
                       ⚡ PEAK: {maxWind.toFixed(1)} m/s at {peakTime} WIB
                     </span>
                   );
@@ -1400,12 +1400,12 @@ export default function App() {
             <div className="lg:col-span-5 bg-gradient-to-b from-[#0b1424]/40 to-bg border border-white/5 p-5 rounded-3xl flex flex-col justify-between min-h-[300px]">
               <div>
                 {/* Title */}
-                <div className="text-[11px] font-bold text-[#00f0ff] uppercase tracking-widest flex justify-between items-center pb-2 border-b border-white/5 mb-3">
+                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-widest flex justify-between items-center pb-2 border-b border-white/5 mb-3">
                   <div className="flex items-center gap-2">
                     <Navigation className="w-4 h-4 text-[#00f0ff] animate-pulse" />
                     <span>Wind Vector Flow Path</span>
                   </div>
-                  <span className="text-[8px] font-mono text-slate-500">24H TRACE</span>
+                  <span className="text-xs font-mono text-slate-500">24H TRACE</span>
                 </div>
 
                 {/* Top Section Layout: Compass (left) & Info Stats Card (right) */}
@@ -1416,10 +1416,10 @@ export default function App() {
                     <div className="relative w-[130px] h-[130px] rounded-full border border-white/10 flex items-center justify-center bg-[#050a12]/80 shadow-[inset_0_0_15px_rgba(0,0,0,0.6)]">
                       
                       {/* Outer & Inner markers */}
-                      <span className="absolute top-1 text-[8px] font-bold text-slate-500">N</span>
-                      <span className="absolute right-1 text-[8px] font-bold text-slate-500">E</span>
-                      <span className="absolute bottom-1 text-[8px] font-bold text-slate-500">S</span>
-                      <span className="absolute left-1 text-[8px] font-bold text-slate-500">W</span>
+                      <span className="absolute top-1 text-xs font-bold text-slate-500">N</span>
+                      <span className="absolute right-1 text-xs font-bold text-slate-500">E</span>
+                      <span className="absolute bottom-1 text-xs font-bold text-slate-500">S</span>
+                      <span className="absolute left-1 text-xs font-bold text-slate-500">W</span>
 
                       <div className="absolute w-10 h-10 rounded-full border border-white/5" />
                       <div className="absolute w-20 h-20 rounded-full border border-white/5 border-dashed" />
@@ -1488,14 +1488,14 @@ export default function App() {
                   </div>
 
                   {/* High Tech Vector Statistics Side Card */}
-                  <div className="sm:col-span-6 space-y-1.5 text-[10px] font-sans">
+                  <div className="sm:col-span-6 space-y-1.5 text-xs font-sans">
                     <div className="bg-[#050a12]/70 p-2.5 rounded-xl border border-white/5 space-y-1.5">
-                      <span className="text-[7.5px] uppercase font-bold tracking-widest text-[#00f0ff]/80 block">Vector Statistics</span>
+                      <span className="text-xs uppercase font-bold tracking-widest text-[#00f0ff]/80 block">Vector Statistics</span>
                       
                       <div className="flex justify-between items-center py-0.5 border-b border-white/5">
                         <span className="text-slate-400">Avg Speed:</span>
                         <span className="font-extrabold text-white font-mono">
-                          {(history.reduce((sum, h) => sum + h.windSpeed, 0) / Math.max(1, history.length)).toFixed(1)} <span className="text-[7px]">m/s</span>
+                          {(history.reduce((sum, h) => sum + h.windSpeed, 0) / Math.max(1, history.length)).toFixed(1)} <span className="text-xs">m/s</span>
                         </span>
                       </div>
 
@@ -1519,7 +1519,7 @@ export default function App() {
                         </span>
                       </div>
 
-                      <div className="flex justify-between items-center py-0.5 text-[9px]">
+                      <div className="flex justify-between items-center py-0.5 text-xs">
                         <span className="text-slate-500 font-mono">SAMPLE RUN</span>
                         <span className="text-[#3b82f6] font-mono font-bold">{history.slice(-24).length} logs / 24H</span>
                       </div>
@@ -1531,9 +1531,9 @@ export default function App() {
 
               {/* Bottom Section: Chronological sequence of latest 5 logs visually rendered as a horizontal track */}
               <div className="space-y-1.5 mt-3 pt-2 border-t border-white/5">
-                <div className="flex justify-between items-center text-[8.5px] text-slate-400 uppercase tracking-widest font-sans">
+                <div className="flex justify-between items-center text-xs text-slate-400 uppercase tracking-widest font-sans">
                   <span>Recent Wind Vectors (Sequence)</span>
-                  <span className="text-[7.5px] font-mono text-[#00f0ff]/50">CHRONO FLOW ➡️</span>
+                  <span className="text-xs font-mono text-[#00f0ff]/50">CHRONO FLOW ➡️</span>
                 </div>
                 
                 <div className="grid grid-cols-5 gap-1.5">
@@ -1541,7 +1541,7 @@ export default function App() {
                     const directionName = getWindRoseString(row.windDirection);
                     return (
                       <div key={idx} className="bg-[#050a12] border border-white/5 p-1 rounded-lg text-center space-y-0.5 hover:border-[#00f0ff]/20 transition-all">
-                        <span className="text-[7.5px] text-slate-500 font-mono block">{format(row.timestamp, 'HH:mm')}</span>
+                        <span className="text-xs text-slate-500 font-mono block">{format(row.timestamp, 'HH:mm')}</span>
                         
                         {/* Interactive compass arrow visually rotated */}
                         <div className="flex justify-center py-0.5">
@@ -1551,9 +1551,9 @@ export default function App() {
                           />
                         </div>
                         
-                        <div className="text-[9px] font-black text-slate-200">{directionName}</div>
-                        <div className="text-[7.5px] font-mono font-bold text-amber-500 bg-amber-500/10 rounded-sm py-0.2">
-                          {row.windSpeed.toFixed(0)} <span className="text-[6px]">m/s</span>
+                        <div className="text-xs font-black text-slate-200">{directionName}</div>
+                        <div className="text-xs font-mono font-bold text-amber-500 bg-amber-500/10 rounded-sm py-0.2">
+                          {row.windSpeed.toFixed(0)} <span className="text-xs">m/s</span>
                         </div>
                       </div>
                     );
@@ -1573,7 +1573,7 @@ export default function App() {
             {/* Calendar filters & action panels */}
             <div className="bg-gradient-to-b from-[#0b1424] to-bg p-5 rounded-2xl border border-white/10 flex flex-wrap gap-5 items-end">
               <div>
-                <label className="text-[10px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-2 font-sans">Start Analysis Date</label>
+                <label className="text-xs uppercase font-bold text-[#00f0ff] tracking-wider block mb-2 font-sans">Start Analysis Date</label>
                 <input 
                   type="date" 
                   value={dbStartDate}
@@ -1582,7 +1582,7 @@ export default function App() {
                 />
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-2 font-sans">End Analysis Date</label>
+                <label className="text-xs uppercase font-bold text-[#00f0ff] tracking-wider block mb-2 font-sans">End Analysis Date</label>
                 <input 
                   type="date" 
                   value={dbEndDate}
@@ -1604,7 +1604,7 @@ export default function App() {
               
               {/* Temp Area Chart */}
               <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3">
-                <div className="text-[10.5px] uppercase font-bold text-[#00f0ff] tracking-[0.2em] font-sans pb-2 border-b border-white/5">
+                <div className="text-xs uppercase font-bold text-[#00f0ff] tracking-[0.2em] font-sans pb-2 border-b border-white/5">
                   📈 Air Temperature History (°C)
                 </div>
                 <div className="h-[220px]">
@@ -1628,7 +1628,7 @@ export default function App() {
 
               {/* Humidity Area Chart */}
               <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3">
-                <div className="text-[10.5px] uppercase font-bold text-[#22c55e] tracking-[0.2em] font-sans pb-2 border-b border-white/5">
+                <div className="text-xs uppercase font-bold text-[#22c55e] tracking-[0.2em] font-sans pb-2 border-b border-white/5">
                   📈 Relative Humidity History (%)
                 </div>
                 <div className="h-[220px]">
@@ -1652,7 +1652,7 @@ export default function App() {
 
               {/* Solar Radiation Spline Chart */}
               <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3">
-                <div className="text-[10.5px] uppercase font-bold text-[#f59e0b] tracking-[0.2em] font-sans pb-2 border-b border-white/5">
+                <div className="text-xs uppercase font-bold text-[#f59e0b] tracking-[0.2em] font-sans pb-2 border-b border-white/5">
                   📈 Solar Irradiance Acc. (W/m²)
                 </div>
                 <div className="h-[220px]">
@@ -1686,11 +1686,11 @@ export default function App() {
                   <h4 className="text-sm font-black text-purple-400 uppercase tracking-[0.25em] flex items-center gap-2">
                     ⚡ AI MARINE PORT FORECAST ENGINE
                   </h4>
-                  <p className="text-[9px] text-[#cbd5e1] font-mono mt-1 opacity-70">
+                  <p className="text-xs text-[#cbd5e1] font-mono mt-1 opacity-70">
                     Sistem Prediksi Real-Time Berdasarkan Live Momentum Sensor Versus Database Kemarin (60m Ahead)
                   </p>
                 </div>
-                <div className="bg-purple-900/40 border border-purple-500/30 font-mono text-[8px] font-bold py-1 px-4 tracking-widest text-[#e9d5ff] rounded">
+                <div className="bg-purple-900/40 border border-purple-500/30 font-mono text-xs font-bold py-1 px-4 tracking-widest text-[#e9d5ff] rounded">
                   ENGINE STATUS: AUTOMATIC_MOMENTUM
                 </div>
               </div>
@@ -1700,9 +1700,9 @@ export default function App() {
                 
                 {/* 1-Hour Wave Height Line Chart */}
                 <div className="xl:col-span-4 bg-[#050a12]/70 border border-white/5 p-4 rounded-xl flex flex-col justify-between">
-                  <div className="text-[10px] uppercase font-bold text-slate-300 tracking-[0.15em] mb-3 flex justify-between">
+                  <div className="text-xs uppercase font-bold text-slate-300 tracking-[0.15em] mb-3 flex justify-between">
                     <span>🌊 Wave Height Forecast (m)</span>
-                    <span className="text-[8px] font-mono text-purple-400">10m Steps</span>
+                    <span className="text-xs font-mono text-purple-400">10m Steps</span>
                   </div>
                   <div className="h-[210px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -1721,9 +1721,9 @@ export default function App() {
 
                 {/* 1-Hour Wind Gust Line Chart */}
                 <div className="xl:col-span-4 bg-[#050a12]/70 border border-white/5 p-4 rounded-xl flex flex-col justify-between">
-                  <div className="text-[10px] uppercase font-bold text-slate-300 tracking-[0.15em] mb-3 flex justify-between">
+                  <div className="text-xs uppercase font-bold text-slate-300 tracking-[0.15em] mb-3 flex justify-between">
                     <span>💨 Wind Force Forecast (m/s)</span>
-                    <span className="text-[8px] font-mono text-purple-400">10m Steps</span>
+                    <span className="text-xs font-mono text-purple-400">10m Steps</span>
                   </div>
                   <div className="h-[210px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -1742,9 +1742,9 @@ export default function App() {
 
                 {/* Storm & Gale Threat Radar warning interactive block */}
                 <div className={`xl:col-span-4 border rounded-2xl p-5 ${aiForecastResult.stormBg} flex flex-col justify-between text-center`}>
-                  <div className="text-[10px] uppercase font-bold text-slate-200 tracking-[0.15em] mb-2 flex justify-between">
+                  <div className="text-xs uppercase font-bold text-slate-200 tracking-[0.15em] mb-2 flex justify-between">
                     <span>⚠️ Storm & Gale Threat Radar</span>
-                    <span className="text-[8.5px] font-mono opacity-50">STORM_RDR_05</span>
+                    <span className="text-xs font-mono opacity-50">STORM_RDR_05</span>
                   </div>
 
                   <div className="my-auto flex flex-col items-center justify-center py-4">
@@ -1768,7 +1768,7 @@ export default function App() {
 
                     {/* Human Weather Status indicator */}
                     <div 
-                      className="border border-white/10 rounded-full font-mono text-[10px] py-1.5 px-6 font-black uppercase inline-block mt-4"
+                      className="border border-white/10 rounded-full font-mono text-xs py-1.5 px-6 font-black uppercase inline-block mt-4"
                       style={{ color: aiForecastResult.stormColor, borderColor: aiForecastResult.stormColor }}
                     >
                       {aiForecastResult.stormStatus}
@@ -1806,10 +1806,10 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase font-mono tracking-widest bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                  <span className="px-3 py-1 rounded-full text-xs font-black uppercase font-mono tracking-widest bg-teal-500/10 text-teal-400 border border-teal-500/20">
                     {config.dbStorageMode === 'AVG' ? `⏱️ LOG BIND: ${config.dbStorageInterval} MIN AVG` : `📦 LOG BIND: ${config.dbStorageInterval} MIN RAW`}
                   </span>
-                  <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase font-mono tracking-widest bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 animate-pulse">
+                  <span className="px-3 py-1 rounded-full text-xs font-black uppercase font-mono tracking-widest bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 animate-pulse">
                     XAMPP PHP_MY_ADMIN READY
                   </span>
                 </div>
@@ -1823,7 +1823,7 @@ export default function App() {
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-400"></span>
                     </span>
-                    <span className="text-[10px] uppercase tracking-wider font-black text-teal-400 font-mono">
+                    <span className="text-xs uppercase tracking-wider font-black text-teal-400 font-mono">
                       CYCLE ACCUMULATOR BUFFER ({sampleBuffer.length} / 5)
                     </span>
                   </div>
@@ -1882,7 +1882,7 @@ export default function App() {
                       showToastNotification(config.dbStorageMode === 'AVG' ? "Successfully forced calculation of average record!" : "Successfully forced raw instantaneous log commit!");
                     }}
                     disabled={sampleBuffer.length === 0}
-                    className={`text-[9.5px] font-black uppercase py-2 px-3.5 rounded-lg border transition duration-250 cursor-pointer flex items-center gap-1.5 ${
+                    className={`text-xs font-black uppercase py-2 px-3.5 rounded-lg border transition duration-250 cursor-pointer flex items-center gap-1.5 ${
                       sampleBuffer.length === 0
                         ? 'bg-white/5 text-slate-500 border-white/5 cursor-not-allowed'
                         : 'bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border-teal-500/30'
@@ -1902,7 +1902,7 @@ export default function App() {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-white uppercase tracking-wider">Layanan Status Sinkronisasi XAMPP</span>
-                      <span className={`text-[8.5px] px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider ${
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider ${
                         isDbConnected 
                           ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' 
                           : 'bg-amber-500/15 text-amber-300 border border-amber-500/20'
@@ -1910,7 +1910,7 @@ export default function App() {
                         {isDbConnected ? '🟢 CONNECTED (LIVE)' : '🟡 STANDBY / NOT TESTED'}
                       </span>
                     </div>
-                    <p className="text-[10.5px] text-slate-400 mt-1 leading-normal max-w-[620px]">
+                    <p className="text-xs text-slate-400 mt-1 leading-normal max-w-[620px]">
                       {isDbConnected 
                         ? 'Koneksi ke database XAMPP lokal teruji aktif. Sinkronisasi data telemetri otomatis beroperasi di latar belakang.' 
                         : 'Menunggu pengujian koneksi. Klik tombol konfigurasi jika Anda ingin menyinkronkan data ke basis data lokal.'}
@@ -1921,7 +1921,7 @@ export default function App() {
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                   <button
                     onClick={() => setIsIntegratorOpen(true)}
-                    className="w-full sm:w-auto text-[9.5px] font-black uppercase py-2.5 px-4 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/30 transition duration-200 cursor-pointer flex items-center justify-center gap-1.5 font-mono font-bold"
+                    className="w-full sm:w-auto text-xs font-black uppercase py-2.5 px-4 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/30 transition duration-200 cursor-pointer flex items-center justify-center gap-1.5 font-mono font-bold"
                   >
                     🔧 CONFIG DB INTEGRATOR
                   </button>
@@ -1953,9 +1953,9 @@ export default function App() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping" />
-                      <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-teal-400">DATABASE INTEGRATOR & SETUP UTILITIES</span>
+                      <span className="text-xs font-mono font-bold uppercase tracking-wider text-teal-400">DATABASE INTEGRATOR & SETUP UTILITIES</span>
                     </div>
-                    <p className="text-[10px] text-slate-400 font-sans max-w-[600px]">
+                    <p className="text-xs text-slate-400 font-sans max-w-[600px]">
                       Aplikasi berjalan di web browser. Browser tidak bisa langsung terhubung ke port MySQL lokal Anda (<code className="text-white font-mono bg-white/5 px-1 rounded">3306</code>) demi alasan keamanan sandboxing web. Gunakan salah satu metode di bawah ini untuk menghubungkannya secara mudah.
                     </p>
                   </div>
@@ -1964,7 +1964,7 @@ export default function App() {
                   <div className="flex bg-[#050a12] p-1 border border-white/10 rounded-lg self-start md:self-auto">
                     <button
                       onClick={() => setDbScriptTab('sql')}
-                      className={`text-[9.5px] px-3 py-1.5 rounded-md font-mono uppercase font-bold transition cursor-pointer ${
+                      className={`text-xs px-3 py-1.5 rounded-md font-mono uppercase font-bold transition cursor-pointer ${
                         dbScriptTab === 'sql' 
                           ? 'bg-teal-500/15 text-teal-300 border border-teal-500/20' 
                           : 'text-slate-500 hover:text-slate-300'
@@ -1974,7 +1974,7 @@ export default function App() {
                     </button>
                     <button
                       onClick={() => setDbScriptTab('php')}
-                      className={`text-[9.5px] px-3 py-1.5 rounded-md font-mono uppercase font-bold transition cursor-pointer ${
+                      className={`text-xs px-3 py-1.5 rounded-md font-mono uppercase font-bold transition cursor-pointer ${
                         dbScriptTab === 'php' 
                           ? 'bg-teal-500/15 text-teal-300 border border-teal-500/20' 
                           : 'text-slate-500 hover:text-slate-300'
@@ -1988,22 +1988,22 @@ export default function App() {
                 {dbScriptTab === 'sql' ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between pt-1">
-                      <span className="text-[9.5px] font-mono text-slate-300 uppercase font-black">Metode Manual phpMyAdmin:</span>
+                      <span className="text-xs font-mono text-slate-300 uppercase font-black">Metode Manual phpMyAdmin:</span>
                       <button 
                         onClick={() => {
                           const sqlText = `CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry;\nUSE db_pelabuhan_telemetry;\n\nCREATE TABLE IF NOT EXISTS tbl_sensor_logs (\n    id INT AUTO_INCREMENT PRIMARY KEY,\n    station_id VARCHAR(50) NOT NULL,\n    timestamp DATETIME NOT NULL,\n    temperature DECIMAL(5,2) NOT NULL,\n    humidity INT NOT NULL,\n    solar_radiation INT NOT NULL,\n    rainfall DECIMAL(5,2) NOT NULL,\n    wave_height DECIMAL(4,2) NOT NULL,\n    sea_level DECIMAL(5,1) NOT NULL,\n    water_ph DECIMAL(4,2) NOT NULL,\n    wind_direction INT NOT NULL,\n    wind_speed DECIMAL(4,1) NOT NULL,\n    pressure DECIMAL(6,2) NOT NULL,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`;
                           navigator.clipboard.writeText(sqlText);
                           showToastNotification("SQL Query successfully copied to clipboard!");
                         }}
-                        className="text-[9px] bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 font-bold uppercase px-3 py-1.5 rounded-lg border border-teal-500/20 transition cursor-pointer font-mono"
+                        className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 font-bold uppercase px-3 py-1.5 rounded-lg border border-teal-500/20 transition cursor-pointer font-mono"
                       >
                         Copy SQL Script
                       </button>
                     </div>
-                    <p className="text-[10px] text-slate-400 leading-normal">
+                    <p className="text-xs text-slate-400 leading-normal">
                       Copy query berikut dan paste langsung ke menu <strong>SQL</strong> di phpMyAdmin XAMPP Anda untuk membuat tabel secara manual.
                     </p>
-                    <pre className="text-[9px] font-mono text-slate-400 p-3 bg-black/60 rounded-lg overflow-x-auto max-h-[160px] leading-relaxed select-all border border-white/5">
+                    <pre className="text-xs font-mono text-slate-400 p-3 bg-black/60 rounded-lg overflow-x-auto max-h-[160px] leading-relaxed select-all border border-white/5">
 {`CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry;
 USE db_pelabuhan_telemetry;
 
@@ -2029,8 +2029,8 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
                       <div className="space-y-1">
-                        <span className="text-[9.5px] font-mono text-teal-400 uppercase font-black block">Metode Otomatis (1-Click Auto-Create Setup):</span>
-                        <div className="text-[9px] text-slate-500 font-mono">
+                        <span className="text-xs font-mono text-teal-400 uppercase font-black block">Metode Otomatis (1-Click Auto-Create Setup):</span>
+                        <div className="text-xs text-slate-500 font-mono">
                           API URL: <span className="text-white font-bold">{config.localDbApiUrl || 'http://localhost/aws_marine/api.php'}</span>
                         </div>
                       </div>
@@ -2195,12 +2195,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <p className="mb-1 leading-relaxed font-sans text-slate-200">{dbTestResult.message}</p>
                         {dbTestResult.details && (
-                          <div className="p-2.5 bg-black/60 rounded border border-white/5 mt-2 text-slate-300 text-[11px] whitespace-pre-wrap leading-relaxed overflow-x-auto font-mono">
+                          <div className="p-2.5 bg-black/60 rounded border border-white/5 mt-2 text-slate-300 text-xs whitespace-pre-wrap leading-relaxed overflow-x-auto font-mono">
                             {dbTestResult.details}
                           </div>
                         )}
                         {dbTestResult.status === 'error' && (
-                          <div className="mt-3 text-amber-300 text-[10.5px] leading-relaxed border-t border-red-500/15 pt-2 font-sans">
+                          <div className="mt-3 text-amber-300 text-xs leading-relaxed border-t border-red-500/15 pt-2 font-sans">
                             💡 <strong>PETUNJUK PENYELESAIAN MASALAH:</strong>
                             <ul className="list-disc pl-4 mt-1.5 space-y-1 text-slate-300 text-xs">
                               <li>Apakah <strong>XAMPP Control Panel</strong> sudah dibuka di laptop Anda? Pastikan tombol <strong className="text-emerald-400">Apache</strong> dan <strong className="text-emerald-400">MySQL</strong> sudah dinyalakan sampai berwarna hijau.</li>
@@ -2286,23 +2286,23 @@ header("Content-Type: application/json; charset=UTF-8");
                 <table className="w-full text-[12px] text-left border-collapse">
                   <thead>
                     <tr className="bg-[#050a12] border-b border-[#00f0ff]/20">
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-[10px]">DateTime</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-[10px]">Temp (°C)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-[10px]">Hum (%)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-[10px]">Rad (W/m²)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#22c55e] text-center text-[10px]">Wave (m)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-[10px]">W-Level (m)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-pink-400 text-center text-[10px]">pH Air</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-[10px]">W-Dir (°)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-[10px]">W-Spd (m/s)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-sky-400 text-center text-[10px]">Rain (mm)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-slate-400 text-center text-[10px]">Press (hPa)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">DateTime</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Temp (°C)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Hum (%)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Rad (W/m²)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#22c55e] text-center text-xs">Wave (m)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-xs">W-Level (m)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-pink-400 text-center text-xs">pH Air</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Dir (°)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Spd (m/s)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-sky-400 text-center text-xs">Rain (mm)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-slate-400 text-center text-xs">Press (hPa)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 font-mono">
                     {filteredLogs.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="p-8 text-center uppercase tracking-widest text-slate-500 text-[10px]">
+                        <td colSpan={11} className="p-8 text-center uppercase tracking-widest text-slate-500 text-xs">
                           No logged matching rows found. Adjust criteria.
                         </td>
                       </tr>
@@ -2361,7 +2361,7 @@ header("Content-Type: application/json; charset=UTF-8");
                   {/* Web Serial Action Buttons for Physical Port Connections */}
                   {config.transport === 'SERIAL' && (
                     <div className="pt-1 pb-2 border-b border-white/5 space-y-1.5">
-                      <span className="text-[10.5px] text-slate-400 font-mono block">Web Serial Control:</span>
+                      <span className="text-xs text-slate-400 font-mono block">Web Serial Control:</span>
                       {isReadingSerial ? (
                         <button
                           onClick={disconnectSerial}
@@ -2390,7 +2390,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       <option value="ON">🟢 ON (Simulasi Otomatis Berjalan)</option>
                       <option value="OFF">🔴 OFF (Data Riil Mengandalkan Serial & Payload)</option>
                     </select>
-                    <p className="text-[10px] text-slate-400 font-sans mt-1 leading-normal">
+                    <p className="text-xs text-slate-400 font-sans mt-1 leading-normal">
                       Pilih <strong>OFF</strong> jika laptop Anda telah disambungkan ke sensor serial fisik atau gateway Moxa sesungguhnya.
                     </p>
                   </div>
@@ -2458,7 +2458,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       <option value="125">125% (Sangat Besar)</option>
                       <option value="130">130% (Resolusi Tinggi / High DPI)</option>
                     </select>
-                    <p className="text-[10px] text-slate-400 font-sans mt-1 leading-normal">
+                    <p className="text-xs text-slate-400 font-sans mt-1 leading-normal">
                       Sesuaikan skala ukuran teks untuk kenyamanan membaca di layar laptop Anda.
                     </p>
                   </div>
@@ -2466,7 +2466,7 @@ header("Content-Type: application/json; charset=UTF-8");
                   {/* Cloud Mode configs */}
                   <div className="border-t border-white/5 pt-3 space-y-3">
                     <div>
-                      <label className="text-[8.5px] uppercase font-bold text-[#22c55e] tracking-wider block mb-1">Cloud Mode</label>
+                      <label className="text-xs uppercase font-bold text-[#22c55e] tracking-wider block mb-1">Cloud Mode</label>
                       <select 
                         value={config.cloudMode}
                         onChange={(e) => setConfig({ ...config, cloudMode: e.target.value })}
@@ -2481,7 +2481,7 @@ header("Content-Type: application/json; charset=UTF-8");
 
                     {(config.cloudMode === 'HTTP' || config.cloudMode === 'BOTH') && (
                       <div className="space-y-1">
-                        <label className="text-[8.5px] uppercase font-bold text-slate-400 tracking-wider block">HTTP API URL</label>
+                        <label className="text-xs uppercase font-bold text-slate-400 tracking-wider block">HTTP API URL</label>
                         <input 
                           type="text" 
                           value={config.httpUrl}
@@ -2493,10 +2493,10 @@ header("Content-Type: application/json; charset=UTF-8");
 
                     {(config.cloudMode === 'FTP' || config.cloudMode === 'BOTH') && (
                       <div className="space-y-2 p-3 bg-teal-950/20 border border-teal-500/20 rounded-lg">
-                        <span className="text-[9px] font-black text-teal-400 font-mono block uppercase tracking-wider mb-1">📁 KREDENSIAL SERVER FTP</span>
+                        <span className="text-xs font-black text-teal-400 font-mono block uppercase tracking-wider mb-1">📁 KREDENSIAL SERVER FTP</span>
                         
                         <div className="space-y-1">
-                          <label className="text-[7.5px] uppercase font-bold text-slate-400 block font-mono">FTP Host / Server IP</label>
+                          <label className="text-xs uppercase font-bold text-slate-400 block font-mono">FTP Host / Server IP</label>
                           <input 
                             type="text" 
                             value={config.ftpHost}
@@ -2508,7 +2508,7 @@ header("Content-Type: application/json; charset=UTF-8");
 
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
-                            <label className="text-[7.5px] uppercase font-bold text-slate-400 block font-mono">FTP Username</label>
+                            <label className="text-xs uppercase font-bold text-slate-400 block font-mono">FTP Username</label>
                             <input 
                               type="text" 
                               value={config.ftpUser}
@@ -2550,7 +2550,7 @@ header("Content-Type: application/json; charset=UTF-8");
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <span className="text-[10px] md:text-xs text-slate-400 uppercase font-mono block mb-1">Min Safe (Acid)</span>
+                        <span className="text-xs md:text-xs text-slate-400 uppercase font-mono block mb-1">Min Safe (Acid)</span>
                         <input 
                           type="number" 
                           step="0.1"
@@ -2562,7 +2562,7 @@ header("Content-Type: application/json; charset=UTF-8");
                         />
                       </div>
                       <div>
-                        <span className="text-[10px] md:text-xs text-slate-400 uppercase font-mono block mb-1">Max Safe (Alkali)</span>
+                        <span className="text-xs md:text-xs text-slate-400 uppercase font-mono block mb-1">Max Safe (Alkali)</span>
                         <input 
                           type="number" 
                           step="0.1"
@@ -2578,12 +2578,12 @@ header("Content-Type: application/json; charset=UTF-8");
 
                   {/* Database Storage custom configurations */}
                   <div className="border-t border-white/5 pt-3 space-y-2">
-                    <label className="text-[8.5px] uppercase font-bold text-teal-400 tracking-wider block">
+                    <label className="text-xs uppercase font-bold text-teal-400 tracking-wider block">
                       📁 Database Archiving & Storage Settings
                     </label>
                     <div className="space-y-3">
                       <div>
-                        <span className="text-[7.5px] text-slate-400 uppercase font-mono block mb-1">Database Storage Mode</span>
+                        <span className="text-xs text-slate-400 uppercase font-mono block mb-1">Database Storage Mode</span>
                         <select 
                           value={config.dbStorageMode || 'AVG'} 
                           onChange={(e) => setConfig({ ...config, dbStorageMode: e.target.value })}
@@ -2595,7 +2595,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       </div>
                       
                       <div>
-                        <span className="text-[7.5px] text-slate-400 uppercase font-mono block mb-1">Averaging & Logging Interval ({config.dbStorageInterval || 10} Minutes)</span>
+                        <span className="text-xs text-slate-400 uppercase font-mono block mb-1">Averaging & Logging Interval ({config.dbStorageInterval || 10} Minutes)</span>
                         <div className="flex gap-2">
                           <input 
                             type="range" 
@@ -2620,14 +2620,14 @@ header("Content-Type: application/json; charset=UTF-8");
                             className="w-12 bg-[#050a12] border border-white/10 font-mono text-center text-xs p-1 text-white rounded outline-none"
                           />
                         </div>
-                        <p className="text-[8px] text-slate-500 font-mono mt-1 leading-normal">
+                        <p className="text-xs text-slate-500 font-mono mt-1 leading-normal">
                           Configure storage frequency: commits data from 1 to 60 minutes per log row.
                         </p>
                       </div>
 
                       {/* Local database API URL */}
                       <div>
-                        <span className="text-[7.5px] text-slate-400 uppercase font-mono block mb-1">Local XAMPP Database API Endpoint (PHP API Link)</span>
+                        <span className="text-xs text-slate-400 uppercase font-mono block mb-1">Local XAMPP Database API Endpoint (PHP API Link)</span>
                         <input 
                           type="text" 
                           value={config.localDbApiUrl || ''} 
@@ -2635,7 +2635,7 @@ header("Content-Type: application/json; charset=UTF-8");
                           onChange={(e) => setConfig({ ...config, localDbApiUrl: e.target.value })}
                           className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-teal-400 rounded outline-none text-left"
                         />
-                        <p className="text-[8px] text-slate-500 font-mono mt-1 leading-tight">
+                        <p className="text-xs text-slate-500 font-mono mt-1 leading-tight">
                           Alamat file <code className="text-slate-400 bg-white/5 px-0.5 rounded">api.php</code> di htdocs XAMPP Anda. Berguna untuk sinkronisasi otomatis.
                         </p>
                       </div>
@@ -2648,7 +2648,7 @@ header("Content-Type: application/json; charset=UTF-8");
                           localStorage.setItem('aws_history_logs', JSON.stringify(regenerated));
                           showToastNotification(`Successfully regenerated database logs with a ${currentInterval}-Minute logging frequency!`);
                         }}
-                        className="w-full bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/30 font-mono text-[9px] font-bold text-teal-300 p-2.5 rounded-lg transition text-center uppercase cursor-pointer"
+                        className="w-full bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/30 font-mono text-xs font-bold text-teal-300 p-2.5 rounded-lg transition text-center uppercase cursor-pointer"
                       >
                         🔄 RESET & REGENERATE DB HISTORY
                       </button>
@@ -2666,7 +2666,7 @@ header("Content-Type: application/json; charset=UTF-8");
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gradient-to-b from-[#0b1424] to-bg p-4.5 rounded-xl border border-white/10 flex justify-between items-center">
                   <div>
-                    <span className="text-[8.5px] uppercase tracking-wider text-[#00f0ff] font-bold block mb-1">Date Time Index</span>
+                    <span className="text-xs uppercase tracking-wider text-[#00f0ff] font-bold block mb-1">Date Time Index</span>
                     <select 
                       value={config.ind_date}
                       onChange={(e) => setConfig({ ...config, ind_date: e.target.value })}
@@ -2684,7 +2684,7 @@ header("Content-Type: application/json; charset=UTF-8");
 
                 <div className="bg-gradient-to-b from-[#0b1424] to-bg p-4.5 rounded-xl border border-white/10 flex justify-between items-center">
                   <div>
-                    <span className="text-[8.5px] uppercase tracking-wider text-[#00f0ff] font-bold block mb-1">Station ID Index</span>
+                    <span className="text-xs uppercase tracking-wider text-[#00f0ff] font-bold block mb-1">Station ID Index</span>
                     <select 
                       value={config.ind_id}
                       onChange={(e) => setConfig({ ...config, ind_id: e.target.value })}
@@ -2703,7 +2703,7 @@ header("Content-Type: application/json; charset=UTF-8");
 
               {/* Grid of channels to index splits mapping (17 metrics) */}
               <div className="bg-gradient-to-br from-[#0c1625] to-bg border border-white/10 p-6 rounded-3xl">
-                <div className="text-[11px] font-bold text-[#00f0ff] uppercase tracking-widest mb-6 pb-2 border-b border-white/5">
+                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-widest mb-6 pb-2 border-b border-white/5">
                   🕹️ Sensor Channel Mapping Indexes
                 </div>
 
@@ -2729,7 +2729,7 @@ header("Content-Type: application/json; charset=UTF-8");
                     { label: 'Water pH', key: 'ch_18', color: '#f5d0fe', source: (currentData.waterPh ?? 7.80).toFixed(2) }
                   ].map((sensor, s_idx) => (
                     <div key={s_idx} className="bg-[#050a12]/70 border border-white/5 p-3 rounded-lg flex flex-col justify-between gap-1">
-                      <span className="text-[8.5px] uppercase font-mono tracking-wider font-extrabold text-slate-400 block">{sensor.label} ({sensor.key})</span>
+                      <span className="text-xs uppercase font-mono tracking-wider font-extrabold text-slate-400 block">{sensor.label} ({sensor.key})</span>
                       <div className="flex gap-2 items-center">
                         <select 
                           value={config.sensors[sensor.key as keyof typeof config.sensors]}
@@ -2737,14 +2737,14 @@ header("Content-Type: application/json; charset=UTF-8");
                             const updatedSensors = { ...config.sensors, [sensor.key]: e.target.value };
                             setConfig({ ...config, sensors: updatedSensors });
                           }}
-                          className="bg-[#050a12] border border-white/10 font-mono text-[9px] w-[50px] text-white p-1 rounded outline-none"
+                          className="bg-[#050a12] border border-white/10 font-mono text-xs w-[50px] text-white p-1 rounded outline-none"
                         >
                           <option value="OFF">OFF</option>
                           {[...Array(25)].map((_, i) => (
                             <option key={i} value={i}>{i}</option>
                           ))}
                         </select>
-                        <div className="flex-1 bg-[#010306] border border-white/5 py-1 px-2 rounded font-mono text-[10px] text-center font-black truncate" style={{ color: sensor.color }}>
+                        <div className="flex-1 bg-[#010306] border border-white/5 py-1 px-2 rounded font-mono text-xs text-center font-black truncate" style={{ color: sensor.color }}>
                           {sensor.source}
                         </div>
                       </div>
@@ -2832,8 +2832,8 @@ header("Content-Type: application/json; charset=UTF-8");
 
       {/* Decorative subtle console metadata footer */}
       <footer className="fixed bottom-3 right-6 pointer-events-none opacity-20 flex flex-col items-end gap-0.5">
-        <span className="text-[7.5px] font-mono tracking-widest text-[#00f0ff] uppercase">RMS SYS STN: CONNECTED SECURE</span>
-        <span className="text-[7.5px] font-mono tracking-widest text-slate-500">UTC: 2026-06-06 UTC+7 LOCAL SYSTEM</span>
+        <span className="text-xs font-mono tracking-widest text-[#00f0ff] uppercase">RMS SYS STN: CONNECTED SECURE</span>
+        <span className="text-xs font-mono tracking-widest text-slate-500">UTC: 2026-06-06 UTC+7 LOCAL SYSTEM</span>
       </footer>
     </div>
   );
