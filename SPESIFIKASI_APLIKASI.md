@@ -1,4 +1,4 @@
-# SPESIFIKASI SISTEM MONITORING METEOROLOGI MARITIM 
+# SPESIFIKASI SISTEM MONITORING METEOROLOGI MARITIM & PELABUHAN
 *(Maritime Meteorological & Port Monitoring System Specification)*
 
 Dokumen ini berisi spesifikasi teknis, fitur-fitur unggulan, serta arsitektur antarmuka dari aplikasi monitoring cuaca maritim real-time yang dirancang khusus untuk keselamatan operasi pelabuhan dan pelayaran.
@@ -326,3 +326,194 @@ Sistem ini mengimplementasikan teknik filtrasi statistik standar **WMO (World Me
 
 ---
 
+### D. Panduan Setup Autostart (Menjalankan Otomatis Saat Windows Boot)
+
+Agar stasiun pemantauan pelabuhan AWS Marine Board ini dapat berjalan secara mandiri dan otomatis kembali menyala tanpa intervensi manual saat komputer / server Windows dinyalakan (booting/restart), Anda dapat mengikuti dua langkah praktis berikut ini:
+
+#### 1. Konfigurasi Autostart XAMPP (Apache & MySQL sebagai Service)
+Untuk memastikan basis data MariaDB dan jembatan API PHP (`api.php`) langsung aktif secara otomatis setelah PC dinyalakan:
+1. Buka aplikasi **XAMPP Control Panel** dengan hak akses administrator (Klik kanan -> *Run as administrator*).
+2. Di pojok kanan atas, klik tombol **Config**.
+3. Di dalam jendela pengaturan "Configuration of Control Panel", centang kotak (*checkbox*) **Apache** dan **MySQL** di bawah kolom **Autostart of modules**.
+4. Klik **Save** untuk menyimpan perubahan.
+5. *(Opsional)* Jika Anda ingin XAMPP Control Panel berjalan langsung di latar belakang (*system tray*) saat startup Windows:
+   * Tekan tombol pintas **Win + R** pada keyboard Anda, ketik `shell:startup`, lalu tekan **Enter**. Ini akan membuka folder Startup Windows.
+   * Buat pintasan (*shortcut*) dari aplikasi `xampp-control.exe` (biasanya terletak di `C:\xampp\`) lalu pindahkan atau salin pintasannya ke dalam folder Startup tersebut.
+
+---
+
+#### 2. Konfigurasi Autostart Aplikasi Antarmuka (React / Web Node Server)
+
+Anda dapat memilih salah satu dari dua metode di bawah ini untuk menjalankan aplikasi web lokal secara otomatis saat Windows aktif:
+
+##### **Metode A: Menggunakan Folder Windows Startup (Jendela CMD Tetap Terbuka)**
+Metode ini adalah yang paling sederhana apabila Anda masih ingin melihat jendela hitam terminal (*Command Prompt*) yang memantau log sistem saat berjalan secara langsung:
+1. Buat file script Batch baru bernama `start_aws_marine.bat` menggunakan Notepad atau Text Editor lainnya.
+2. Tuliskan baris perintah di bawah ini (sesuaikan dengan lokasi folder proyek Anda):
+   ```cmd
+   @echo off
+   :: Pindah ke direktori tempat Anda mengekstrak source code proyek ini
+   cd /d "C:\lokasi\folder_aws_project"
+   
+   :: Menjalankan server aplikasi web lokal
+   npm run dev
+   ```
+3. Simpan file tersebut.
+4. Buat pintasan (*shortcut*) baru dari file `start_aws_marine.bat` tersebut.
+5. Tempel (*paste*) file shortcut tersebut ke dalam folder Startup Windows:
+   * Tekan **Win + R**, ketik `shell:startup`, lalu tekan **Enter**.
+   * Letakkan file shortcut batch tersebut di sana.
+
+---
+
+##### **Metode B: Mendaftarkan sebagai Windows Service Resmi (Berjalan Sunyi di Latar Belakang - RECOMMENDED) ⭐**
+Jika Anda menginginkan aplikasi ini berjalan secara profesional sebagai layanan sistem latar belakang (**Windows Service**) yang sepenuhnya sunyi (*headless/no terminal window visible*), berjalan bebas sebelum ada user yang login (*pre-login background execution*), dan memiliki penanganan pemulihan restart otomatis jika mati:
+
+Anda dapat menggunakan utilitas open-source standar industri bernama **NSSM (Non-Sucking Service Manager)**:
+
+###### **Langkah Alur Instalasinya:**
+1. **Unduh NSSM:**
+   * Download NSSM dari situs resminya di `https://nssm.cc/download`.
+   * Ekstrak file zip tersebut, lalu salin file `nssm.exe` yang sesuai dengan arsitektur OS Anda (biasanya di dalam folder `win64/`) ke direktori aman, misalnya ke `C:\windows-utils\nssm.exe` ATAU langsung masukkan ke dalam folder proyek Anda.
+
+2. **Daftarkan Layanan Menggunakan Command Prompt:**
+   > ⚠️ **PENTING (Jangan Di-double Click langsung!):**
+   > Jika Anda langsung melakukan klik dua kali (*double-click*) pada file `nssm.exe` di File Explorer, maka akan muncul jendela panduan penggunaan saja (*Usage help popup* seperti yang muncul pada tangkapan layar di atas). Ini normal karena NSSM membutuhkan argumen teks spesifik untuk memanggil jendela GUI-nya.
+   > 
+   > **Cara yang Benar:**
+   1. Klik tombol **Start Windows**, ketik `cmd`.
+   2. Klik kanan pada **Command Prompt** lalu pilih **Run as administrator**.
+   3. Buka folder dari tempat ekstraksi NSSM Anda dengan mengetik cd (Contoh: `cd /d "C:\lokasi\ekstrak\nssm\win64"`).
+   4. Tulis perintah berikut dan tekan **Enter**:
+      ```cmd
+      nssm install AWSMarineTelemetry
+      ```
+   *(Setelah menekan Enter, jendela GUI installer yang asli dengan form isian parameter baru akan segera terbuka secara otomatis!)*
+   
+3. **Konfigurasikan Parameter Service pada Jendela GUI NSSM yang muncul:**
+   * **Path**: `C:\Windows\System32\cmd.exe`
+   * **Startup directory**: Isi dengan jalur direktori absolut dari proyek AWS Marine Anda:
+     Contoh: `C:\MARITIME-OS-main\MARITIME-OS-main`
+   * **Arguments**: Harus diisi dengan argumen awalan `/c` sebelum nama file batch, yaitu:
+     `/c start_aws_marine.bat`
+     
+     > ⚠️ **BENTUK KORREKSI DARI TANGKAPAN LAYAR ANDA:**
+     > Pada tangkapan layar Anda, Arguments hanya terisi `start_aws_marine.bat`. Tanpa menuliskan kata kunci **`/c`** di depannya, Windows `cmd.exe` hanya akan terbuka dalam mode interaktif kosong dan **tidak akan pernah mengeksekusi** file batch atau perintah Node di dalamnya! Pastikan Anda mengetik:
+     > **`/c start_aws_marine.bat`**
+
+4. **Konfigurasi Tab Pilihan Lainnya:**
+   * Masuk ke tab **Details**:
+     * **Display name**: `AWS Port Marine Telemetry Server`
+     * **Description**: `Layanan background pengumpul telemetri sensor pelabuhan dan sinkronisasi MariaDB XAMPP lokal.`
+     * **Startup type**: Pilih **Automatic** agar otomatis langsung berjalan saat Windows booting tanpa perlu ada pengguna yang melakukan login.
+   * Klik tombol **Install service**.
+
+5. **Nyalakan Layanan Secara Manual Pertama Kali:**
+   * Tekan tombol **Win + R**, ketik `services.msc`, lalu tekan **Enter** untuk membuka panel pengatur Windows Services.
+   * Cari layanan bernama **AWS Port Marine Telemetry Server**.
+   * Klik kanan pada layanan tersebut, lalu klik **Start**.
+   * Selesai! Aplikasi Anda sekarang sepenuhnya dikunci aman sebagai bagian dari core service Windows dan berjalan secara transparan tanpa mengganggu tampilan layar desktop.
+
+---
+
+### **E. SOLUSI MENGHILANGNYA LOCALHOST:3000 KETIKA RUNNING SERVICE (TROUBLESHOOTING)**
+
+Jika layanan Windows Service Anda tertulis **"Running"** tapi `localhost:3000` tidak bisa diakses dan memunculkan error page (kosong), hal ini disebabkan oleh **dua masalah utama**:
+
+#### **Masalah 1: Lupa Menuliskan `/c` dalam Arguments NSSM**
+*   **Analisis**: Tanpa `/c` sebelum nama file batch, `cmd.exe` menolak mengeksekusi file batch Anda.
+*   **Cara Edit Service yang Sudah Terlanjur Dibuat**:
+    1. Buka CMD sebagai administrator.
+    2. Jalankan perintah edit NSSM:
+       ```cmd
+       nssm edit AWSMarineTelemetry
+       ```
+    3. Di tab **Application**, ubah nilai **Arguments** menjadi: `/c start_aws_marine.bat`
+    4. Klik **Edit service**.
+    5. Masuk ke `services.msc`, klik kanan layanan, lalu lakukan **Restart**.
+
+#### **Masalah 2: Lingkungan `Local System Account` Tidak Mengenal Perintah `npm`**
+Secara default, Windows Service berjalan di bawah nama akun istimewa **"Local System"**. Akun bawaan Windows ini **tidak memiliki akses** ke folder program yang terinstall di profile pengguna Anda (termasuk PATH lokasi `node` / `npm` Anda). Akibatnya, saat service berjalan, script batch gagal menemukan program `npm` dan langsung crash di latar belakang tanpa memberi tahu Anda.
+
+*   **Solusi Terbaik & Paling Direkomendasikan (Ubah Hak Akses Log on):**
+    Mengubah hak akses eksekusi service agar menggunakan akun Windows personal Anda sendiri yang terbukti sudah terinstall Node.js dengan benar:
+    1. Buka Windows Services (jalankan `services.msc`).
+    2. Cari layanan **AWS Port Marine Telemetry Server**, klik kanan lalu pilih **Properties**.
+    3. Masuk ke tab **Log On** (berada di bagian atas di samping tab *General*).
+    4. Ubah pilihan radio button dari **Local System account** menjadi **This account**.
+    5. Klik **Browse...**, kemudian masukkan nama pengguna Windows Anda (atau klik *Advanced* -> *Find Now* -> pilih nama akun Anda yang biasanya digunakan untuk login ke komputer). Klik **OK**.
+    6. Masukkan password akun login Windows komputer Anda di kolom password (kosongkan jika akun Windows Anda tidak memiliki password).
+    7. Klik **Apply** dan **OK** (akan muncul petunjuk bahwa pilihan ini akan diterapkan sehabis service di-restart).
+    8. Di daftar service, klik kanan **AWS Port Marine Telemetry Server** lalu pilih **Restart**.
+
+*   **Solusi Alternatif (Menggunakan Path Node.js Absolut di File Batch):**
+    Jika Anda ingin menggunakan path absolut, mari analisa baris script yang Anda tanyakan:
+    ```cmd
+    @echo off
+    cd /d "C:\lokasi\folder_aws_project"
+    "C:\MARITIME-OS-main\MARITIME-OS-main\nodejs\npm.cmd" run dev
+    ```
+    
+    Ada **dua hal** yang perlu dikoreksi agar script tersebut berfungsi dengan benar:
+    
+    1. **Ubah `cd /d "C:\lokasi\folder_aws_project"`** sesuai dengan direktori proyek Anda yang sebenarnya. Berdasarkan gambar jendela NSSM Anda, jalurnya adalah:
+       `C:\MARITIME-OS-main\MARITIME-OS-main`
+    2. **Pastikan letak folder `nodejs` Anda sudah benar.** Apakah Anda menaruh folder program Node.js portable di dalam folder proyek tersebut? 
+       * **Jika YA (Anda mengekstrak Node portable di sana):** Pastikan folder `nodejs` tersebut memang ada di dalam `C:\MARITIME-OS-main\MARITIME-OS-main\nodejs`. Jika benar, maka path `"C:\MARITIME-OS-main\MARITIME-OS-main\nodejs\npm.cmd"` sudah tepat.
+       * **Jika TIDAK (Anda menginstal Node secara normal di Windows):** Biasanya Node.js terletak di program files bawaan Windows, yaitu:
+         `"C:\Program Files\nodejs\npm.cmd"`
+
+    **Berikut adalah draft file `.bat` yang sudah dikoreksi dan siap Anda gunakan (Pilih salah satu di bawah ini yang sesuai dengan cara install Node Anda):**
+
+    **Pilihan 1 (Jika menginstal Node.js installer normal/default):**
+    ```cmd
+    @echo off
+    :: 1. Berpindah ke folder asli proyek Anda
+    cd /d "C:\MARITIME-OS-main\MARITIME-OS-main"
+
+    :: 2. Menjalankan npm dengan path default Windows
+    "C:\Program Files\nodejs\npm.cmd" run dev
+    ```
+
+    **Pilihan 2 (Jika Anda mengekstrak Node.js portable ke dalam folder proyek Anda):**
+    ```cmd
+    @echo off
+    :: 1. Berpindah ke folder asli proyek Anda
+    cd /d "C:\MARITIME-OS-main\MARITIME-OS-main"
+
+    :: 2. Menjalankan npm dari folder portable lokal Anda
+    "C:\MARITIME-OS-main\MARITIME-OS-main\nodejs\npm.cmd" run dev
+    ```
+
+#### **Masalah 3: 'vite' is not recognized as an internal or external command**
+*   **Analisis**: Pesan error ini muncul karena folder pustaka **`node_modules`** belum terinstall di komputer lokal Anda (atau terhapus/gagal terunduh saat pemindahan folder proyek). Tanpa folder ini, perintah `npm run dev` tidak tahu di mana harus menemukan program pembangun server bernama `vite`.
+*   **Cara Mengatasinya**:
+    1. Pastikan Anda sedang terhubung ke internet.
+    2. Buka **Command Prompt (CMD)** Anda seperti biasa.
+    3. Masuk ke folder proyek Anda terlebih dahulu dengan mengetik perintah berikut:
+       ```cmd
+       cd /d "C:\MARITIME-OS-main\MARITIME-OS-main"
+       ```
+    4. Jalankan perintah instalasi seluruh pustaka pendukung bawaan dengan mengetik:
+       ```cmd
+       npm install
+       ```
+       *(Tunggu hingga proses pengunduhan selesai. Windows akan otomatis mengunduh program `vite` dan pustaka-pustaka React yang diperlukan ke dalam direktori proyek Anda).*
+    5. Setelah proses instalasi selesai (ditandai dengan kembalinya kursor perintah CMD Anda), silakan jalankan kembali perintah manual dambaan Anda:
+       ```cmd
+       npm run dev
+       ```
+       *(Kini server lokal seharusnya sudah bisa menyala dengan normal tanpa kendala!)*
+    6. Setelah dijalankan manual terbukti sudah aman dan `localhost:3000` menyala, Anda bisa menutup CMD manual tersebut, lalu pergi ke jendela `services.msc` dan tekan tombol **Start** pada layanan **AWS Port Marine Telemetry Server** agar ia berjalan tenang di latar belakang (*background*).
+
+#### **Cara Melihat Log Kesalahan Service Melalui NSSM (Redirect Output):**
+Agar Anda bisa memantau jika ada error lain:
+1. Jalankan perintah `nssm edit AWSMarineTelemetry` di CMD Admin.
+2. Masuk ke tab **I/O**.
+3. Di bagian **Output (stdout)**, isikan lokasi file penampung log Anda, misal: `C:\MARITIME-OS-main\MARITIME-OS-main\stdout.log`
+4. Di bagian **Error (stderr)**, isikan lokasi file penampung log error Anda, misal: `C:\MARITIME-OS-main\MARITIME-OS-main\stderr.log`
+5. Simpan / Klik **Edit service**, lalu lakukan **Restart** service.
+6. Sekarang, buka file `stderr.log` di dalam folder Anda menggunakan Notepad. Seluruh pesan kesalahan dari aplikasi atau Node.js akan tertulis lengkap di sana sehingga troubleshooting menjadi sangat presisi!
+
+---
+*Dokumen ini dibuat secara otomatis oleh sistem asisten virtual AI Studio sebagai panduan operasional integrasi aplikasi.*

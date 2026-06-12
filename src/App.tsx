@@ -37,6 +37,7 @@ const DEFAULT_CONFIG = {
   dbStorageMode: 'AVG', // 'AVG' (Rata-Rata) | 'RAW' (Instan/Setiap Detik/Sesaat)
   dbStorageInterval: 10, // 1 to 60 Minutes
   localDbApiUrl: 'http://localhost/aws_marine/api.php',
+  uiZoom: '115', // Default font size scale (%) for excellent laptop reading
   sensors: {
     'ch_0': '2',   // Air Temp
     'ch_2': '2',   // Temp Avg (let's map to Temp source with average)
@@ -665,6 +666,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row grid-pattern text-slate-100">
+      <style>{`
+        :root {
+          font-size: ${config.uiZoom || '115'}%;
+        }
+      `}</style>
       {/* Dynamic Toast warning line */}
       {systemAlert && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-[#0b1424] border border-[#00f0ff] px-6 py-3 rounded-full text-xs font-mono font-bold uppercase tracking-wider text-[#00f0ff] shadow-[0_0_30px_rgba(0,240,255,0.4)] flex items-center gap-2">
@@ -2165,6 +2171,25 @@ header("Content-Type: application/json; charset=UTF-8");
                       onChange={(e) => setConfig({ ...config, pierAngle: e.target.value })}
                       className="w-full bg-[#050a12] border border-white/15 font-mono text-sm text-center p-2 text-emerald-400 font-black rounded outline-none cursor-pointer" 
                     />
+                  </div>
+
+                  <div className="border-t border-white/5 pt-3">
+                    <label className="text-xs uppercase font-bold text-sky-400 tracking-wider block mb-1">🔍 Skala Ukuran Teks & UI (Zoom)</label>
+                    <select 
+                      value={config.uiZoom || '115'} 
+                      onChange={(e) => setConfig({ ...config, uiZoom: e.target.value })}
+                      className="w-full bg-[#050a12] border border-white/15 font-mono text-xs p-2 text-sky-300 font-bold rounded outline-none cursor-pointer"
+                    >
+                      <option value="100">100% (Standar / Layar Lebar)</option>
+                      <option value="110">110% (Sedang)</option>
+                      <option value="115">115% (Ideal Laptop - Direkomendasikan)</option>
+                      <option value="120">120% (Besar)</option>
+                      <option value="125">125% (Sangat Besar)</option>
+                      <option value="130">130% (Resolusi Tinggi / High DPI)</option>
+                    </select>
+                    <p className="text-[9px] text-slate-400 font-mono mt-1 leading-tight">
+                      Sesuaikan skala ukuran teks untuk kenyamanan membaca di layar laptop Anda.
+                    </p>
                   </div>
 
                   {/* Cloud Mode configs */}

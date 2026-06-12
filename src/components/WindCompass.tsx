@@ -49,7 +49,7 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
       <div className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-accent/30 rounded-bl-lg" />
       <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-accent/30 rounded-br-lg" />
 
-      <div className="text-[9px] uppercase font-bold tracking-[0.25em] text-accent flex items-center justify-between mb-8 pb-3 border-b border-accent/10">
+      <div className="text-[11px] sm:text-xs uppercase font-extrabold tracking-[0.25em] text-accent flex items-center justify-between mb-8 pb-3 border-b border-accent/10">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent/40 opacity-75"></span>
@@ -57,7 +57,7 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
           </span>
           Yacht Port / Wind Matrix Vector
         </div>
-        <div className="text-white/40 font-mono text-[8px] tracking-[0.1em] bg-white/5 py-0.5 px-2 rounded">
+        <div className="text-white/50 font-mono text-[10px] tracking-[0.1em] bg-white/5 py-0.5 px-2.5 rounded">
           INSTRUMENT_SYS_ACTIVE
         </div>
       </div>
@@ -65,7 +65,7 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
       <div className="flex flex-col xl:flex-row items-center justify-around gap-12 py-4">
         {/* CIRCLE 1: MARITIME DIRECTIONAL ROSE */}
         <div className="relative group">
-          <div className="text-[7.5px] absolute -top-10 left-1/2 -translate-x-1/2 opacity-40 font-bold tracking-[0.2em] uppercase text-center w-full text-accent/80 font-mono">01 // Harbor Vessel Positioning</div>
+          <div className="text-[10px] md:text-xs absolute -top-10 left-1/2 -translate-x-1/2 opacity-55 font-extrabold tracking-[0.2em] uppercase text-center w-full text-accent font-mono">01 // Harbor Vessel Positioning</div>
           <div className="w-68 h-68 rounded-full border-2 border-accent/15 flex items-center justify-center relative bg-gradient-to-br from-paper to-bg shadow-[0_0_50px_rgba(0,240,255,0.08),inset_0_0_30px_rgba(0,240,255,0.08)]">
             
             {/* Dominant Wind Range Glowing Highlight Segment (High Voltage Green) */}
@@ -121,8 +121,8 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
                   <div className="w-4 h-2 bg-white/[0.08] rounded mb-1" />
                 </div>
                 {/* Port & Starboard Status lights - Luxe theme */}
-                <div className="absolute -left-12 top-1/2 -translate-y-1/2 text-[7.5px] font-bold tracking-[0.2em] text-danger/80 bg-danger/5 border border-danger/10 px-1 py-0.5 rounded uppercase">Port</div>
-                <div className="absolute -right-12 top-1/2 -translate-y-1/2 text-[7.5px] font-bold tracking-[0.2em] text-success/80 bg-success/5 border border-success/10 px-1 py-0.5 rounded uppercase">Stbd</div>
+                <div className="absolute -left-12 top-1/2 -translate-y-1/2 text-[10px] font-extrabold tracking-[0.2em] text-danger/90 bg-danger/5 border border-danger/20 px-1.5 py-0.5 rounded uppercase">Port</div>
+                <div className="absolute -right-12 top-1/2 -translate-y-1/2 text-[10px] font-extrabold tracking-[0.2em] text-success/90 bg-success/5 border border-success/20 px-1.5 py-0.5 rounded uppercase">Stbd</div>
                 
                 {/* Bow marker */}
                 <div className="absolute -top-1 w-2 h-2 bg-accent rounded-full border border-white/20 shadow-[0_0_10px_rgba(0,240,255,0.8)]" />
@@ -138,7 +138,7 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
               >
                 <div className="flex flex-col items-center">
                   <div className="w-[1.5px] h-3 bg-accent/40 rounded-full"></div>
-                  <span className="text-[7.5px] font-mono opacity-60 font-bold mt-1 text-accent" style={{ transform: `rotate(-${deg}deg)` }}>
+                  <span className="text-[9.5px] md:text-xs font-mono opacity-80 font-bold mt-1 text-accent" style={{ transform: `rotate(-${deg}deg)` }}>
                     {deg === 0 ? 'N' : deg === 45 ? 'NE' : deg === 90 ? 'E' : deg === 135 ? 'SE' : deg === 180 ? 'S' : deg === 225 ? 'SW' : deg === 270 ? 'W' : 'NW'}
                   </span>
                 </div>
@@ -168,7 +168,7 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
 
         {/* CIRCLE 2: KINETIC VECTOR (SPEED & FORCE) */}
         <div className="relative group">
-          <div className="text-[7.5px] absolute -top-10 left-1/2 -translate-x-1/2 opacity-40 font-bold tracking-[0.2em] uppercase text-center w-full text-accent/80 font-mono">02 // Wind Velocity Monitor</div>
+          <div className="text-[10px] md:text-xs absolute -top-10 left-1/2 -translate-x-1/2 opacity-55 font-extrabold tracking-[0.2em] uppercase text-center w-full text-accent font-mono">02 // Wind Velocity Monitor</div>
           <div className="w-56 h-56 rounded-full border-2 border-accent/15 flex items-center justify-center relative shadow-[0_0_50px_rgba(0,240,255,0.08)] bg-gradient-to-tr from-paper/90 to-bg backdrop-blur-xl">
             
             {/* Outer dial frame */}
@@ -184,7 +184,7 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
               >
                 <div className="flex flex-col items-center">
                   <div className="w-px h-2.5 bg-accent/30 rounded-full"></div>
-                  <span className="text-[7px] font-mono text-accent/40 mt-1 font-semibold" style={{ transform: `rotate(-${deg}deg)` }}>
+                  <span className="text-[9px] font-mono text-accent/50 mt-1 font-semibold" style={{ transform: `rotate(-${deg}deg)` }}>
                     {deg}°
                   </span>
                 </div>
@@ -192,11 +192,11 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
             ))}
 
             {/* Speed HUD: Fine Luxe Typography */}
-            <div className="text-center z-10 flex flex-col items-center bg-bg/80 border border-white/5 p-6 rounded-full aspect-square justify-center shadow-inner">
-              <div className="text-4xl font-extrabold data-mono tracking-tighter text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.15)] leading-none mb-1">
+            <div className="text-center z-10 flex flex-col items-center bg-bg/85 border border-white/10 p-6 rounded-full aspect-square justify-center shadow-inner">
+              <div className="text-4xl md:text-5xl font-extrabold data-mono tracking-tighter text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.15)] leading-none mb-1">
                 {speed.toFixed(1)}
               </div>
-              <div className="text-[8.5px] font-bold text-accent tracking-[0.25em] uppercase opacity-90">
+              <div className="text-xs font-bold text-accent tracking-[0.25em] uppercase opacity-95">
                 {unit}
               </div>
             </div>
@@ -221,19 +221,19 @@ export const WindCompass: React.FC<WindCompassProps> = ({ speed, direction, unit
       </div>
 
       <div className="mt-10 pt-6 border-t border-accent/10 flex flex-col sm:flex-row justify-between items-center gap-4">
-        <div className="text-[9px] font-mono tracking-[0.15em] opacity-60 text-accent/85 flex items-center gap-1.5">
+        <div className="text-xs font-mono tracking-[0.15em] opacity-70 text-accent flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 bg-accent rounded-full"></span>
           REALTIME_TELEMETRY_ENGINE
         </div>
         
         {dominantRange && (
-          <div className="text-[9.5px] font-mono tracking-[0.12em] text-[#10b981] flex items-center gap-1.5 bg-[#10b981]/10 border border-[#10b981]/20 px-3 py-1 rounded-md font-bold shadow-[0_0_15px_rgba(16,185,129,0.05)]">
+          <div className="text-xs font-mono tracking-[0.12em] text-[#10b981] flex items-center gap-1.5 bg-[#10b981]/10 border border-[#10b981]/20 px-3.5 py-1 rounded-md font-bold shadow-[0_0_15px_rgba(16,185,129,0.05)]">
             <span className="w-1.5 h-1.5 bg-[#10b981] rounded-full animate-pulse"></span>
             <span>DOMINANT WIND (10M): {dominantRange.start.toFixed(0)}° - {dominantRange.end.toFixed(0)}°</span>
           </div>
         )}
         
-        <div className="text-[9px] font-mono font-bold text-white/80 tracking-widest bg-white/5 px-2.5 py-1 rounded border border-white/5">{direction.toFixed(1)}° AZIMUTH</div>
+        <div className="text-xs font-mono font-bold text-white tracking-widest bg-white/5 px-2.5 py-1 rounded border border-white/5">{direction.toFixed(1)}° AZIMUTH</div>
       </div>
     </div>
   );

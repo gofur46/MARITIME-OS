@@ -45,7 +45,7 @@ export const StatCard: React.FC<StatCardProps> = ({ label, value, unit, icon, tr
       </div>
 
       <div className="flex justify-between items-start">
-        <span className="text-[9.5px] uppercase font-bold tracking-[0.18em] opacity-50 text-accent font-mono">{label}</span>
+        <span className="text-[11px] md:text-xs uppercase font-extrabold tracking-[0.18em] opacity-65 text-accent font-mono">{label}</span>
         <div className={cn("p-2.5 rounded-xl border flex items-center justify-center shadow-lg backdrop-blur-md transition-all", getAlertColor(), getAlertBg())}>
           {icon}
         </div>
@@ -53,17 +53,17 @@ export const StatCard: React.FC<StatCardProps> = ({ label, value, unit, icon, tr
       
       <div className="mt-4">
         <div className="flex items-baseline gap-1.5">
-          <span className="text-3xl font-extrabold data-mono leading-none tracking-tighter text-white drop-shadow-sm">{value}</span>
-          {unit && <span className="text-[10px] uppercase font-bold tracking-widest text-accent opacity-60 font-mono">{unit}</span>}
+          <span className="text-3xl md:text-4xl font-extrabold data-mono leading-none tracking-tighter text-white drop-shadow-sm">{value}</span>
+          {unit && <span className="text-xs uppercase font-bold tracking-widest text-accent opacity-75 font-mono">{unit}</span>}
         </div>
         
         {trend !== undefined ? (
-          <div className={cn("text-[8.5px] mt-2 font-mono flex items-center gap-1 font-bold", trend > 0 ? 'text-danger' : 'text-success')}>
-            <span className="text-[7px]">{trend > 0 ? '▲' : '▼'}</span>
+          <div className={cn("text-xs mt-2.5 font-mono flex items-center gap-1 font-bold", trend > 0 ? 'text-danger' : 'text-success')}>
+            <span className="text-[8px]">{trend > 0 ? '▲' : '▼'}</span>
             <span>{Math.abs(trend)}% vs last hr</span>
           </div>
         ) : (
-          <div className="text-[8px] mt-2 font-mono opacity-25 uppercase tracking-wider">Tlm Stream Active</div>
+          <div className="text-[10px] mt-2.5 font-mono opacity-40 uppercase tracking-wider">Tlm Stream Active</div>
         )}
       </div>
     </motion.div>
