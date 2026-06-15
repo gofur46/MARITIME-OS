@@ -1353,9 +1353,9 @@ export default function App() {
                   }
 
                   return (
-                    <div className={`relative w-64 h-64 rounded-full border-8 transition-all duration-700 flex items-center justify-center bg-radial-gradient from-[#00f0ff]/10 to-[#0284c7]/30 shadow-[inset_0_0_30px_rgba(0,0,0,0.8)] ${ringBorderColor}`}>
-                      {/* Water ring container inside */}
-                      <div className="absolute w-[160px] h-[160px] rounded-full border border-white/5 bg-transparent pointer-events-none" />
+                    <div className={`relative w-80 h-80 rounded-full border-8 transition-all duration-700 flex items-center justify-center bg-radial-gradient from-[#00f0ff]/10 to-[#0284c7]/30 shadow-[inset_0_0_40px_rgba(0,0,0,0.85)] ${ringBorderColor}`}>
+                      {/* Water ring container inside - enlarged proportionally */}
+                      <div className="absolute w-[200px] h-[200px] rounded-full border border-white/5 bg-transparent pointer-events-none" />
                       
                       {/* 2-Minute Wind Track Radar SVG */}
                       <svg className="absolute w-full h-full top-0 left-0 pointer-events-none z-0" viewBox="0 0 288 288">
@@ -1392,17 +1392,17 @@ export default function App() {
                         })}
                       </svg>
 
-                      {/* Direction characters */}
-                      <span className="absolute top-1 text-slate-200 text-xs font-black tracking-widest font-sans">N</span>
-                      <span className="absolute bottom-1 text-slate-200 text-xs font-black tracking-widest font-sans">S</span>
-                      <span className="absolute right-3 text-slate-200 text-xs font-black tracking-widest font-sans font-extrabold">E</span>
-                      <span className="absolute left-3 text-slate-200 text-xs font-black tracking-widest font-sans font-extrabold">W</span>
+                      {/* Direction characters - slightly repositioned for larger dial size */}
+                      <span className="absolute top-2.5 text-slate-200 text-xs font-black tracking-widest font-sans">N</span>
+                      <span className="absolute bottom-2.5 text-slate-200 text-xs font-black tracking-widest font-sans">S</span>
+                      <span className="absolute right-4 text-slate-200 text-xs font-black tracking-widest font-sans font-extrabold">E</span>
+                      <span className="absolute left-4 text-slate-200 text-xs font-black tracking-widest font-sans font-extrabold">W</span>
 
-                      {/* Center Wind Speed Badge HUD (upright overlay) */}
-                      <div className="absolute w-14 h-14 rounded-full bg-[#030712]/95 border-2 border-[#00ff66]/40 flex flex-col items-center justify-center shadow-[0_0_15px_rgba(0,255,102,0.3)] z-30 font-mono pointer-events-none">
-                        <span className="text-[8px] uppercase tracking-wider text-slate-400 font-bold leading-none">WIND</span>
-                        <span className="text-sm font-black text-[#00ff66] leading-tight">{currentData.windSpeed.toFixed(1)}</span>
-                        <span className="text-[7px] text-slate-400 uppercase font-black leading-none font-sans">m/s</span>
+                      {/* Center Wind Speed Badge HUD (upright overlay) - Enlarged for optimal visibility */}
+                      <div className="absolute w-20 h-20 rounded-full bg-[#030712]/95 border-2 border-[#00ff66]/50 flex flex-col items-center justify-center shadow-[0_0_18px_rgba(0,255,102,0.35)] z-30 font-mono pointer-events-none transition-all duration-300">
+                        <span className="text-[9px] uppercase tracking-widest text-[#00ff66]/70 font-extrabold leading-none mb-1">WIND</span>
+                        <span className="text-xl font-black text-[#00ff66] leading-none mb-0.5">{currentData.windSpeed.toFixed(1)}</span>
+                        <span className="text-[9px] text-slate-400 uppercase font-black leading-none font-sans">m/s</span>
                       </div>
 
                       {/* Port/Darat vs Sea/Open Water Boundary Divider Line rotated with visual pierAngle state */}
@@ -1411,21 +1411,21 @@ export default function App() {
                         style={{ transform: `rotate(${config.pierAngle}deg)` }}
                       >
                         <div className="relative w-full h-full flex items-center justify-center">
-                          {/* Vertical high-contrast dashed neon-blue/emerald divider line through the whole dial */}
-                          <div className="absolute h-[195px] w-[1.5px] bg-gradient-to-b from-cyan-400 via-transparent to-cyan-400 opacity-80" />
-                          <div className="absolute h-[195px] w-[1.5px] border-l border-dashed border-cyan-400/50" />
+                          {/* Vertical high-contrast dashed neon-blue/emerald divider line through the whole dial - scaled to h-[250px] */}
+                          <div className="absolute h-[250px] w-[1.5px] bg-gradient-to-b from-cyan-400 via-transparent to-cyan-400 opacity-80" />
+                          <div className="absolute h-[250px] w-[1.5px] border-l border-dashed border-cyan-400/50" />
                           
-                          {/* Anchor dock markers at the edges of the line */}
-                          <div className="absolute top-[10px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
-                          <div className="absolute bottom-[10px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
+                          {/* Anchor dock markers at the edges of the line - aligned carefully */}
+                          <div className="absolute top-[12px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
+                          <div className="absolute bottom-[12px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
 
                           {/* Left side region: PORT / AREA DARAT */}
-                          <div className="absolute left-[32px] top-[80px] text-[7.5px] uppercase font-black text-cyan-400/60 font-sans tracking-[0.25em] -rotate-90">
+                          <div className="absolute left-[40px] top-[110px] text-[7.5px] uppercase font-black text-cyan-400/60 font-sans tracking-[0.25em] -rotate-90">
                             PORT / AREA DARAT
                           </div>
                           
                           {/* Right side region: LAUT LEPAS / OPEN SEA */}
-                          <div className="absolute right-[32px] top-[80px] text-[7.5px] uppercase font-black text-emerald-400/60 font-sans tracking-[0.25em] rotate-90">
+                          <div className="absolute right-[40px] top-[110px] text-[7.5px] uppercase font-black text-emerald-400/60 font-sans tracking-[0.25em] rotate-90">
                             LAUT LEPAS / OPEN SEA
                           </div>
                         </div>
@@ -1547,177 +1547,180 @@ export default function App() {
                   <span className="text-[10px] font-mono text-slate-500">POLE GRID</span>
                 </div>
                 
-                {/* Wind Rose SVG */}
-                {(() => {
-                  const cx = 100;
-                  const cy = 100;
-                  const maxR = 75;
-                  
-                  // 1. Bin data
-                  const matrix = Array.from({ length: 16 }, () => Array(7).fill(0));
-                  const totalLogs = history.length;
-                  
-                  history.forEach(row => {
-                    const deg = row.windDirection;
-                    const norm = ((deg % 360) + 360) % 360;
-                    const idx = Math.floor(((norm + 11.25) % 360) / 22.5);
-                    
-                    const speed = row.windSpeed;
-                    if (speed <= 4) matrix[idx][0]++;
-                    else if (speed <= 6) matrix[idx][1]++;
-                    else if (speed <= 10) matrix[idx][2]++;
-                    else if (speed <= 15) matrix[idx][3]++;
-                    else if (speed <= 20) matrix[idx][4]++;
-                    else if (speed <= 25) matrix[idx][5]++;
-                    else matrix[idx][6]++;
-                  });
-                  
-                  // 2. Scale calculations
-                  const maxCountInAnySector = Math.max(1, ...matrix.map(row => row.reduce((a, b) => a + b, 0)));
-                  const maxPctInAnySector = totalLogs > 0 ? (maxCountInAnySector / totalLogs) * 100 : 10;
-                  const maxPctScope = Math.max(10, Math.ceil(maxPctInAnySector / 5) * 5);
-                  
-                  // 3. Render Helper to convert polar to cartesian
-                  const getXY = (r: number, deg: number) => {
-                    const rad = ((deg - 90) * Math.PI) / 180.0;
-                    return {
-                      x: cx + r * Math.cos(rad),
-                      y: cy + r * Math.sin(rad),
-                    };
-                  };
-                  
-                  const colors = [
-                    '#4a628a', // 0-4
-                    '#22c55e', // 4-6
-                    '#eab308', // 6-10
-                    '#f97316', // 10-15
-                    '#db2777', // 15-20
-                    '#7c3aed', // 20-25
-                    '#2563eb', // >25
-                  ];
-                  
-                  return (
-                    <div className="relative flex justify-center w-full my-1">
-                      <svg viewBox="0 0 200 200" className="w-[230px] h-[230px] select-none font-sans">
-                        {/* Background polar grid circles */}
-                        <circle cx={cx} cy={cy} r={maxR} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={0.7} strokeDasharray="2 3" />
-                        <circle cx={cx} cy={cy} r={maxR * 0.5} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={0.7} strokeDasharray="2 3" />
-                        <circle cx={cx} cy={cy} r={3} fill="#1e293b" stroke="rgba(255,255,255,0.2)" strokeWidth={0.5} />
+                <div className="flex flex-row items-center justify-between gap-3.5 py-1.5">
+                  {/* Left Column: Wind Rose SVG */}
+                  <div className="flex-1 flex justify-center items-center">
+                    {(() => {
+                      const cx = 100;
+                      const cy = 100;
+                      const maxR = 75;
+                      
+                      // 1. Bin data
+                      const matrix = Array.from({ length: 16 }, () => Array(7).fill(0));
+                      const totalLogs = history.length;
+                      
+                      history.forEach(row => {
+                        const deg = row.windDirection;
+                        const norm = ((deg % 360) + 360) % 360;
+                        const idx = Math.floor(((norm + 11.25) % 360) / 22.5);
                         
-                        {/* Compass main axes lines */}
-                        <line x1={cx} y1={cy - maxR} x2={cx} y2={cy + maxR} stroke="rgba(255,255,255,0.05)" strokeWidth={0.7} />
-                        <line x1={cx - maxR} y1={cy} x2={cx + maxR} y2={cy} stroke="rgba(255,255,255,0.05)" strokeWidth={0.7} />
-                        
-                        {/* Ring labels */}
-                        <text x={cx + 2} y={cy - maxR + 8} fill="rgba(0,240,255,0.4)" fontSize={5.5} className="font-mono font-bold">{maxPctScope.toFixed(0)}%</text>
-                        <text x={cx + 2} y={cy - (maxR * 0.5) + 6} fill="rgba(255,255,255,0.25)" fontSize={5.5} className="font-mono">{(maxPctScope / 2).toFixed(0)}%</text>
-
-                        {/* Cardinal Labels */}
-                        <text x={cx} y={cy - maxR - 4} fill="#f8fafc" fontSize={7} fontWeight="bold" textAnchor="middle" alignmentBaseline="middle">N</text>
-                        <text x={cx + maxR + 5} y={cy} fill="#94a3b8" fontSize={7} fontWeight="bold" textAnchor="start" alignmentBaseline="middle">E</text>
-                        <text x={cx} y={cy + maxR + 5} fill="#94a3b8" fontSize={7} fontWeight="bold" textAnchor="middle" alignmentBaseline="middle">S</text>
-                        <text x={cx - maxR - 5} y={cy} fill="#94a3b8" fontSize={7} fontWeight="bold" textAnchor="end" alignmentBaseline="middle">W</text>
-
-                        {/* NE, SE, SW, NW Labels */}
-                        {(() => {
-                          const rText = maxR - 10;
-                          const ne = getXY(rText, 45);
-                          const se = getXY(rText, 135);
-                          const sw = getXY(rText, 225);
-                          const nw = getXY(rText, 315);
-                          return (
-                            <>
-                              <text x={ne.x} y={ne.y} fill="rgba(255,255,255,0.15)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">NE</text>
-                              <text x={se.x} y={se.y} fill="rgba(255,255,255,0.15)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">SE</text>
-                              <text x={sw.x} y={sw.y} fill="rgba(255,255,255,0.15)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">SW</text>
-                              <text x={nw.x} y={nw.y} fill="rgba(255,255,255,0.15)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">NW</text>
-                            </>
-                          );
-                        })()}
-
-                        {/* Stacked polar wedges */}
-                        {matrix.map((binsInSector, dIdx) => {
-                          const centralAngle = dIdx * 22.5;
-                          const angleStart = centralAngle - 7.5;
-                          const angleEnd = centralAngle + 7.5;
+                        const speed = row.windSpeed;
+                        if (speed <= 4) matrix[idx][0]++;
+                        else if (speed <= 6) matrix[idx][1]++;
+                        else if (speed <= 10) matrix[idx][2]++;
+                        else if (speed <= 15) matrix[idx][3]++;
+                        else if (speed <= 20) matrix[idx][4]++;
+                        else if (speed <= 25) matrix[idx][5]++;
+                        else matrix[idx][6]++;
+                      });
+                      
+                      // 2. Scale calculations
+                      const maxCountInAnySector = Math.max(1, ...matrix.map(row => row.reduce((a, b) => a + b, 0)));
+                      const maxPctInAnySector = totalLogs > 0 ? (maxCountInAnySector / totalLogs) * 100 : 10;
+                      const maxPctScope = Math.max(10, Math.ceil(maxPctInAnySector / 5) * 5);
+                      
+                      // 3. Render Helper to convert polar to cartesian
+                      const getXY = (r: number, deg: number) => {
+                        const rad = ((deg - 90) * Math.PI) / 180.0;
+                        return {
+                          x: cx + r * Math.cos(rad),
+                          y: cy + r * Math.sin(rad),
+                        };
+                      };
+                      
+                      const colors = [
+                        '#4a628a', // 0-4
+                        '#22c55e', // 4-6
+                        '#eab308', // 6-10
+                        '#f97316', // 10-15
+                        '#db2777', // 15-20
+                        '#7c3aed', // 20-25
+                        '#2563eb', // >25
+                      ];
+                      
+                      return (
+                        <svg viewBox="0 0 200 200" className="w-[220px] h-[220px] sm:w-[250px] sm:h-[250px] select-none font-sans">
+                          {/* Background polar grid circles */}
+                          <circle cx={cx} cy={cy} r={maxR} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={0.7} strokeDasharray="2 3" />
+                          <circle cx={cx} cy={cy} r={maxR * 0.5} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={0.7} strokeDasharray="2 3" />
+                          <circle cx={cx} cy={cy} r={3} fill="#1e293b" stroke="rgba(255,255,255,0.2)" strokeWidth={0.5} />
                           
-                          let cumCount = 0;
+                          {/* Compass main axes lines */}
+                          <line x1={cx} y1={cy - maxR} x2={cx} y2={cy + maxR} stroke="rgba(255,255,255,0.05)" strokeWidth={0.7} />
+                          <line x1={cx - maxR} y1={cy} x2={cx + maxR} y2={cy} stroke="rgba(255,255,255,0.05)" strokeWidth={0.7} />
                           
-                          return binsInSector.map((countInBin, bIdx) => {
-                            if (countInBin === 0) return null;
-                            
-                            const startCount = cumCount;
-                            const endCount = cumCount + countInBin;
-                            cumCount = endCount; 
-                            
-                            if (totalLogs === 0) return null;
-                            
-                            const pctStart = (startCount / totalLogs) * 100;
-                            const pctEnd = (endCount / totalLogs) * 100;
-                            
-                            const rStart = Math.max(3, (pctStart / maxPctScope) * maxR);
-                            const rEnd = (pctEnd / maxPctScope) * maxR;
-                            
-                            if (rEnd - rStart < 0.2) return null;
-                            
-                            const p1 = getXY(rEnd, angleStart);
-                            const p2 = getXY(rEnd, angleEnd);
-                            const p3 = getXY(rStart, angleEnd);
-                            const p4 = getXY(rStart, angleStart);
-                            
-                            const path = `M ${p1.x} ${p1.y} A ${rEnd} ${rEnd} 0 0 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rStart} ${rStart} 0 0 0 ${p4.x} ${p4.y} Z`;
-                            
+                          {/* Ring labels */}
+                          <text x={cx + 2} y={cy - maxR + 8} fill="rgba(0,240,255,0.4)" fontSize={5.5} className="font-mono font-bold">{maxPctScope.toFixed(0)}%</text>
+                          <text x={cx + 2} y={cy - (maxR * 0.5) + 6} fill="rgba(255,255,255,0.25)" fontSize={5.5} className="font-mono">{(maxPctScope / 2).toFixed(0)}%</text>
+
+                          {/* Cardinal Labels */}
+                          <text x={cx} y={cy - maxR - 4} fill="#f8fafc" fontSize={7} fontWeight="bold" textAnchor="middle" alignmentBaseline="middle">N</text>
+                          <text x={cx + maxR + 5} y={cy} fill="#94a3b8" fontSize={7} fontWeight="bold" textAnchor="start" alignmentBaseline="middle">E</text>
+                          <text x={cx} y={cy + maxR + 5} fill="#94a3b8" fontSize={7} fontWeight="bold" textAnchor="middle" alignmentBaseline="middle">S</text>
+                          <text x={cx - maxR - 5} y={cy} fill="#94a3b8" fontSize={7} fontWeight="bold" textAnchor="end" alignmentBaseline="middle">W</text>
+
+                          {/* NE, SE, SW, NW Labels */}
+                          {(() => {
+                            const rText = maxR - 10;
+                            const ne = getXY(rText, 45);
+                            const se = getXY(rText, 135);
+                            const sw = getXY(rText, 225);
+                            const nw = getXY(rText, 315);
                             return (
-                              <path 
-                                key={`${dIdx}-${bIdx}`} 
-                                d={path} 
-                                fill={colors[bIdx]} 
-                                opacity={0.88} 
-                                className="transition-all duration-300 hover:opacity-100 hover:stroke-white/30 hover:stroke-[0.5px]"
-                              >
-                                <title>{`Arah: ${['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'][dIdx]} | Kecepatan: ${['0-4 m/s', '4-6 m/s', '6-10 m/s', '10-15 m/s', '15-20 m/s', '20-25 m/s', '>25 m/s'][bIdx]} | Proporsi: ${((countInBin / totalLogs) * 100).toFixed(1)}%`}</title>
-                              </path>
+                              <>
+                                <text x={ne.x} y={ne.y} fill="rgba(255,255,255,0.15)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">NE</text>
+                                <text x={se.x} y={se.y} fill="rgba(255,255,255,0.15)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">SE</text>
+                                <text x={sw.x} y={sw.y} fill="rgba(255,255,255,0.15)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">SW</text>
+                                <text x={nw.x} y={nw.y} fill="rgba(255,255,255,0.15)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">NW</text>
+                              </>
                             );
-                          });
-                        })}
-                      </svg>
-                    </div>
-                  );
-                })()}
+                          })()}
 
-                {/* Speed legend - Grid layout matching image design */}
-                <div className="grid grid-cols-4 gap-1 border-t border-b border-white/5 py-2 font-mono text-[8px] text-slate-400 font-extrabold uppercase">
-                  <div className="flex items-center gap-1.5 ms-1">
-                    <span className="w-2.5 h-1.5 rounded-sm bg-[#4a628a]" />
-                    <span>0–4</span>
+                          {/* Stacked polar wedges */}
+                          {matrix.map((binsInSector, dIdx) => {
+                            const centralAngle = dIdx * 22.5;
+                            const angleStart = centralAngle - 7.5;
+                            const angleEnd = centralAngle + 7.5;
+                            
+                            let cumCount = 0;
+                            
+                            return binsInSector.map((countInBin, bIdx) => {
+                              if (countInBin === 0) return null;
+                              
+                              const startCount = cumCount;
+                              const endCount = cumCount + countInBin;
+                              cumCount = endCount; 
+                              
+                              if (totalLogs === 0) return null;
+                              
+                              const pctStart = (startCount / totalLogs) * 100;
+                              const pctEnd = (endCount / totalLogs) * 100;
+                              
+                              const rStart = Math.max(3, (pctStart / maxPctScope) * maxR);
+                              const rEnd = (pctEnd / maxPctScope) * maxR;
+                              
+                              if (rEnd - rStart < 0.2) return null;
+                              
+                              const p1 = getXY(rEnd, angleStart);
+                              const p2 = getXY(rEnd, angleEnd);
+                              const p3 = getXY(rStart, angleEnd);
+                              const p4 = getXY(rStart, angleStart);
+                              
+                              const path = `M ${p1.x} ${p1.y} A ${rEnd} ${rEnd} 0 0 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rStart} ${rStart} 0 0 0 ${p4.x} ${p4.y} Z`;
+                              
+                              return (
+                                <path 
+                                  key={`${dIdx}-${bIdx}`} 
+                                  d={path} 
+                                  fill={colors[bIdx]} 
+                                  opacity={0.88} 
+                                  className="transition-all duration-300 hover:opacity-100 hover:stroke-white/30 hover:stroke-[0.5px]"
+                                >
+                                  <title>{`Arah: ${['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'][dIdx]} | Kecepatan: ${['0-4 m/s', '4-6 m/s', '6-10 m/s', '10-15 m/s', '15-20 m/s', '20-25 m/s', '>25 m/s'][bIdx]} | Proporsi: ${((countInBin / totalLogs) * 100).toFixed(1)}%`}</title>
+                                </path>
+                              );
+                            });
+                          })}
+                        </svg>
+                      );
+                    })()}
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-1.5 rounded-sm bg-[#22c55e]" />
-                    <span>4–6</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-1.5 rounded-sm bg-[#eab308]" />
-                    <span>6–10</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-1.5 rounded-sm bg-[#f97316]" />
-                    <span>10–15</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 ms-1">
-                    <span className="w-2.5 h-1.5 rounded-sm bg-[#db2777]" />
-                    <span>15–20</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-1.5 rounded-sm bg-[#7c3aed]" />
-                    <span>20–25</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 col-span-2">
-                    <span className="w-2.5 h-1.5 rounded-sm bg-[#2563eb]" />
-                    <span>&gt;25 m/s</span>
+
+                  {/* Right Column: Vertically arranged Speed Legend */}
+                  <div className="flex-1 max-w-[140px] bg-[#050a12]/50 border border-white/5 rounded-xl p-2.5 flex flex-col justify-center space-y-2 font-mono text-[10px] md:text-sm text-slate-300 font-extrabold shadow-sm select-none">
+                    <span className="text-[9px] uppercase tracking-[0.1em] text-[#00f0ff] font-bold block mb-1 font-sans border-b border-white/5 pb-1">Wind Speed</span>
+                    <div className="flex items-center gap-2 hover:text-white transition-colors" title="Speed 0 to 4 m/s">
+                      <span className="w-3.5 h-2 rounded bg-[#4a628a]" />
+                      <span>0 – 4 <span className="text-[9px] font-sans text-slate-500 font-bold">m/s</span></span>
+                    </div>
+                    <div className="flex items-center gap-2 hover:text-white transition-colors" title="Speed 4 to 6 m/s">
+                      <span className="w-3.5 h-2 rounded bg-[#22c55e]" />
+                      <span>4 – 6 <span className="text-[9px] font-sans text-slate-500 font-bold">m/s</span></span>
+                    </div>
+                    <div className="flex items-center gap-2 hover:text-white transition-colors" title="Speed 6 to 10 m/s">
+                      <span className="w-3.5 h-2 rounded bg-[#eab308]" />
+                      <span>6 – 10 <span className="text-[9px] font-sans text-slate-500 font-bold">m/s</span></span>
+                    </div>
+                    <div className="flex items-center gap-2 hover:text-white transition-colors" title="Speed 10 to 15 m/s">
+                      <span className="w-3.5 h-2 rounded bg-[#f97316]" />
+                      <span>10 – 15 <span className="text-[9px] font-sans text-slate-500 font-bold">m/s</span></span>
+                    </div>
+                    <div className="flex items-center gap-2 hover:text-white transition-colors" title="Speed 15 to 20 m/s">
+                      <span className="w-3.5 h-2 rounded bg-[#db2777]" />
+                      <span>15 – 20 <span className="text-[9px] font-sans text-slate-500 font-bold">m/s</span></span>
+                    </div>
+                    <div className="flex items-center gap-2 hover:text-white transition-colors" title="Speed 20 to 25 m/s">
+                      <span className="w-3.5 h-2 rounded bg-[#7c3aed]" />
+                      <span>20 – 25 <span className="text-[9px] font-sans text-slate-500 font-bold">m/s</span></span>
+                    </div>
+                    <div className="flex items-center gap-2 hover:text-white transition-colors" title="Speed above 25 m/s">
+                      <span className="w-3.5 h-2 rounded bg-[#2563eb]" />
+                      <span>&gt; 25 <span className="text-[9px] font-sans text-slate-500 font-bold">m/s</span></span>
+                    </div>
                   </div>
                 </div>
                 
-                <p className="text-[9px] text-slate-500 leading-tight italic font-sans">
+                <p className="text-[9px] text-slate-500 leading-tight italic font-sans text-center border-t border-white/5 pt-1.5">
                   Panjang ruji menunjukkan persentase frekuensi arah tiupan angin (24 Jam terakhir).
                 </p>
               </div>
@@ -1805,7 +1808,7 @@ export default function App() {
 
               {/* Grid of 5 wind vectors, stretching sideways in 1 horizontal row */}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                {history.slice(-5).reverse().map((row, idx) => {
+                {history.slice(-5).map((row, idx) => {
                   const directionName = getWindRoseString(row.windDirection);
                   return (
                     <div key={idx} className="bg-[#040911] border border-white/5 p-4 rounded-2xl flex flex-col items-center justify-between space-y-3 text-center transition-all hover:border-[#00f0ff]/15">
