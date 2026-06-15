@@ -45,11 +45,7 @@ const DEFAULT_CONFIG = {
     'ch_4': '2',   // Temp Max (computed in code or mapped)
     'ch_6': '2',   // Temp Min
     'ch_8': '3',   // Humidity
-    'ch_12': '4',  // Dew Point (computed or mapped)
-    'ch_1': '5',   // Rain Rate
-    'ch_3': '6',   // Rain Accumulation
     'ch_5': '7',   // Solar Rad
-    'ch_14': '8',  // Wave Height
     'ch_15': '9',  // Water Level
     'ch_16': '10', // Wind Direction
     'ch_17': '11',  // Wind Speed
@@ -57,7 +53,9 @@ const DEFAULT_CONFIG = {
     'ch_9': '12',  // Pres QFE
     'ch_11': '12', // Pres QFF
     'ch_13': '12', // Pres QNH
-    'ch_18': '13'  // Water pH
+    'ch_18': '13', // Water pH
+    'ch_19': '14', // Wind Speed Max
+    'ch_20': '15'  // Wind Speed Min
   }
 };
 
@@ -69,19 +67,38 @@ const generateInitialLogs = (count: number, intervalMinutes: number = 10): Weath
   for (let i = 0; i < count; i++) {
     const temp = 27 + Math.random() * 4;
     const hum = 75 + Math.random() * 15;
-    const windSpeed = 8 + Math.random() * 12;
+    
+    // Simulate 6 samples per interval (10 seconds data logger setup)
+    const samples: number[] = [];
+    const hasGustEvent = Math.random() > 0.75; // 25% chance of a gust event in this minute
+    for (let j = 0; j < 6; j++) {
+      if (hasGustEvent && j === 5) {
+        // One spike representing a wind gust
+        samples.push(parseFloat((2 + Math.random() * 2 + 10 + Math.random() * 3).toFixed(1))); // ~13.5 - 17.0 m/s
+      } else {
+        // Normal wind speed
+        samples.push(parseFloat((2 + Math.random() * 3).toFixed(1))); // ~2.0 - 5.0 m/s
+      }
+    }
+    const maxSpeed = Math.max(...samples);
+    const minSpeed = Math.min(...samples);
+    const hasGust = (maxSpeed - minSpeed) >= 10;
+    const windGustValue = hasGust ? parseFloat(maxSpeed.toFixed(1)) : undefined;
+    const avgWindSpeed = parseFloat((samples.reduce((sum, s) => sum + s, 0) / 6).toFixed(1));
+
     data.push({
       timestamp: baseTime + i * spacingMs,
       temperature: parseFloat(temp.toFixed(1)),
       humidity: Math.round(hum),
-      windSpeed: parseFloat(windSpeed.toFixed(1)),
+      windSpeed: avgWindSpeed,
       windDirection: Math.round(Math.random() * 360),
       pressure: parseFloat((1008 + Math.random() * 6).toFixed(1)),
       solarRadiation: Math.round(250 + Math.random() * 400),
       rainfall: Math.random() > 0.88 ? parseFloat((Math.random() * 4).toFixed(1)) : 0,
       waveHeight: parseFloat((0.4 + Math.random() * 1.5).toFixed(2)),
       seaLevel: parseFloat((120 + Math.random() * 50).toFixed(1)), // cm
-      waterPh: parseFloat((7.6 + Math.random() * 0.8).toFixed(2)) // pH
+      waterPh: parseFloat((7.6 + Math.random() * 0.8).toFixed(2)), // pH
+      windGust: windGustValue
     });
   }
   return data;
@@ -120,6 +137,12 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
   let sinSum = 0;
   let cosSum = 0;
 
+  const speeds = buffer.map(item => item.windSpeed);
+  const maxSpeed = speeds.length > 0 ? Math.max(...speeds) : 0;
+  const minSpeed = speeds.length > 0 ? Math.min(...speeds) : 0;
+  const hasGust = (maxSpeed - minSpeed) >= 10;
+  const computedWindGust = hasGust ? parseFloat(maxSpeed.toFixed(1)) : undefined;
+
   buffer.forEach(item => {
     sumTemp += item.temperature;
     sumHum += item.humidity;
@@ -150,7 +173,8 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
     rainfall: parseFloat(sumRain.toFixed(1)), // Sum accumulated rainfall
     waveHeight: parseFloat((sumWave / count).toFixed(2)),
     seaLevel: parseFloat((sumSea / count).toFixed(1)),
-    waterPh: parseFloat((sumPh / count).toFixed(2))
+    waterPh: parseFloat((sumPh / count).toFixed(2)),
+    windGust: computedWindGust
   };
 };
 
@@ -179,6 +203,7 @@ export default function App() {
   const [filteredLogs, setFilteredLogs] = useState<WeatherData[]>([]);
   const [dbSearchTerm, setDbSearchTerm] = useState('');
   const [dbScriptTab, setDbScriptTab] = useState<'sql' | 'php'>('sql');
+  const dbEngine = 'postgresql';
   const [isIntegratorOpen, setIsIntegratorOpen] = useState(false);
   const [isDbConnected, setIsDbConnected] = useState(false);
   const [lastDbSaveTime, setLastDbSaveTime] = useState<number>(Date.now());
@@ -188,7 +213,7 @@ export default function App() {
     details?: string;
   }>({ status: 'idle', message: '' });
 
-  // Auto-connect and check database on mount (helpful when laptop restarts and XAMPP launches)
+  // Auto-connect and check database on mount (helpful when laptop restarts and dev environment boots)
   useEffect(() => {
     const autoTestConnection = async () => {
       const testUrl = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
@@ -199,17 +224,17 @@ export default function App() {
           setIsDbConnected(true);
           setDbTestResult({
             status: 'success',
-            message: '🟢 KONEKSI DATABASE OTOMATIS SUKSES!',
-            details: `${parsed.message || 'Server XAMPP merespon dengan OK.'}\nStatus: ${parsed.status || 'success'}`
+            message: '🟢 KONEKSI DATABASE POSTGRESQL OTOMATIS BERHASIL!',
+            details: `${parsed.message || 'Server PostgreSQL merespon dengan status aktif.'}\nStatus: ${parsed.status || 'success'}`
           });
           setStreamLogs(prev => {
             const list = prev.split('\n');
             const ts = format(new Date(), 'HH:mm:ss');
-            return [...list, `[${ts} SQL SYSTEM] 🟢 AUTO-CONNECT SUCCESS: Database local teruji aktif secara otomatis.`].join('\n');
+            return [...list, `[${ts} SQL SYSTEM] 🟢 AUTO-CONNECT SUCCESS: Database PostgreSQL lokal aktif otomatis.`].join('\n');
           });
         }
       } catch (e) {
-        // Silent standby if XAMPP isn't ready on startup
+        // Silent standby if server is not active on startup
         setIsDbConnected(false);
       }
     };
@@ -228,8 +253,8 @@ export default function App() {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   };
 
-  // Gracefully post log data to local XAMPP MariaDB API
-  const postLogToLocalXampp = async (record: WeatherData) => {
+  // Gracefully post log data to local PostgreSQL database API
+  const postLogToLocalPostgres = async (record: WeatherData) => {
     const url = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
     const payload = {
       station_id: config.idStation || 'AWS001',
@@ -259,7 +284,7 @@ export default function App() {
         setStreamLogs(prevLogs => {
           const lines = prevLogs.split('\n');
           const timeStr = format(new Date(), 'HH:mm:ss');
-          const msg = `[${timeStr} SQL LINK] 🌐 Sent to local XAMPP: HTTP 200 OK (Data recorded in tbl_sensor_logs table).`;
+          const msg = `[${timeStr} SQL LINK] 🌐 Sent to local Postgres: HTTP 200 OK (Data logged successfully into tbl_sensor_logs).`;
           const output = [...lines, msg];
           if (output.length > 40) return output.slice(output.length - 30).join('\n');
           return output.join('\n');
@@ -271,7 +296,7 @@ export default function App() {
       setStreamLogs(prevLogs => {
         const lines = prevLogs.split('\n');
         const timeStr = format(new Date(), 'HH:mm:ss');
-        const msg = `[${timeStr} SQL LINK] 🔌 XAMPP Link Idle (Ensure local api.php is running at ${url} to sync data).`;
+        const msg = `[${timeStr} SQL LINK] 🔌 Postgres Link Standby (Pastikan file api.php PostgreSQL Anda berjalan di ${url}).`;
         const output = [...lines, msg];
         if (output.length > 40) return output.slice(output.length - 30).join('\n');
         return output.join('\n');
@@ -375,15 +400,23 @@ export default function App() {
               recordToSave = calculateAverageRecord(updated);
               msgLog = `⏱️ compiled and saved standard WMO ${config.dbStorageInterval}-minute average based on ${updated.length} raw samples successfully.`;
             } else {
-              recordToSave = { ...record };
+              const rawSpeeds = updated.map(item => item.windSpeed);
+              const maxR = rawSpeeds.length > 0 ? Math.max(...rawSpeeds) : 0;
+              const minR = rawSpeeds.length > 0 ? Math.min(...rawSpeeds) : 0;
+              const hasRGust = (maxR - minR) >= 10;
+              
+              recordToSave = { 
+                ...record,
+                windGust: hasRGust ? parseFloat(maxR.toFixed(1)) : undefined
+              };
               msgLog = `📦 saved raw instantaneous record for ${config.dbStorageInterval}-minute interval directly to database successfully.`;
             }
 
             // Adjust timestamp of record to reflect the completed logging window
             recordToSave.timestamp = Date.now() - intervalMs;
 
-            // Asynchronously post to local XAMPP MariaDB backend
-            postLogToLocalXampp(recordToSave);
+            // Asynchronously post to local PostgreSQL database backend
+            postLogToLocalPostgres(recordToSave);
 
             // Append SQL success notification to terminal logs
             setStreamLogs(prevLogs => {
@@ -580,8 +613,16 @@ export default function App() {
             recordToSave = calculateAverageRecord(updated);
             msgLog = `⏱️ compiled and saved standard WMO ${config.dbStorageInterval}-minute average based on 5 raw samples successfully.`;
           } else {
-            // RAW mode: Save the latest instantaneous sample at the exact interval (e.g. data pada menit ke-10 atau menit ke-1)
-            recordToSave = { ...newRecord };
+            // RAW mode: Save the latest instantaneous sample at the exact interval
+            const rawSpeeds = updated.map(item => item.windSpeed);
+            const maxR = rawSpeeds.length > 0 ? Math.max(...rawSpeeds) : 0;
+            const minR = rawSpeeds.length > 0 ? Math.min(...rawSpeeds) : 0;
+            const hasRGust = (maxR - minR) >= 10;
+            
+            recordToSave = { 
+              ...newRecord,
+              windGust: hasRGust ? parseFloat(maxR.toFixed(1)) : undefined
+            };
             msgLog = `📦 saved raw instantaneous record for ${config.dbStorageInterval}-minute interval directly to database successfully.`;
           }
           
@@ -589,8 +630,8 @@ export default function App() {
           const intervalMs = (config.dbStorageInterval || 10) * 60 * 1000;
           recordToSave.timestamp = Date.now() - intervalMs;
 
-          // Asynchronously post to local XAMPP MariaDB script
-          postLogToLocalXampp(recordToSave);
+          // Asynchronously post to local PostgreSQL database script
+          postLogToLocalPostgres(recordToSave);
 
           setHistory(prevHist => {
             const keeps = [...prevHist, recordToSave];
@@ -711,6 +752,20 @@ export default function App() {
     waterPh: 7.8
   };
 
+  // Track wind directions of the last 2 minutes for rendering green trails/arcs
+  const [windTrack2Min, setWindTrack2Min] = useState<{ direction: number; timestamp: number }[]>([]);
+
+  useEffect(() => {
+    if (currentData && typeof currentData.windDirection === 'number') {
+      const now = Date.now();
+      setWindTrack2Min(prev => {
+        const updated = [...prev, { direction: currentData.windDirection, timestamp: now }];
+        // filter older than 2 minutes (120,000 ms)
+        return updated.filter(item => now - item.timestamp < 120000);
+      });
+    }
+  }, [currentData.windDirection, currentData.timestamp]);
+
   // 1-Hour temperature statistics computed from the history queue
   const tempStats = (() => {
     const lastSix = history.slice(-12); // approx last couple hours
@@ -722,6 +777,20 @@ export default function App() {
     const min = Math.min(...temps).toFixed(1);
     return { avg, max, min };
   })();
+
+  // Dynamic Wind Speed Max and Min computed from the history queue
+  const windStats = (() => {
+    if (history.length === 0) return { min: currentData.windSpeed, max: currentData.windSpeed };
+    const speeds = history.map(h => h.windSpeed);
+    const max = Math.max(...speeds);
+    const min = Math.min(...speeds);
+    return { min, max };
+  })();
+
+  // Find the last recorded wind gust from the history
+  const lastGustRecord = [...history].reverse().find(row => row.windGust !== undefined && row.windGust !== null);
+  const lastWindGustVal = lastGustRecord ? lastGustRecord.windGust : null;
+  const lastWindGustTime = lastGustRecord ? format(lastGustRecord.timestamp, 'HH:mm:ss') : null;
 
   // Wind Rose accumulator calculations
   const windRoseData = (() => {
@@ -764,20 +833,54 @@ export default function App() {
     return 'NW';
   };
 
+  // Get dominant wind for a given hour range from 24H data
+  const getIntervalDominantWind = (hourMin: number, hourMax: number) => {
+    const limitTime = Date.now() - 24 * 60 * 60 * 1000;
+    const recentLogs = history.filter(log => log.timestamp >= limitTime);
+    const targetLogs = (recentLogs.length > 0 ? recentLogs : history).filter(log => {
+      const hr = new Date(log.timestamp).getHours();
+      return hr >= hourMin && hr <= hourMax;
+    });
+
+    if (targetLogs.length === 0) {
+      return { direction: "N/A", avgSpeed: 0, count: 0 };
+    }
+
+    const freq: { [key: string]: number } = {};
+    let maxDir = "N/A";
+    let maxCount = 0;
+    let sumSpeed = 0;
+
+    targetLogs.forEach(log => {
+      const dirStr = getWindRoseString(log.windDirection);
+      freq[dirStr] = (freq[dirStr] || 0) + 1;
+      if (freq[dirStr] > maxCount) {
+        maxCount = freq[dirStr];
+        maxDir = dirStr;
+      }
+      sumSpeed += log.windSpeed;
+    });
+
+    return {
+      direction: maxDir,
+      avgSpeed: sumSpeed / targetLogs.length,
+      count: targetLogs.length
+    };
+  };
+
   // Export database metrics to CSV format
   const exportLogsToCSV = () => {
-    const headers = ['DateTime', 'Temp (deg C)', 'Humidity (%)', 'Solar (W/m2)', 'Wave (m)', 'WaterLvl (cm)', 'Water pH', 'WindDir (deg)', 'WindSpd (m/s)', 'Rain (mm)', 'Press (hPa)'];
+    const headers = ['DateTime', 'Temp (deg C)', 'Humidity (%)', 'Solar (W/m2)', 'Wind Gust (m/s)', 'WaterLvl (cm)', 'Water pH', 'WindDir (deg)', 'WindSpd (m/s)', 'Press (hPa)'];
     const rows = filteredLogs.map(row => [
       format(row.timestamp, 'yyyy-MM-dd HH:mm:ss'),
       row.temperature,
       row.humidity,
       row.solarRadiation,
-      row.waveHeight,
+      row.windGust !== undefined && row.windGust !== null ? row.windGust : "",
       row.seaLevel,
       row.waterPh || 7.8,
       row.windDirection,
       row.windSpeed,
-      row.rainfall,
       row.pressure
     ]);
 
@@ -1044,91 +1147,124 @@ export default function App() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
             
             {/* COLUMN 1: KONDISI ATMOSFER (width 3/12 on large screens) */}
-            <div className="lg:col-span-3 flex flex-col space-y-6 h-full justify-between">
+            <div className="lg:col-span-3 flex flex-col space-y-4 h-full">
               
-              {/* Thermal group */}
-              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-5 rounded-2xl border border-white/5 space-y-4">
+              {/* Thermal group - Card 1 */}
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between space-y-3.5">
                 <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
                   <Thermometer className="w-3.5 h-3.5 text-[#22c55e]" />
                   <span>Thermal Sensors</span>
                 </div>
 
-                {/* Primary Air temp StatCard */}
-                <div className="bg-[#0b1424] border-t-2 border-[#22c55e] border-x border-b border-white/5 rounded-xl p-4 text-center">
-                  <div className="text-xs uppercase font-bold text-slate-400 tracking-wider mb-1">Air Temperature</div>
-                  <div className="flex justify-center items-baseline">
-                    <span className="text-4xl font-extrabold font-mono tracking-tight text-white">{currentData.temperature.toFixed(1)}</span>
-                    <span className="text-sm font-bold text-[#22c55e] ml-1">°C</span>
+                <div className="flex-1 flex flex-col justify-center space-y-3">
+                  {/* Primary Air temp StatCard */}
+                  <div className="bg-[#0b1424] border border-white/5 rounded-xl p-3.5 text-center">
+                    <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">Air Temperature</div>
+                    <div className="flex justify-center items-baseline">
+                      <span className="text-3xl font-extrabold font-mono tracking-tight text-white">{currentData.temperature.toFixed(1)}</span>
+                      <span className="text-sm font-bold text-[#22c55e] ml-1">°C</span>
+                    </div>
                   </div>
-                </div>
 
-                {/* Avg, Max, Min grid row inside column 1 */}
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-2 text-center">
-                    <div className="text-xs uppercase font-semibold text-slate-500 tracking-wider">Avg</div>
-                    <div className="text-sm font-bold text-[#e0f2fe] font-mono mt-0.5">{tempStats.avg}</div>
-                  </div>
-                  <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-2 text-center">
-                    <div className="text-xs uppercase font-semibold text-slate-500 tracking-wider text-rose-400">Max</div>
-                    <div className="text-sm font-bold text-rose-400 font-mono mt-0.5">{tempStats.max}</div>
-                  </div>
-                  <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-2 text-center">
-                    <div className="text-xs uppercase font-semibold text-slate-500 tracking-wider text-teal-400">Min</div>
-                    <div className="text-sm font-bold text-teal-400 font-mono mt-0.5">{tempStats.min}</div>
+                  {/* Avg, Max, Min grid row inside column 1 */}
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-1.5 text-center">
+                      <div className="text-[9px] uppercase font-semibold text-slate-500 tracking-wider">Avg</div>
+                      <div className="text-xs font-bold text-[#e0f2fe] font-mono mt-0.5">{tempStats.avg}</div>
+                    </div>
+                    <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-1.5 text-center">
+                      <div className="text-[9px] uppercase font-semibold text-slate-500 tracking-wider text-rose-400">Max</div>
+                      <div className="text-xs font-bold text-rose-400 font-mono mt-0.5">{tempStats.max}</div>
+                    </div>
+                    <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-1.5 text-center">
+                      <div className="text-[9px] uppercase font-semibold text-slate-500 tracking-wider text-teal-400">Min</div>
+                      <div className="text-xs font-bold text-teal-400 font-mono mt-0.5">{tempStats.min}</div>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Hygrometry group */}
-              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-5 rounded-2xl border border-white/5 space-y-4">
+              {/* Hygro & Solar Group - Card 2 */}
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between space-y-3">
                 <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
-                  <Droplets className="w-3.5 h-3.5 text-[#00f0ff]" />
-                  <span>Hygrometry</span>
+                  <Droplets className="w-3.5 h-3.5 text-[#00ff66]" />
+                  <span>Hygrometry & Solar</span>
                 </div>
                 
-                <div className="grid grid-cols-1 gap-3">
-                  <div className="bg-[#0b1424] border-t-2 border-[#00f0ff] border-x border-b border-white/5 rounded-xl p-3.5 flex justify-between items-center">
-                    <span className="text-xs uppercase font-bold text-slate-400">Humidity</span>
+                <div className="flex-1 flex flex-col justify-between gap-2.5">
+                  <div className="bg-[#0b1424] border border-white/5 rounded-xl p-2.5 flex justify-between items-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Humidity</span>
                     <div className="text-right">
-                      <span className="text-2xl font-extrabold font-mono text-white">{currentData.humidity}</span>
-                      <span className="text-xs text-[#00f0ff] ml-1.5 font-bold">%</span>
+                      <span className="text-xl font-black font-mono text-white">{currentData.humidity}</span>
+                      <span className="text-[10px] text-[#00f0ff] ml-1 font-bold">%</span>
                     </div>
                   </div>
 
-                  <div className="bg-[#0b1424] border-t-2 border-[#00f0ff] border-x border-b border-white/5 rounded-xl p-3.5 flex justify-between items-center">
-                    <span className="text-xs uppercase font-bold text-slate-400">Dew Point</span>
+                  <div className="bg-[#0b1424] border border-white/5 rounded-xl p-2.5 flex justify-between items-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Dew Point</span>
                     <div className="text-right">
-                      <span className="text-xl font-extrabold font-mono text-white">
+                      <span className="text-lg font-black font-mono text-white">
                         {computeDewPoint(currentData.temperature, currentData.humidity)}
                       </span>
-                      <span className="text-xs text-[#00f0ff] ml-1.5 font-bold">°C</span>
+                      <span className="text-[10px] text-[#00f0ff] ml-1 font-bold">°C</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0b1424] border border-amber-500/10 rounded-xl p-2.5 flex justify-between items-center">
+                    <span className="text-[10px] uppercase font-bold text-amber-400">Irradiance</span>
+                    <div className="text-right">
+                      <span className="text-lg font-black font-mono text-amber-400">{currentData.solarRadiation}</span>
+                      <span className="text-[10px] text-amber-500 ml-1 font-bold">W/m²</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Atmospheric pressure STN */}
-              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between">
-                <div>
-                  <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
-                    <Gauge className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Pressure STN</span>
-                  </div>
-                </div>
-                <div className="flex-1 flex flex-col justify-center py-2.5">
-                  <div className="bg-[#0b1424] border-t-2 border-amber-500 border-x border-b border-white/5 rounded-xl p-4 text-center">
-                    <div className="text-xs uppercase font-bold text-slate-400 tracking-wider mb-1">Barometric Air Pressure</div>
-                    <div className="flex justify-center items-baseline">
-                      <span className="text-3xl font-extrabold font-mono tracking-tight text-white">{currentData.pressure.toFixed(1)}</span>
-                      <span className="text-xs text-amber-500 ml-1.5 font-bold uppercase tracking-wider">HPa</span>
+              {/* Sea Water Quality (pH Air) Indicator - Card 3 */}
+              {(() => {
+                const minPh = parseFloat(config.minPhThreshold || '6.5');
+                const maxPh = parseFloat(config.maxPhThreshold || '8.5');
+                const phValue = currentData.waterPh ?? 7.8;
+                const isPhUnsafe = phValue < minPh || phValue > maxPh;
+                
+                return (
+                  <div className={`bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border transition-all ${isPhUnsafe ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)] animate-pulse' : 'border-white/5'} flex-1 flex flex-col justify-between space-y-3`}>
+                    <div>
+                      <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center justify-between border-b border-white/5 pb-2">
+                        <div className="flex items-center gap-2">
+                          <Droplet className={`w-3.5 h-3.5 ${isPhUnsafe ? 'text-amber-400 font-bold' : 'text-pink-400'}`} />
+                          <span>Kualitas Air</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-500">INTEGRATED</span>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col justify-center">
+                      <div className="bg-[#050a12]/80 border border-white/5 p-3 rounded-xl space-y-2">
+                        <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-400 block border-b border-white/10 pb-1 font-sans">🌊 Live Water Quality Index</span>
+                        <div className="grid grid-cols-2 gap-2 text-center">
+                          <div className="bg-[#0b1424] border border-pink-500/10 py-1.5 px-2 rounded-lg">
+                            <span className="text-[9px] uppercase text-slate-500 font-bold block">pH Value</span>
+                            <span className={`text-sm font-black font-mono ${isPhUnsafe ? 'text-amber-400' : 'text-pink-400'}`}>
+                              {phValue.toFixed(2)} <span className="text-[10px] font-semibold text-slate-400">pH</span>
+                            </span>
+                          </div>
+                          <div className="bg-[#0b1424] border border-white/5 py-1.5 px-2 rounded-lg flex flex-col justify-center">
+                            <span className="text-[9px] uppercase text-slate-500 font-bold block">Status</span>
+                            <span className={`text-xs font-black font-mono uppercase ${isPhUnsafe ? 'text-amber-400' : phValue < 7.0 ? 'text-rose-400' : phValue > 8.5 ? 'text-pink-400' : 'text-emerald-400'}`}>
+                              {isPhUnsafe ? "⚠️ BAHAYA" : phValue < 7.0 ? "Asam" : phValue > 8.5 ? "Basa" : "Ideal"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
             </div>
 
-            {/* COLUMN 2: COMMAND CENTER WIND COMPASS (width 6/12 on large screens) */}
-            <div className="lg:col-span-6 bg-gradient-to-br from-[#0d1726]/80 to-bg border border-[#00f0ff]/20 p-6 rounded-3xl relative min-h-[500px] flex flex-col justify-between shadow-[0_30px_70px_rgba(0,0,0,0.9)] h-full">
+             {/* COLUMN 2: COMMAND CENTER WIND COMPASS (width 5/12 on large screens) */}
+            <div className="lg:col-span-5 bg-gradient-to-br from-[#0d1726]/80 to-bg border border-[#00f0ff]/20 p-6 rounded-3xl relative min-h-[500px] flex flex-col justify-between shadow-[0_30px_70px_rgba(0,0,0,0.9)] h-full">
               <div className="absolute top-0 right-0 w-24 h-[1px] bg-gradient-to-r from-transparent via-[#00f0ff]/30 to-transparent" />
               
               <div className="text-center font-bold">
@@ -1197,9 +1333,9 @@ export default function App() {
               <div className="flex justify-center items-center my-6 relative">
                 
                 {/* PORT STD side panels labels */}
-                <div className="absolute left-6 md:left-12 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-3 rounded-xl max-w-[150px] shadow-25 select-none font-sans">
-                  <div className="text-xs font-black text-[#00f0ff] uppercase tracking-wider mb-1">PORT (Kiri)</div>
-                  <div className="text-xs text-slate-400 font-semibold">LEFT VESSEL</div>
+                <div className="absolute left-1 md:left-2 lg:left-0.5 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-2 rounded-xl max-w-[100px] shadow-xl select-none font-sans z-10 scale-90 lg:scale-80 xl:scale-100">
+                  <div className="text-[10px] md:text-xs font-black text-[#00f0ff] uppercase tracking-wider mb-0.5">PORT</div>
+                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kiri / Left</div>
                 </div>
 
                 {/* Compass Ring wrapper with dynamic warning colors */}
@@ -1217,40 +1353,102 @@ export default function App() {
                   }
 
                   return (
-                    <div className={`relative w-72 h-72 rounded-full border-[12px] transition-all duration-700 flex items-center justify-center bg-radial-gradient from-[#00f0ff]/10 to-[#0284c7]/30 shadow-[inset_0_0_30px_rgba(0,0,0,0.8)] ${ringBorderColor}`}>
+                    <div className={`relative w-64 h-64 rounded-full border-8 transition-all duration-700 flex items-center justify-center bg-radial-gradient from-[#00f0ff]/10 to-[#0284c7]/30 shadow-[inset_0_0_30px_rgba(0,0,0,0.8)] ${ringBorderColor}`}>
                       {/* Water ring container inside */}
-                      <div className="absolute w-[180px] h-[180px] rounded-full border border-white/5 bg-transparent pointer-events-none" />
+                      <div className="absolute w-[160px] h-[160px] rounded-full border border-white/5 bg-transparent pointer-events-none" />
                       
+                      {/* 2-Minute Wind Track Radar SVG */}
+                      <svg className="absolute w-full h-full top-0 left-0 pointer-events-none z-0" viewBox="0 0 288 288">
+                        {windTrack2Min.map((track, idx) => {
+                          const ageMs = Date.now() - track.timestamp;
+                          const ageRatio = Math.max(0, Math.min(1, ageMs / 120000));
+                          const opacity = 0.5 * (1 - ageRatio);
+                          if (opacity <= 0.05) return null;
+                          return (
+                            <g key={idx}>
+                              {/* Soft glowing green radial trail line */}
+                              <line
+                                x1={144}
+                                y1={144 - 40} // start outwards from ship hull
+                                x2={144}
+                                y2={144 - 105} 
+                                stroke="#22c55e"
+                                strokeWidth={2.5}
+                                strokeLinecap="round"
+                                opacity={opacity}
+                                transform={`rotate(${track.direction}, 144, 144)`}
+                              />
+                              {/* Highlight dots on the bezel showing active/recent track */}
+                              <circle
+                                cx={144}
+                                cy={144 - 110}
+                                r={4.5}
+                                fill="#22c55e"
+                                opacity={opacity * 1.6}
+                                transform={`rotate(${track.direction}, 144, 144)`}
+                              />
+                            </g>
+                          );
+                        })}
+                      </svg>
+
                       {/* Direction characters */}
                       <span className="absolute top-1 text-slate-200 text-xs font-black tracking-widest font-sans">N</span>
                       <span className="absolute bottom-1 text-slate-200 text-xs font-black tracking-widest font-sans">S</span>
                       <span className="absolute right-3 text-slate-200 text-xs font-black tracking-widest font-sans font-extrabold">E</span>
                       <span className="absolute left-3 text-slate-200 text-xs font-black tracking-widest font-sans font-extrabold">W</span>
 
-                      {/* Ship Silhouette Wrapper rotated strictly with visual pierAngle state */}
+                      {/* Center Wind Speed Badge HUD (upright overlay) */}
+                      <div className="absolute w-14 h-14 rounded-full bg-[#030712]/95 border-2 border-[#00ff66]/40 flex flex-col items-center justify-center shadow-[0_0_15px_rgba(0,255,102,0.3)] z-30 font-mono pointer-events-none">
+                        <span className="text-[8px] uppercase tracking-wider text-slate-400 font-bold leading-none">WIND</span>
+                        <span className="text-sm font-black text-[#00ff66] leading-tight">{currentData.windSpeed.toFixed(1)}</span>
+                        <span className="text-[7px] text-slate-400 uppercase font-black leading-none font-sans">m/s</span>
+                      </div>
+
+                      {/* Port/Darat vs Sea/Open Water Boundary Divider Line rotated with visual pierAngle state */}
                       <div 
-                        className="absolute w-full h-full flex items-center justify-center transition-all duration-1000 ease-out"
+                        className="absolute w-full h-full flex items-center justify-center transition-all duration-1000 ease-out z-10 pointer-events-none"
                         style={{ transform: `rotate(${config.pierAngle}deg)` }}
                       >
-                        {/* Ship body with real containers area and bridge */}
-                        <div className="w-10 h-32 bg-slate-500 border-2 border-slate-900 rounded-full flex flex-col items-center justify-between py-4 shadow-[5px_5px_15px_rgba(0,0,0,0.7)] relative">
-                          <div className="absolute top-1 w-2.5 h-2.5 rounded-full bg-[#00f0ff] shadow-[0_0_10px_#00f0ff]" />
-                          <div className="w-7 h-14 bg-gradient-to-b from-[#22c55e]/90 via-[#1e293b] to-[#3b82f6]/90 border border-slate-950 rounded mt-2 flex items-center justify-center p-1">
-                            <span className="text-xs font-mono leading-none tracking-tight opacity-40 uppercase">cargo</span>
+                        <div className="relative w-full h-full flex items-center justify-center">
+                          {/* Vertical high-contrast dashed neon-blue/emerald divider line through the whole dial */}
+                          <div className="absolute h-[195px] w-[1.5px] bg-gradient-to-b from-cyan-400 via-transparent to-cyan-400 opacity-80" />
+                          <div className="absolute h-[195px] w-[1.5px] border-l border-dashed border-cyan-400/50" />
+                          
+                          {/* Anchor dock markers at the edges of the line */}
+                          <div className="absolute top-[10px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
+                          <div className="absolute bottom-[10px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
+
+                          {/* Left side region: PORT / AREA DARAT */}
+                          <div className="absolute left-[32px] top-[80px] text-[7.5px] uppercase font-black text-cyan-400/60 font-sans tracking-[0.25em] -rotate-90">
+                            PORT / AREA DARAT
                           </div>
-                          <div className="w-8 h-4 bg-slate-100 border border-slate-900 rounded-sm mb-1 shadow" />
+                          
+                          {/* Right side region: LAUT LEPAS / OPEN SEA */}
+                          <div className="absolute right-[32px] top-[80px] text-[7.5px] uppercase font-black text-emerald-400/60 font-sans tracking-[0.25em] rotate-90">
+                            LAUT LEPAS / OPEN SEA
+                          </div>
                         </div>
                       </div>
 
                       {/* Pointer rotating Wind Arrow strictly matching live wind arah direction */}
                       <div 
-                        className="absolute w-full h-full flex items-center justify-center transition-all duration-1000 ease-out pointer-events-none"
+                        className="absolute w-full h-full flex items-center justify-center transition-all duration-1000 ease-out pointer-events-none z-20"
                         style={{ transform: `rotate(${currentData.windDirection}deg)` }}
                       >
-                        {/* Orange-Red Gradient pointer trail & arrow */}
-                        <div className="absolute top-[8px] bottom-[8px] w-[2.5px] bg-gradient-to-b from-rose-500 via-amber-500 to-transparent flex flex-col items-center">
-                          {/* Pointer Head strictly pointing to ship */}
-                          <div className="w-4 h-4 bg-rose-500 border border-white rounded mt-1.5 shadow-[0_0_12px_rgba(239,68,68,0.8)] rotate-45" />
+                        {/* Bright Neon Green wind pointer arrow at top boundary of dial */}
+                        <div className="absolute top-[4px] bottom-[4px] w-[2px] bg-gradient-to-b from-[#00ff66]/70 via-[#00ff66]/10 to-transparent flex flex-col items-center">
+                          {/* Custom vector Navigation arrowhead pointing downwards towards center of compass */}
+                          <svg 
+                            className="w-6 h-6 text-[#00ff66] fill-[#00ff66]/20 drop-shadow-[0_0_12px_#00ff66] mt-0.5" 
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polygon points="12,22 2,4 12,9 22,4" />
+                          </svg>
                         </div>
                       </div>
                     </div>
@@ -1258,9 +1456,9 @@ export default function App() {
                 })()}
 
                 {/* STARBOARD std side panel labels */}
-                <div className="absolute right-6 md:right-12 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-3 rounded-xl max-w-[150px] shadow-25 select-none font-sans">
-                  <div className="text-xs font-black text-[#22c55e] uppercase tracking-wider mb-1">STARBOARD (Kan)</div>
-                  <div className="text-xs text-slate-400 font-semibold">RIGHT VESSEL</div>
+                <div className="absolute right-1 md:right-2 lg:right-0.5 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-2 rounded-xl max-w-[100px] shadow-xl select-none font-sans z-10 scale-90 lg:scale-80 xl:scale-100">
+                  <div className="text-[10px] md:text-xs font-black text-[#22c55e] uppercase tracking-wider mb-0.5">STARBOARD</div>
+                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kanan / Right</div>
                 </div>
 
               </div>
@@ -1294,8 +1492,16 @@ export default function App() {
                     <span className="text-base font-black font-mono text-[#00f0ff]">{currentData.windSpeed.toFixed(1)} <span className="text-xs font-sans">m/s</span></span>
                   </div>
                   <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center">
-                    <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Wave Ht.</span>
-                    <span className="text-base font-black font-mono text-[#22c55e]">{currentData.waveHeight}m</span>
+                    <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Wind Gust</span>
+                    <span className="text-base font-black font-mono text-amber-400">
+                      {currentData.windGust !== undefined && currentData.windGust !== null ? (
+                        <>
+                          {currentData.windGust.toFixed(1)} <span className="text-xs font-sans">m/s</span>
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </span>
                   </div>
                   <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center">
                     <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Water Lvl</span>
@@ -1306,116 +1512,274 @@ export default function App() {
 
             </div>
 
-            {/* COLUMN 3: RAIN, SOLAR & WIND ROSE ACC (3/12 on large screens) */}
-            <div className="lg:col-span-3 flex flex-col space-y-6 h-full justify-between">
+            {/* COLUMN 3: WIND ROSE & PRESSURE ATN (4/12 on large screens) */}
+            <div className="lg:col-span-4 flex flex-col space-y-4 h-full">
               
-              {/* Rain group */}
-              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-5 rounded-2xl border border-white/5 space-y-4">
+              {/* Pressure ATN group (compact & premium layout) - Shrunk & moved to top */}
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-3.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between space-y-2">
                 <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
-                  <CloudRain className="w-3.5 h-3.5 text-sky-400" />
-                  <span>Precipitation</span>
+                  <Gauge className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Pressure ATN Info</span>
                 </div>
-
-                <div className="grid grid-cols-1 gap-3">
-                  <div className="bg-[#0b1424] border-t-2 border-sky-400 border-x border-b border-white/5 rounded-xl p-3.5 flex justify-between items-center">
-                    <span className="text-xs uppercase font-bold text-slate-400">Rain Rate</span>
-                    <div className="text-right font-mono">
-                      <span className="text-xl font-extrabold text-white">{currentData.rainfall.toFixed(1)}</span>
-                      <span className="text-xs uppercase tracking-wider ml-1.5 text-sky-400 font-bold">MM/H</span>
-                    </div>
+                <div className="grid grid-cols-3 gap-2 font-sans flex-1 flex items-center">
+                  <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center w-full">
+                    <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mb-0.5 truncate" title="Barometric">Barometric</span>
+                    <span className="text-xs font-black font-mono text-[#00f0ff] block">{currentData.pressure.toFixed(1)} <span className="text-[8px] font-sans text-slate-400 font-normal w-full">hPa</span></span>
                   </div>
-
-                  <div className="bg-[#0b1424] border-t-2 border-sky-400 border-x border-b border-white/5 rounded-xl p-3.5 flex justify-between items-center">
-                    <span className="text-xs uppercase font-bold text-slate-400">Accumulation</span>
-                    <div className="text-right font-mono">
-                      <span className="text-xl font-extrabold text-white">{rainAccum}</span>
-                      <span className="text-xs uppercase tracking-wider ml-1.5 text-sky-400 font-bold">MM</span>
-                    </div>
+                  <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center w-full">
+                    <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mb-0.5 truncate" title="QFF (Sea Lvl)">QFF (Sea)</span>
+                    <span className="text-xs font-black font-mono text-emerald-400 block">{(currentData.pressure + 2.1).toFixed(1)} <span className="text-[8px] font-sans text-slate-400 font-normal w-full">hPa</span></span>
+                  </div>
+                  <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center w-full">
+                    <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mb-0.5 truncate" title="QFE (Elevation)">QFE (Elev)</span>
+                    <span className="text-xs font-black font-mono text-[#00f0ff] block">{currentData.pressure.toFixed(1)} <span className="text-[8px] font-sans text-slate-400 font-normal w-full">hPa</span></span>
                   </div>
                 </div>
               </div>
 
-              {/* Solar Irradiation group (compact and elegant) */}
-              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4 rounded-2xl border border-white/5 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="bg-[#f59e0b]/10 p-2 rounded-xl border border-[#f59e0b]/20">
-                    <Sun className="w-4 h-4 text-[#f59e0b]" />
+              {/* Wind Rose Visual Card (High Polished Polar Chart) */}
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4 rounded-2xl border border-white/5 flex flex-col flex-[2] justify-between space-y-2.5">
+                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center justify-between border-b border-white/5 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Navigation className="w-3.5 h-3.5 text-amber-500 transform rotate-45" />
+                    <span>Wind Rose (24H)</span>
                   </div>
-                  <div>
-                    <span className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.1em] block">Solar Radiation</span>
-                    <span className="text-xs text-slate-400 font-mono">Irradiance</span>
-                  </div>
+                  <span className="text-[10px] font-mono text-slate-500">POLE GRID</span>
                 </div>
-                <div className="text-right font-mono flex items-baseline gap-1 bg-[#0b1424] px-3.5 py-1.5 rounded-xl border border-white/5">
-                  <span className="text-lg font-extrabold text-white">{currentData.solarRadiation}</span>
-                  <span className="text-xs text-[#f59e0b] font-black uppercase">W/m²</span>
-                </div>
-              </div>
-
-              {/* Sea Water Quality (pH Air) Indicator */}
-              {(() => {
-                const minPh = parseFloat(config.minPhThreshold || '6.5');
-                const maxPh = parseFloat(config.maxPhThreshold || '8.5');
-                const phValue = currentData.waterPh ?? 7.8;
-                const isPhUnsafe = phValue < minPh || phValue > maxPh;
                 
-                return (
-                  <div className={`bg-gradient-to-b from-[#0b1424]/40 to-bg p-4 rounded-2xl border transition-all ${isPhUnsafe ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)] animate-pulse' : 'border-white/5'} flex items-center justify-between`}>
-                    <div className="flex items-center gap-2.5">
-                      <div className={`p-2 rounded-xl border ${isPhUnsafe ? 'bg-amber-500/10 border-amber-500/20' : 'bg-pink-500/10 border-pink-500/20'}`}>
-                        <Droplet className={`w-4 h-4 ${isPhUnsafe ? 'text-amber-400 font-bold' : 'text-pink-400'}`} />
-                      </div>
-                      <div>
-                        <span className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.1em] block">Kualitas Air (pH)</span>
-                        <span className="text-xs font-mono block leading-tight">
-                          {isPhUnsafe ? (
-                            <span className="text-amber-400 uppercase font-black tracking-wide">⚠️ BAHAYA: PH EKSTRIM!</span>
-                          ) : phValue < 7.0 ? (
-                            <span className="text-rose-400">Asam / Acidic</span>
-                          ) : phValue > 8.5 ? (
-                            <span className="text-pink-400 font-bold">Basa / Alkaline</span>
-                          ) : (
-                            <span className="text-emerald-400 font-bold">Ideal / Netral</span>
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right font-mono flex items-baseline gap-1 bg-[#0b1424] px-3.5 py-1.5 rounded-xl border border-white/5">
-                      <span className={`text-lg font-extrabold ${isPhUnsafe ? 'text-amber-400 animate-pulse' : 'text-pink-400'}`}>{phValue.toFixed(2)}</span>
-                      <span className="text-xs text-pink-300 font-black uppercase">pH</span>
-                    </div>
-                  </div>
-                );
-              })()}
+                {/* Wind Rose SVG */}
+                {(() => {
+                  const cx = 100;
+                  const cy = 100;
+                  const maxR = 75;
+                  
+                  // 1. Bin data
+                  const matrix = Array.from({ length: 16 }, () => Array(7).fill(0));
+                  const totalLogs = history.length;
+                  
+                  history.forEach(row => {
+                    const deg = row.windDirection;
+                    const norm = ((deg % 360) + 360) % 360;
+                    const idx = Math.floor(((norm + 11.25) % 360) / 22.5);
+                    
+                    const speed = row.windSpeed;
+                    if (speed <= 4) matrix[idx][0]++;
+                    else if (speed <= 6) matrix[idx][1]++;
+                    else if (speed <= 10) matrix[idx][2]++;
+                    else if (speed <= 15) matrix[idx][3]++;
+                    else if (speed <= 20) matrix[idx][4]++;
+                    else if (speed <= 25) matrix[idx][5]++;
+                    else matrix[idx][6]++;
+                  });
+                  
+                  // 2. Scale calculations
+                  const maxCountInAnySector = Math.max(1, ...matrix.map(row => row.reduce((a, b) => a + b, 0)));
+                  const maxPctInAnySector = totalLogs > 0 ? (maxCountInAnySector / totalLogs) * 100 : 10;
+                  const maxPctScope = Math.max(10, Math.ceil(maxPctInAnySector / 5) * 5);
+                  
+                  // 3. Render Helper to convert polar to cartesian
+                  const getXY = (r: number, deg: number) => {
+                    const rad = ((deg - 90) * Math.PI) / 180.0;
+                    return {
+                      x: cx + r * Math.cos(rad),
+                      y: cy + r * Math.sin(rad),
+                    };
+                  };
+                  
+                  const colors = [
+                    '#4a628a', // 0-4
+                    '#22c55e', // 4-6
+                    '#eab308', // 6-10
+                    '#f97316', // 10-15
+                    '#db2777', // 15-20
+                    '#7c3aed', // 20-25
+                    '#2563eb', // >25
+                  ];
+                  
+                  return (
+                    <div className="relative flex justify-center w-full my-1">
+                      <svg viewBox="0 0 200 200" className="w-[230px] h-[230px] select-none font-sans">
+                        {/* Background polar grid circles */}
+                        <circle cx={cx} cy={cy} r={maxR} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={0.7} strokeDasharray="2 3" />
+                        <circle cx={cx} cy={cy} r={maxR * 0.5} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={0.7} strokeDasharray="2 3" />
+                        <circle cx={cx} cy={cy} r={3} fill="#1e293b" stroke="rgba(255,255,255,0.2)" strokeWidth={0.5} />
+                        
+                        {/* Compass main axes lines */}
+                        <line x1={cx} y1={cy - maxR} x2={cx} y2={cy + maxR} stroke="rgba(255,255,255,0.05)" strokeWidth={0.7} />
+                        <line x1={cx - maxR} y1={cy} x2={cx + maxR} y2={cy} stroke="rgba(255,255,255,0.05)" strokeWidth={0.7} />
+                        
+                        {/* Ring labels */}
+                        <text x={cx + 2} y={cy - maxR + 8} fill="rgba(0,240,255,0.4)" fontSize={5.5} className="font-mono font-bold">{maxPctScope.toFixed(0)}%</text>
+                        <text x={cx + 2} y={cy - (maxR * 0.5) + 6} fill="rgba(255,255,255,0.25)" fontSize={5.5} className="font-mono">{(maxPctScope / 2).toFixed(0)}%</text>
 
-              {/* Pressure ATN group (compact & premium layout) */}
-              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between">
+                        {/* Cardinal Labels */}
+                        <text x={cx} y={cy - maxR - 4} fill="#f8fafc" fontSize={7} fontWeight="bold" textAnchor="middle" alignmentBaseline="middle">N</text>
+                        <text x={cx + maxR + 5} y={cy} fill="#94a3b8" fontSize={7} fontWeight="bold" textAnchor="start" alignmentBaseline="middle">E</text>
+                        <text x={cx} y={cy + maxR + 5} fill="#94a3b8" fontSize={7} fontWeight="bold" textAnchor="middle" alignmentBaseline="middle">S</text>
+                        <text x={cx - maxR - 5} y={cy} fill="#94a3b8" fontSize={7} fontWeight="bold" textAnchor="end" alignmentBaseline="middle">W</text>
+
+                        {/* NE, SE, SW, NW Labels */}
+                        {(() => {
+                          const rText = maxR - 10;
+                          const ne = getXY(rText, 45);
+                          const se = getXY(rText, 135);
+                          const sw = getXY(rText, 225);
+                          const nw = getXY(rText, 315);
+                          return (
+                            <>
+                              <text x={ne.x} y={ne.y} fill="rgba(255,255,255,0.15)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">NE</text>
+                              <text x={se.x} y={se.y} fill="rgba(255,255,255,0.15)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">SE</text>
+                              <text x={sw.x} y={sw.y} fill="rgba(255,255,255,0.15)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">SW</text>
+                              <text x={nw.x} y={nw.y} fill="rgba(255,255,255,0.15)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">NW</text>
+                            </>
+                          );
+                        })()}
+
+                        {/* Stacked polar wedges */}
+                        {matrix.map((binsInSector, dIdx) => {
+                          const centralAngle = dIdx * 22.5;
+                          const angleStart = centralAngle - 7.5;
+                          const angleEnd = centralAngle + 7.5;
+                          
+                          let cumCount = 0;
+                          
+                          return binsInSector.map((countInBin, bIdx) => {
+                            if (countInBin === 0) return null;
+                            
+                            const startCount = cumCount;
+                            const endCount = cumCount + countInBin;
+                            cumCount = endCount; 
+                            
+                            if (totalLogs === 0) return null;
+                            
+                            const pctStart = (startCount / totalLogs) * 100;
+                            const pctEnd = (endCount / totalLogs) * 100;
+                            
+                            const rStart = Math.max(3, (pctStart / maxPctScope) * maxR);
+                            const rEnd = (pctEnd / maxPctScope) * maxR;
+                            
+                            if (rEnd - rStart < 0.2) return null;
+                            
+                            const p1 = getXY(rEnd, angleStart);
+                            const p2 = getXY(rEnd, angleEnd);
+                            const p3 = getXY(rStart, angleEnd);
+                            const p4 = getXY(rStart, angleStart);
+                            
+                            const path = `M ${p1.x} ${p1.y} A ${rEnd} ${rEnd} 0 0 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rStart} ${rStart} 0 0 0 ${p4.x} ${p4.y} Z`;
+                            
+                            return (
+                              <path 
+                                key={`${dIdx}-${bIdx}`} 
+                                d={path} 
+                                fill={colors[bIdx]} 
+                                opacity={0.88} 
+                                className="transition-all duration-300 hover:opacity-100 hover:stroke-white/30 hover:stroke-[0.5px]"
+                              >
+                                <title>{`Arah: ${['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'][dIdx]} | Kecepatan: ${['0-4 m/s', '4-6 m/s', '6-10 m/s', '10-15 m/s', '15-20 m/s', '20-25 m/s', '>25 m/s'][bIdx]} | Proporsi: ${((countInBin / totalLogs) * 100).toFixed(1)}%`}</title>
+                              </path>
+                            );
+                          });
+                        })}
+                      </svg>
+                    </div>
+                  );
+                })()}
+
+                {/* Speed legend - Grid layout matching image design */}
+                <div className="grid grid-cols-4 gap-1 border-t border-b border-white/5 py-2 font-mono text-[8px] text-slate-400 font-extrabold uppercase">
+                  <div className="flex items-center gap-1.5 ms-1">
+                    <span className="w-2.5 h-1.5 rounded-sm bg-[#4a628a]" />
+                    <span>0–4</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-1.5 rounded-sm bg-[#22c55e]" />
+                    <span>4–6</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-1.5 rounded-sm bg-[#eab308]" />
+                    <span>6–10</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-1.5 rounded-sm bg-[#f97316]" />
+                    <span>10–15</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 ms-1">
+                    <span className="w-2.5 h-1.5 rounded-sm bg-[#db2777]" />
+                    <span>15–20</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-1.5 rounded-sm bg-[#7c3aed]" />
+                    <span>20–25</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 col-span-2">
+                    <span className="w-2.5 h-1.5 rounded-sm bg-[#2563eb]" />
+                    <span>&gt;25 m/s</span>
+                  </div>
+                </div>
+                
+                <p className="text-[9px] text-slate-500 leading-tight italic font-sans">
+                  Panjang ruji menunjukkan persentase frekuensi arah tiupan angin (24 Jam terakhir).
+                </p>
+              </div>
+
+              {/* Wind Limits & Gust Events (Moved under Wind Rose) */}
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-grow flex-1 flex flex-col justify-between space-y-3.5">
                 <div>
-                  <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
-                    <Gauge className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Pressure ATN Info</span>
+                  {/* Title */}
+                  <div className="text-xs font-bold text-amber-400 uppercase tracking-widest flex justify-between items-center pb-2 border-b border-white/5 mb-3 font-sans">
+                    <div className="flex items-center gap-2">
+                      <Wind className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Wind Stats & Gust Events</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-[#00f0ff]/50 font-bold">SYSTEM</span>
                   </div>
-                </div>
-                
-                <div className="flex-1 flex flex-col justify-center py-2.5">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center">
-                      <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-0.5">STN (Station)</span>
-                      <span className="text-sm font-black font-mono text-[#00f0ff]">{currentData.pressure.toFixed(1)} <span className="text-xs font-sans text-slate-400">hPa</span></span>
+
+                  <div className="space-y-3 font-sans text-xs">
+                    {/* Wind speed limit indicators */}
+                    <div className="bg-[#050a12]/80 border border-white/5 p-3 rounded-xl space-y-2">
+                      <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-400 block border-b border-white/10 pb-1 font-sans">🌪️ Live Wind Speed Limits</span>
+                      <div className="grid grid-cols-2 gap-2 text-center">
+                        <div className="bg-[#0b1424] border border-emerald-500/10 py-1.5 px-2 rounded-lg">
+                          <span className="text-[9px] uppercase text-slate-500 font-bold block">Wind Max</span>
+                          <span className="text-sm font-black font-mono text-emerald-400">
+                            {windStats.max.toFixed(1)} <span className="text-[10px] font-semibold text-slate-400">m/s</span>
+                          </span>
+                        </div>
+                        <div className="bg-[#0b1424] border border-[#38bdf8]/10 py-1.5 px-2 rounded-lg">
+                          <span className="text-[9px] uppercase text-slate-500 font-bold block">Wind Min</span>
+                          <span className="text-sm font-black font-mono text-[#38bdf8]">
+                            {windStats.min.toFixed(1)} <span className="text-[10px] font-semibold text-slate-400">m/s</span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center">
-                      <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-0.5">QFE (Elevation)</span>
-                      <span className="text-sm font-black font-mono text-[#00f0ff]">{currentData.pressure.toFixed(1)} <span className="text-xs font-sans text-slate-400">hPa</span></span>
-                    </div>
-                    <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center">
-                      <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-0.5">QFF (Sea Lvl)</span>
-                      <span className="text-sm font-black font-mono text-emerald-400">{(currentData.pressure + 2.1).toFixed(1)} <span className="text-xs font-sans text-slate-400">hPa</span></span>
-                    </div>
-                    <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center">
-                      <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-0.5">QNH (Std Atm)</span>
-                      <span className="text-sm font-black font-mono text-emerald-400">{(currentData.pressure - 1.2).toFixed(1)} <span className="text-xs font-sans text-slate-400">hPa</span></span>
+
+                    {/* Last Wind Gust info */}
+                    <div className="bg-[#050a12]/80 border border-white/5 p-3 rounded-xl space-y-2">
+                      <span className="text-[10px] uppercase font-extrabold tracking-wider text-amber-500 block border-b border-white/10 pb-1 font-sans">⚡ Last Gust Occurrence Event</span>
+                      <div className="grid grid-cols-2 gap-2 text-center font-sans">
+                        <div className="bg-[#0b1424] border border-amber-500/5 py-1.5 px-2 rounded-lg">
+                          <span className="text-[9px] uppercase text-slate-500 font-bold block">Gust Speed</span>
+                          <span className="text-sm font-black font-mono text-amber-400">
+                            {lastWindGustVal !== null ? (
+                              <>
+                                {lastWindGustVal.toFixed(1)} <span className="text-[10px] font-semibold text-slate-400">m/s</span>
+                              </>
+                            ) : (
+                              "—"
+                            )}
+                          </span>
+                        </div>
+                        <div className="bg-[#0b1424] border border-amber-500/5 py-1.5 px-2 rounded-lg">
+                          <span className="text-[9px] uppercase text-slate-500 font-bold block">Time of Gust</span>
+                          <span className="text-[10px] font-black font-mono text-amber-300 truncate">
+                            {lastWindGustTime !== null ? lastWindGustTime : "—"}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
+
                 </div>
               </div>
 
@@ -1423,219 +1787,59 @@ export default function App() {
 
           </div>
 
-          {/* LOWER PORTION: DAILY WIND SPEED & WIND VECTOR ANALYSIS GRID */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
+          {/* LOWER PORTION: RECENT WIND VECTORS SEQUENCE */}
+          <div className="mt-6">
             
-            {/* Daily Wind speed chart (lg:col-span-7) */}
-            <div className="lg:col-span-7 bg-gradient-to-b from-[#0b1424]/40 to-bg border border-white/5 p-5 rounded-3xl space-y-4">
-              <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                <div className="text-xs font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2">
-                  <Wind className="w-4 h-4 text-amber-400 animate-pulse" />
-                  <span>Daily Wind Speed & Peak Tracker</span>
-                </div>
-                {/* Find daily wind speed peak time inside history */}
-                {(() => {
-                  let maxWind = 0;
-                  let peakTime = 'N/A';
-                  
-                  history.slice(-48).forEach(row => {
-                    if (row.windSpeed > maxWind) {
-                      maxWind = row.windSpeed;
-                      peakTime = format(row.timestamp, 'HH:mm');
-                    }
-                  });
-
-                  return (
-                    <span className="text-xs font-mono font-black text-rose-400 bg-rose-500/10 py-1 px-3 rounded border border-rose-500/20">
-                      ⚡ PEAK: {maxWind.toFixed(1)} m/s at {peakTime} WIB
-                    </span>
-                  );
-                })()}
-              </div>
-
-              <div className="h-[210px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={history.slice(-24)} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorDailyWindSpd" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.4}/>
-                        <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.01}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
-                    <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 9 }} />
-                    <YAxis tick={{ fill: '#94a3b8', fontSize: 9 }} />
-                    <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#f59e0b' }} labelFormatter={(val) => format(val, 'dd-MM-yyyy HH:mm')} />
-                    <Area type="monotone" dataKey="windSpeed" name="Wind Speed (m/s)" stroke="#f59e0b" fillOpacity={1} fill="url(#colorDailyWindSpd)" strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Wind Vector shift visual compass plot (lg:col-span-5) */}
-            <div className="lg:col-span-5 bg-gradient-to-b from-[#0b1424]/40 to-bg border border-white/5 p-5 rounded-3xl flex flex-col justify-between min-h-[300px]">
-              <div>
-                {/* Title */}
-                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-widest flex justify-between items-center pb-2 border-b border-white/5 mb-3">
-                  <div className="flex items-center gap-2">
-                    <Navigation className="w-4 h-4 text-[#00f0ff] animate-pulse" />
-                    <span>Wind Vector Flow Path</span>
-                  </div>
-                  <span className="text-xs font-mono text-slate-500">24H TRACE</span>
-                </div>
-
-                {/* Top Section Layout: Compass (left) & Info Stats Card (right) */}
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-center">
-                  
-                  {/* SVG circular grid for plotting wind vector trail */}
-                  <div className="sm:col-span-6 flex justify-center">
-                    <div className="relative w-[130px] h-[130px] rounded-full border border-white/10 flex items-center justify-center bg-[#050a12]/80 shadow-[inset_0_0_15px_rgba(0,0,0,0.6)]">
-                      
-                      {/* Outer & Inner markers */}
-                      <span className="absolute top-1 text-xs font-bold text-slate-500">N</span>
-                      <span className="absolute right-1 text-xs font-bold text-slate-500">E</span>
-                      <span className="absolute bottom-1 text-xs font-bold text-slate-500">S</span>
-                      <span className="absolute left-1 text-xs font-bold text-slate-500">W</span>
-
-                      <div className="absolute w-10 h-10 rounded-full border border-white/5" />
-                      <div className="absolute w-20 h-20 rounded-full border border-white/5 border-dashed" />
-                      <div className="absolute w-[100px] h-[100px] rounded-full border border-white/10" />
-
-                      {/* SVG vector arrow plot */}
-                      <svg className="absolute w-full h-full pointer-events-none" viewBox="0 0 100 100">
-                        {(() => {
-                          const traceLogs = history.slice(-8);
-                          if (traceLogs.length === 0) return null;
-
-                          const points = traceLogs.map((log) => {
-                            const angleRad = ((log.windDirection - 90) * Math.PI) / 180;
-                            const radius = Math.min(42, Math.max(8, (log.windSpeed / 20) * 42));
-                            const x = 50 + radius * Math.cos(angleRad);
-                            const y = 50 + radius * Math.sin(angleRad);
-                            return { x, y, speed: log.windSpeed, dir: log.windDirection };
-                          });
-
-                          return (
-                            <>
-                              <path 
-                                d={`M ${points.map(p => `${p.x} ${p.y}`).join(' L ')}`} 
-                                fill="none" 
-                                stroke="url(#vectorTrailGrad)" 
-                                strokeWidth={1.5} 
-                                strokeDasharray="2 1"
-                              />
-                              
-                              <defs>
-                                <linearGradient id="vectorTrailGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.2} />
-                                  <stop offset="50%" stopColor="#a855f7" stopOpacity={0.6} />
-                                  <stop offset="100%" stopColor="#00f0ff" stopOpacity={1} />
-                                </linearGradient>
-                              </defs>
-
-                              {points.map((p, idx) => {
-                                const isLast = idx === points.length - 1;
-                                const arrowAngle = p.dir;
-                                return (
-                                  <g key={idx} transform={`translate(${p.x}, ${p.y}) rotate(${arrowAngle})`}>
-                                    <circle r={isLast ? 2 : 1} fill={isLast ? '#00f0ff' : '#a855f7'} />
-                                    <line 
-                                      x1={0} 
-                                      y1={0} 
-                                      x2={0} 
-                                      y2={-5} 
-                                      stroke={isLast ? '#00f0ff' : '#6366f1'} 
-                                      strokeWidth={isLast ? 1.5 : 1} 
-                                    />
-                                    <polyline 
-                                      points="-1.5,-3.5 0,-5 1.5,-3.5" 
-                                      fill="none" 
-                                      stroke={isLast ? '#00f0ff' : '#6366f1'} 
-                                      strokeWidth={isLast ? 1.5 : 1} 
-                                    />
-                                  </g>
-                                );
-                              })}
-                            </>
-                          );
-                        })()}
-                      </svg>
-                    </div>
-                  </div>
-
-                  {/* High Tech Vector Statistics Side Card */}
-                  <div className="sm:col-span-6 space-y-1.5 text-xs font-sans">
-                    <div className="bg-[#050a12]/70 p-2.5 rounded-xl border border-white/5 space-y-1.5">
-                      <span className="text-xs uppercase font-bold tracking-widest text-[#00f0ff]/80 block">Vector Statistics</span>
-                      
-                      <div className="flex justify-between items-center py-0.5 border-b border-white/5">
-                        <span className="text-slate-400">Avg Speed:</span>
-                        <span className="font-extrabold text-white font-mono">
-                          {(history.reduce((sum, h) => sum + h.windSpeed, 0) / Math.max(1, history.length)).toFixed(1)} <span className="text-xs">m/s</span>
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between items-center py-0.5 border-b border-white/5">
-                        <span className="text-slate-400">Dominant:</span>
-                        <span className="font-extrabold text-amber-400 font-mono">
-                          {(() => {
-                            const sectors = history.slice(-24).map(h => getWindRoseString(h.windDirection));
-                            const occurrences: { [key: string]: number } = {};
-                            let maxSector = 'N/A';
-                            let maxCount = 0;
-                            sectors.forEach(s => {
-                              occurrences[s] = (occurrences[s] || 0) + 1;
-                              if (occurrences[s] > maxCount) {
-                                maxCount = occurrences[s];
-                                maxSector = s;
-                              }
-                            });
-                            return `${maxSector} (${maxCount}x)`;
-                          })()}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between items-center py-0.5 text-xs">
-                        <span className="text-slate-500 font-mono">SAMPLE RUN</span>
-                        <span className="text-[#3b82f6] font-mono font-bold">{history.slice(-24).length} logs / 24H</span>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-
-              {/* Bottom Section: Chronological sequence of latest 5 logs visually rendered as a horizontal track */}
-              <div className="space-y-1.5 mt-3 pt-2 border-t border-white/5">
-                <div className="flex justify-between items-center text-xs text-slate-400 uppercase tracking-widest font-sans">
+            <div className="bg-gradient-to-b from-[#0b1424]/40 to-[#020813]/80 border border-white/5 p-5 rounded-3xl flex flex-col justify-between select-none">
+              
+              {/* Header inside lower block */}
+              <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-widest flex justify-between items-center pb-2.5 border-b border-white/5 mb-4 font-sans">
+                <div className="flex items-center gap-2">
+                  <Navigation className="w-4 h-4 text-[#00f0ff]" />
                   <span>Recent Wind Vectors (Sequence)</span>
-                  <span className="text-xs font-mono text-[#00f0ff]/50">CHRONO FLOW ➡️</span>
                 </div>
-                
-                <div className="grid grid-cols-5 gap-1.5">
-                  {history.slice(-5).reverse().map((row, idx) => {
-                    const directionName = getWindRoseString(row.windDirection);
-                    return (
-                      <div key={idx} className="bg-[#050a12] border border-white/5 p-1 rounded-lg text-center space-y-0.5 hover:border-[#00f0ff]/20 transition-all">
-                        <span className="text-xs text-slate-500 font-mono block">{format(row.timestamp, 'HH:mm')}</span>
-                        
-                        {/* Interactive compass arrow visually rotated */}
-                        <div className="flex justify-center py-0.5">
-                          <Navigation 
-                            className="w-3 h-3 text-[#00f0ff]" 
-                            style={{ transform: `rotate(${row.windDirection}deg)` }}
-                          />
-                        </div>
-                        
-                        <div className="text-xs font-black text-slate-200">{directionName}</div>
-                        <div className="text-xs font-mono font-bold text-amber-500 bg-amber-500/10 rounded-sm py-0.2">
-                          {row.windSpeed.toFixed(0)} <span className="text-xs">m/s</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <span className="text-[10px] font-mono text-cyan-400 font-extrabold uppercase tracking-widest flex items-center gap-1">
+                  Chrono Flow <span className="text-xs">➡️</span>
+                </span>
               </div>
+
+              {/* Grid of 5 wind vectors, stretching sideways in 1 horizontal row */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                {history.slice(-5).reverse().map((row, idx) => {
+                  const directionName = getWindRoseString(row.windDirection);
+                  return (
+                    <div key={idx} className="bg-[#040911] border border-white/5 p-4 rounded-2xl flex flex-col items-center justify-between space-y-3 text-center transition-all hover:border-[#00f0ff]/15">
+                      
+                      {/* Timestamp */}
+                      <span className="text-xs text-slate-500 font-mono font-bold">
+                        {format(row.timestamp, 'HH:mm')}
+                      </span>
+
+                      {/* Rotating wind arrow icon */}
+                      <div className="p-2 bg-[#02060c] rounded-xl border border-white/5 flex items-center justify-center">
+                        <Navigation 
+                          className="w-4 h-4 text-[#00f0ff]" 
+                          style={{ transform: `rotate(${row.windDirection}deg)` }}
+                        />
+                      </div>
+
+                      {/* Cardinal Abbreviation */}
+                      <span className="text-base font-black text-white font-mono tracking-wide">
+                        {directionName}
+                      </span>
+
+                      {/* Speed Pill with warm yellowish-orange border & text */}
+                      <div className="w-full bg-[#1c1206] border border-[#f59e0b]/20 py-1.5 px-3 rounded-lg">
+                        <span className="text-xs font-extrabold text-[#f59e0b] font-mono tracking-normal">
+                          {row.windSpeed.toFixed(0)} <span className="text-[10px] font-sans font-medium text-amber-500/70">m/s</span>
+                        </span>
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+
             </div>
 
           </div>
@@ -1863,7 +2067,7 @@ export default function App() {
         {activeTab === 'database' && (
           <div className="space-y-6">
             
-            {/* Real-time Custom Database Mode & XAMPP Integration Banner */}
+            {/* Real-time Custom Database Mode & PostgreSQL Integration Banner */}
             <div className="bg-gradient-to-r from-[#0a1b3a] to-[#041026] p-5 rounded-2xl border border-teal-500/30 shadow-[0_0_20px_rgba(20,184,166,0.1)] space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -1871,7 +2075,7 @@ export default function App() {
                     <Database className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-white uppercase tracking-wider">INTEGRATED DATABASE ENGINE (XAMPP & MariaDB)</h4>
+                    <h4 className="text-sm font-bold text-white uppercase tracking-wider">INTEGRATED DATABASE ENGINE (PostgreSQL)</h4>
                     <p className="text-xs text-slate-400 mt-1 max-w-[650px]">
                       {config.dbStorageMode === 'AVG' ? (
                         <span>The system is configured in accordance with WMO meteorology standards utilizing a compressed **{config.dbStorageInterval}-Minute Average** interval, minimizing query overhead and ensuring high database efficiency.</span>
@@ -1885,8 +2089,8 @@ export default function App() {
                   <span className="px-3 py-1 rounded-full text-xs font-black uppercase font-mono tracking-widest bg-teal-500/10 text-teal-400 border border-teal-500/20">
                     {config.dbStorageMode === 'AVG' ? `⏱️ LOG BIND: ${config.dbStorageInterval} MIN AVG` : `📦 LOG BIND: ${config.dbStorageInterval} MIN RAW`}
                   </span>
-                  <span className="px-3 py-1 rounded-full text-xs font-black uppercase font-mono tracking-widest bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 animate-pulse">
-                    XAMPP PHP_MY_ADMIN READY
+                  <span className="px-3 py-1 rounded-full text-xs font-black uppercase font-mono tracking-widest bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 animate-pulse">
+                    🐘 POSTGRESQL DRIVER ACTIVE
                   </span>
                 </div>
               </div>
@@ -1933,8 +2137,8 @@ export default function App() {
                       const intervalMs = (config.dbStorageInterval || 10) * 60 * 1000;
                       recordToSave.timestamp = Date.now() - intervalMs;
 
-                      // Asynchronously post to local XAMPP MariaDB script
-                      postLogToLocalXampp(recordToSave);
+                      // Asynchronously post to local PostgreSQL database script
+                      postLogToLocalPostgres(recordToSave);
 
                       setHistory(prevHist => {
                         const keeps = [...prevHist, recordToSave];
@@ -1978,7 +2182,7 @@ export default function App() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-white uppercase tracking-wider">Layanan Status Sinkronisasi XAMPP</span>
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">Layanan Status Sinkronisasi PostgreSQL</span>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider ${
                         isDbConnected 
                           ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' 
@@ -1989,8 +2193,8 @@ export default function App() {
                     </div>
                     <p className="text-xs text-slate-400 mt-1 leading-normal max-w-[620px]">
                       {isDbConnected 
-                        ? 'Koneksi ke database XAMPP lokal teruji aktif. Sinkronisasi data telemetri otomatis beroperasi di latar belakang.' 
-                        : 'Menunggu pengujian koneksi. Klik tombol konfigurasi jika Anda ingin menyinkronkan data ke basis data lokal.'}
+                        ? 'Koneksi ke database PostgreSQL lokal teruji aktif. Sinkronisasi data telemetri otomatis beroperasi di latar belakang.' 
+                        : 'Menunggu pengujian koneksi. Klik tombol konfigurasi jika Anda ingin menyinkronkan data ke basis data PostgreSQL lokal Anda.'}
                     </p>
                   </div>
                 </div>
@@ -2004,8 +2208,9 @@ export default function App() {
                   </button>
                 </div>
               </div>
+            </div>
 
-              {/* Database Auto-Setup / Schema Integrator Modal */}
+            {/* Database Auto-Setup / Schema Integrator Modal */}
               <div className={isIntegratorOpen ? "fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto" : "hidden"}>
                 <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-teal-500/30 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-[0_0_50px_rgba(0,240,255,0.15)] flex flex-col pointer-events-auto p-6 space-y-4">
                   {/* Modal Header */}
@@ -2016,7 +2221,7 @@ export default function App() {
                         <span className="text-sm font-mono font-bold uppercase tracking-wider text-teal-400">DATABASE INTEGRATOR & SETUP UTILITIES</span>
                       </div>
                       <p className="text-xs text-slate-400 font-sans">
-                        Konversikan telemetri langsung ke server basis data XAMPP Anda.
+                        Konversikan telemetri langsung ke server basis data PostgreSQL Anda.
                       </p>
                     </div>
                     <button 
@@ -2030,83 +2235,102 @@ export default function App() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping" />
-                      <span className="text-xs font-mono font-bold uppercase tracking-wider text-teal-400">DATABASE INTEGRATOR & SETUP UTILITIES</span>
+                      <span className="text-xs font-mono font-bold uppercase tracking-wider text-teal-400">DATABASE INTEGRATOR (POSTGRESQL)</span>
                     </div>
                     <p className="text-xs text-slate-400 font-sans max-w-[600px]">
-                      Aplikasi berjalan di web browser. Browser tidak bisa langsung terhubung ke port MySQL lokal Anda (<code className="text-white font-mono bg-white/5 px-1 rounded">3306</code>) demi alasan keamanan sandboxing web. Gunakan salah satu metode di bawah ini untuk menghubungkannya secara mudah.
+                      Aplikasi berjalan di web browser dan mendukung sinkronisasi database <strong>PostgreSQL</strong> melalui file gateway PHP <code className="text-white font-mono bg-white/5 px-1 rounded">api.php</code> di server atau komputer lokal Anda.
                     </p>
                   </div>
                   
                   {/* Selector Tabs */}
-                  <div className="flex bg-[#050a12] p-1 border border-white/10 rounded-lg self-start md:self-auto">
-                    <button
-                      onClick={() => setDbScriptTab('sql')}
-                      className={`text-xs px-3 py-1.5 rounded-md font-mono uppercase font-bold transition cursor-pointer ${
-                        dbScriptTab === 'sql' 
-                          ? 'bg-teal-500/15 text-teal-300 border border-teal-500/20' 
-                          : 'text-slate-500 hover:text-slate-300'
-                      }`}
-                    >
-                      📜 Manual SQL Script
-                    </button>
-                    <button
-                      onClick={() => setDbScriptTab('php')}
-                      className={`text-xs px-3 py-1.5 rounded-md font-mono uppercase font-bold transition cursor-pointer ${
-                        dbScriptTab === 'php' 
-                          ? 'bg-teal-500/15 text-teal-300 border border-teal-500/20' 
-                          : 'text-slate-500 hover:text-slate-300'
-                      }`}
-                    >
-                      ⚡ PHP Auto-Installer (Recommended)
-                    </button>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <div className="flex bg-[#050a12] p-0.5 border border-white/10 rounded-lg">
+                      <button
+                        onClick={() => setDbScriptTab('sql')}
+                        className={`text-[11px] px-2.5 py-1 rounded font-mono uppercase font-black transition cursor-pointer ${
+                          dbScriptTab === 'sql' 
+                            ? 'bg-teal-500/15 text-teal-300 border border-teal-500/20' 
+                            : 'text-slate-400 hover:text-slate-300'
+                        }`}
+                      >
+                        📜 Manual SQL
+                      </button>
+                      <button
+                        onClick={() => setDbScriptTab('php')}
+                        className={`text-[11px] px-2.5 py-1 rounded font-mono uppercase font-black transition cursor-pointer ${
+                          dbScriptTab === 'php' 
+                            ? 'bg-teal-500/15 text-teal-300 border border-teal-500/20' 
+                            : 'text-slate-400 hover:text-slate-300'
+                        }`}
+                      >
+                        ⚡ PHP Installer
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {dbScriptTab === 'sql' ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between pt-1">
-                      <span className="text-xs font-mono text-slate-300 uppercase font-black">Metode Manual phpMyAdmin:</span>
+                      <span className="text-xs font-mono text-slate-300 uppercase font-black">
+                        🔌 Metode Manual PostgreSQL:
+                      </span>
                       <button 
                         onClick={() => {
-                          const sqlText = `CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry;\nUSE db_pelabuhan_telemetry;\n\nCREATE TABLE IF NOT EXISTS tbl_sensor_logs (\n    id INT AUTO_INCREMENT PRIMARY KEY,\n    station_id VARCHAR(50) NOT NULL,\n    timestamp DATETIME NOT NULL,\n    temperature DECIMAL(5,2) NOT NULL,\n    humidity INT NOT NULL,\n    solar_radiation INT NOT NULL,\n    rainfall DECIMAL(5,2) NOT NULL,\n    wave_height DECIMAL(4,2) NOT NULL,\n    sea_level DECIMAL(5,1) NOT NULL,\n    water_ph DECIMAL(4,2) NOT NULL,\n    wind_direction INT NOT NULL,\n    wind_speed DECIMAL(4,1) NOT NULL,\n    pressure DECIMAL(6,2) NOT NULL,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`;
+                          const sqlText = `CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
+    id SERIAL PRIMARY KEY,
+    station_id VARCHAR(50) NOT NULL,
+    timestamp TIMESTAMP NOT NULL, /* Start of the average-block / instant sample */
+    temperature NUMERIC(5,2) NOT NULL,
+    humidity INT NOT NULL,
+    solar_radiation INT NOT NULL,
+    rainfall NUMERIC(5,2) NOT NULL,
+    wave_height NUMERIC(4,2) NOT NULL,
+    sea_level NUMERIC(5,1) NOT NULL,
+    water_ph NUMERIC(4,2) NOT NULL,
+    wind_direction INT NOT NULL,
+    wind_speed NUMERIC(4,1) NOT NULL,
+    pressure NUMERIC(6,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);`;
                           navigator.clipboard.writeText(sqlText);
-                          showToastNotification("SQL Query successfully copied to clipboard!");
+                          showToastNotification("PostgreSQL Query successfully copied to clipboard!");
                         }}
                         className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 font-bold uppercase px-3 py-1.5 rounded-lg border border-teal-500/20 transition cursor-pointer font-mono"
                       >
-                        Copy SQL Script
+                        Copy PostgreSQL SQL Script
                       </button>
                     </div>
                     <p className="text-xs text-slate-400 leading-normal">
-                      Copy query berikut dan paste langsung ke menu <strong>SQL</strong> di phpMyAdmin XAMPP Anda untuk membuat tabel secara manual.
+                      Copy query berikut dan paste langsung ke konsol/terminal <strong>PostgreSQL pgAdmin / psql</strong> Anda untuk membuat tabel log eksternal Anda.
                     </p>
                     <pre className="text-xs font-mono text-slate-400 p-3 bg-black/60 rounded-lg overflow-x-auto max-h-[160px] leading-relaxed select-all border border-white/5">
-{`CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry;
-USE db_pelabuhan_telemetry;
-
+{`/* SQL untuk PostgreSQL */
 CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     station_id VARCHAR(50) NOT NULL,
-    timestamp DATETIME NOT NULL, /* Start of the average-block / instant sample */
-    temperature DECIMAL(5,2) NOT NULL,
+    timestamp TIMESTAMP NOT NULL, /* Start of the average-block / instant sample */
+    temperature NUMERIC(5,2) NOT NULL,
     humidity INT NOT NULL,
     solar_radiation INT NOT NULL,
-    rainfall DECIMAL(5,2) NOT NULL,
-    wave_height DECIMAL(4,2) NOT NULL,
-    sea_level DECIMAL(5,1) NOT NULL,
-    water_ph DECIMAL(4,2) NOT NULL,
+    rainfall NUMERIC(5,2) NOT NULL,
+    wave_height NUMERIC(4,2) NOT NULL,
+    sea_level NUMERIC(5,1) NOT NULL,
+    water_ph NUMERIC(4,2) NOT NULL,
     wind_direction INT NOT NULL,
-    wind_speed DECIMAL(4,1) NOT NULL,
-    pressure DECIMAL(6,2) NOT NULL,
+    wind_speed NUMERIC(4,1) NOT NULL,
+    pressure NUMERIC(6,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`}
+);`}
                     </pre>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
                       <div className="space-y-1">
-                        <span className="text-xs font-mono text-teal-400 uppercase font-black block">Metode Otomatis (1-Click Auto-Create Setup):</span>
+                        <span className="text-xs font-mono text-teal-400 uppercase font-black block">
+                          🔌 Auto-create PHP Code (PostgreSQL via PDO):
+                        </span>
                         <div className="text-xs text-slate-500 font-mono">
                           API URL: <span className="text-white font-bold">{config.localDbApiUrl || 'http://localhost/aws_marine/api.php'}</span>
                         </div>
@@ -2125,49 +2349,49 @@ if (\$_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$host = "localhost";
-$username = "root";
-$password = ""; // Default password kosong di XAMPP
+// PostgreSQL Server Configuration
+\$host = "localhost";
+\$port = "5432"; // Standard PostgreSQL Port
+\$dbname = "db_pelabuhan_telemetry"; // Pastikan database ini sudah dibuat di PostgreSQL Anda
+\$username = "postgres"; // Username PostgreSQL Anda
+\$password = "your_pg_password"; // Ganti dengan password postgres Anda
 
 try {
-    $conn = new PDO("mysql:host=$host", $username, $password);
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    \$conn = new PDO("pgsql:host=\$host;port=\$port;dbname=\$dbname", \$username, \$password);
+    \$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
-    // Auto-create database & table jika belum ada
-    $conn->exec("CREATE DATABASE IF NOT EXISTS db_pelabuhan_telemetry CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
-    $conn->exec("USE db_pelabuhan_telemetry;");
-
-    $sql_table = "CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+    // Auto-create table di PostgreSQL
+    \$sql_table = "CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
+        id SERIAL PRIMARY KEY,
         station_id VARCHAR(50) NOT NULL,
-        timestamp DATETIME NOT NULL,
-        temperature DECIMAL(5,2) NOT NULL,
+        timestamp TIMESTAMP NOT NULL,
+        temperature NUMERIC(5,2) NOT NULL,
         humidity INT NOT NULL,
         solar_radiation INT NOT NULL,
-        rainfall DECIMAL(5,2) NOT NULL,
-        wave_height DECIMAL(4,2) NOT NULL,
-        sea_level DECIMAL(5,1) NOT NULL,
-        water_ph DECIMAL(4,2) NOT NULL,
+        rainfall NUMERIC(5,2) NOT NULL,
+        wave_height NUMERIC(4,2) NOT NULL,
+        sea_level NUMERIC(5,1) NOT NULL,
+        water_ph NUMERIC(4,2) NOT NULL,
         wind_direction INT NOT NULL,
-        wind_speed DECIMAL(4,1) NOT NULL,
-        pressure DECIMAL(6,2) NOT NULL,
+        wind_speed NUMERIC(4,1) NOT NULL,
+        pressure NUMERIC(6,2) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+    );";
     
-    $conn->exec($sql_table);
-} catch (PDOException $e) {
+    \$conn->exec(\$sql_table);
+} catch (PDOException \$e) {
     http_response_code(500);
-    echo json_encode(["status" => "error", "message" => "Setup Failed: " . $e->getMessage()]);
+    echo json_encode(["status" => "error", "message" => "PostgreSQL Setup Failed: " . \$e->getMessage()]);
     exit();
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $input = file_get_contents("php://input");
-    $data = json_decode($input, true);
+if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
+    \$input = file_get_contents("php://input");
+    \$data = json_decode(\$input, true);
 
-    if (isset($data['station_id']) && isset($data['timestamp'])) {
+    if (isset(\$data['station_id']) && isset(\$data['timestamp'])) {
         try {
-            $stmt = $conn->prepare("INSERT INTO tbl_sensor_logs (
+            \$stmt = \$conn->prepare("INSERT INTO tbl_sensor_logs (
                 station_id, timestamp, temperature, humidity, solar_radiation, 
                 rainfall, wave_height, sea_level, water_ph, wind_direction, wind_speed, pressure
             ) VALUES (
@@ -2175,48 +2399,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 :rainfall, :wave_height, :sea_level, :water_ph, :wind_direction, :wind_speed, :pressure
             )");
 
-            $stmt->execute([
-                ':station_id' => $data['station_id'],
-                ':timestamp' => $data['timestamp'],
-                ':temperature' => $data['temperature'],
-                ':humidity' => $data['humidity'],
-                ':solar_radiation' => isset($data['solar_radiation']) ? $data['solar_radiation'] : 0,
-                ':rainfall' => isset($data['rainfall']) ? $data['rainfall'] : 0.0,
-                ':wave_height' => isset($data['wave_height']) ? $data['wave_height'] : 0.0,
-                ':sea_level' => isset($data['sea_level']) ? $data['sea_level'] : 0.0,
-                ':water_ph' => isset($data['water_ph']) ? $data['water_ph'] : 7.0,
-                ':wind_direction' => isset($data['wind_direction']) ? $data['wind_direction'] : 0,
-                ':wind_speed' => isset($data['wind_speed']) ? $data['wind_speed'] : 0.0,
-                ':pressure' => isset($data['pressure']) ? $data['pressure'] : 1013.25
+            \$stmt->execute([
+                ':station_id' => \$data['station_id'],
+                ':timestamp' => \$data['timestamp'],
+                ':temperature' => \$data['temperature'],
+                ':humidity' => \$data['humidity'],
+                ':solar_radiation' => isset(\$data['solar_radiation']) ? \$data['solar_radiation'] : 0,
+                ':rainfall' => isset(\$data['rainfall']) ? \$data['rainfall'] : 0.0,
+                ':wave_height' => isset(\$data['wave_height']) ? \$data['wave_height'] : 0.0,
+                ':sea_level' => isset(\$data['sea_level']) ? \$data['sea_level'] : 0.0,
+                ':water_ph' => isset(\$data['water_ph']) ? \$data['water_ph'] : 7.0,
+                ':wind_direction' => isset(\$data['wind_direction']) ? \$data['wind_direction'] : 0,
+                ':wind_speed' => isset(\$data['wind_speed']) ? \$data['wind_speed'] : 0.0,
+                ':pressure' => isset(\$data['pressure']) ? \$data['pressure'] : 1013.25
             ]);
 
-            echo json_encode(["status" => "success", "message" => "Record logged successfully!"]);
+            echo json_encode(["status" => "success", "message" => "Record logged successfully to PostgreSQL!"]);
             exit();
-        } catch (PDOException $e) {
+        } catch (PDOException \$e) {
             http_response_code(500);
-            echo json_encode(["status" => "error", "message" => "Insertion Failed: " . $e->getMessage()]);
+            echo json_encode(["status" => "error", "message" => "PostgreSQL Insertion Failed: " . \$e->getMessage()]);
             exit();
         }
     }
 } else {
     echo json_encode([
         "status" => "success",
-        "message" => "XAMPP Gateway active! Database 'db_pelabuhan_telemetry' and Table 'tbl_sensor_logs' successfully checked/constructed."
+        "message" => "PostgreSQL Gateway active! Table 'tbl_sensor_logs' successfully checked/constructed."
     ]);
 }
 ?>`;
                             navigator.clipboard.writeText(phpCode);
-                            showToastNotification("Automated PHP Hook successfully copied to clipboard!");
+                            showToastNotification("PHP Code for PostgreSQL copied to clipboard!");
                           }}
                           className="text-xs bg-[#00f0ff]/10 hover:bg-[#00f0ff]/20 text-[#00f0ff] font-bold uppercase px-4 py-2.5 rounded-lg border border-[#00f0ff]/20 transition cursor-pointer font-mono flex items-center justify-center gap-1"
                         >
-                          📋 Copy PHP Code
+                          📋 Copy PostgreSQL PHP Code
                         </button>
                         <button 
                           onClick={async () => {
                             const testUrl = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
-                            showToastNotification("🔧 Menguji hubungan ke XAMPP...");
-                            setDbTestResult({ status: 'loading', message: `Menghubungi endpoint lokal pada: ${testUrl}...`, details: 'Mengirimkan HTTP GET request ke web server Apache lokal Anda.' });
+                            showToastNotification("🔧 Menguji hubungan ke PostgreSQL...");
+                            setDbTestResult({ status: 'loading', message: `Menghubungi endpoint PostgreSQL pada: ${testUrl}...`, details: 'Mengirimkan HTTP GET request ke web server PHP lokal Anda.' });
                             try {
                               const res = await fetch(testUrl, { method: 'GET' });
                               if (res.ok) {
@@ -2225,7 +2449,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 setDbTestResult({
                                   status: 'success',
                                   message: '🟢 KONEKSI DAN INISIALISASI DATABASE BERHASIL!',
-                                  details: `${parsed.message || 'Server XAMPP merespon dengan OK.'}\nStatus: ${parsed.status || 'success'}`
+                                  details: `${parsed.message || 'Server PostgreSQL merespon dengan OK.'}\nStatus: ${parsed.status || 'success'}`
                                 });
                                 showToastNotification("🟢 DATABASE KONEKSI SUKSES!");
                                 setStreamLogs(prev => {
@@ -2245,9 +2469,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                               });
                               showToastNotification("🔴 KONEKSI DATABASE GAGAL!");
                               setStreamLogs(prev => {
-                                const list = prev.split('\n');
-                                const ts = format(new Date(), 'HH:mm:ss');
-                                return [...list, `[${ts} SQL ERROR] 🔴 TEST FAILED: Pastikan XAMPP Apache aktif & api.php diletakkan di htdocs/aws_marine/`].join('\n');
+                                  const list = prev.split('\n');
+                                  const ts = format(new Date(), 'HH:mm:ss');
+                                  return [...list, `[${ts} SQL ERROR] 🔴 TEST FAILED: Pastikan server lokal Anda aktif & file api.php diletakkan di htdocs/aws_marine/`].join('\n');
                               });
                             }
                           }}
@@ -2278,12 +2502,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         )}
                         {dbTestResult.status === 'error' && (
                           <div className="mt-3 text-amber-300 text-xs leading-relaxed border-t border-red-500/15 pt-2 font-sans">
-                            💡 <strong>PETUNJUK PENYELESAIAN MASALAH:</strong>
+                            💡 <strong>PETUNJUK PENYELESAIAN MASALAH (PostgreSQL):</strong>
                             <ul className="list-disc pl-4 mt-1.5 space-y-1 text-slate-300 text-xs">
-                              <li>Apakah <strong>XAMPP Control Panel</strong> sudah dibuka di laptop Anda? Pastikan tombol <strong className="text-emerald-400">Apache</strong> dan <strong className="text-emerald-400">MySQL</strong> sudah dinyalakan sampai berwarna hijau.</li>
-                              <li>Masukkan file <strong className="text-white">api.php</strong> di jalur direktori XAMPP lokal Anda: <code className="text-teal-300 bg-black/50 px-1 border border-white/5 font-mono text-xs">C:\xampp\htdocs\aws_marine\api.php</code>.</li>
-                              <li>Gunakan URL API di setelan Settings: <code className="text-white bg-black/50 px-1 font-mono text-xs">{config.localDbApiUrl || 'http://localhost/aws_marine/api.php'}</code>.</li>
-                              <li>Pastikan XAMPP berjalan di port standar (port 80). Jika menggunakan port custom (misal: 8080), sesuaikan URL anda menjadi <code className="text-white font-mono text-xs">http://localhost:8080/aws_marine/api.php</code>.</li>
+                              <li>Pastikan server PostgreSQL Anda aktif (default di port <strong className="text-emerald-400">5432</strong>) dan isi database <code className="text-white">db_pelabuhan_telemetry</code> sudah dibuat.</li>
+                              <li>Buka file <strong className="text-teal-300 font-mono">php.ini</strong> di XAMPP PHP settings Anda, silakan hilangkan titik koma di awal baris <code className="text-white bg-black/50 px-1">extension=pdo_pgsql</code> dan <code className="text-white bg-black/50 px-1">extension=pgsql</code> agar PHP XAMPP mendukung driver PostgreSQL, lalu restart Apache.</li>
+                              <li>Sesuaikan <strong className="text-teal-400">$username</strong> dan <strong className="text-teal-400">$password</strong> di file <strong className="text-white">api.php</strong> Anda dengan kredensial PostgreSQL Anda.</li>
+                              <li>Pastikan web server berjalan di port standar (port 80). Jika menggunakan port custom (misal: 8080), sesuaikan URL anda menjadi <code className="text-white font-mono text-xs">http://localhost:8080/aws_marine/api.php</code>.</li>
                             </ul>
                           </div>
                         )}
@@ -2298,14 +2522,13 @@ header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
 header("Content-Type: application/json; charset=UTF-8");
 
 // ...
-// Kode Auto-Installer ini otomatis mengecek & membangun Database & Tabel pada kueri pertama Anda!
-// Anda tidak perlu menulis query CREATE TABLE manual di phpMyAdmin.
+// Kode Auto-Installer PostgreSQL ini menggunakan PDO pgsql untuk mengecek & membangun Tabel secara otomatis!
+// Pastikan database db_pelabuhan_telemetry sudah terbuat di PostgreSQL Anda.
 ?>`}
                     </pre>
                   </div>
                 )}
               </div>
-            </div>
             </div>
 
             {/* Filter Log panel with CSV exporter */}
@@ -2367,19 +2590,18 @@ header("Content-Type: application/json; charset=UTF-8");
                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Temp (°C)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Hum (%)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Rad (W/m²)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#22c55e] text-center text-xs">Wave (m)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-[0.15em] text-amber-500 text-center text-xs">W-Gust (m/s)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-xs">W-Level (m)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-pink-400 text-center text-xs">pH Air</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Dir (°)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Spd (m/s)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-sky-400 text-center text-xs">Rain (mm)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-slate-400 text-center text-xs">Press (hPa)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 font-mono">
                     {filteredLogs.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="p-8 text-center uppercase tracking-widest text-slate-500 text-xs">
+                        <td colSpan={10} className="p-8 text-center uppercase tracking-widest text-slate-500 text-xs">
                           No logged matching rows found. Adjust criteria.
                         </td>
                       </tr>
@@ -2390,12 +2612,13 @@ header("Content-Type: application/json; charset=UTF-8");
                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.temperature.toFixed(1)}</td>
                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.humidity}%</td>
                           <td className="p-3 text-center border-r border-white/5 text-[#f59e0b]">{item.solarRadiation}</td>
-                          <td className="p-3 text-center border-r border-white/5 text-emerald-400 font-bold">{item.waveHeight.toFixed(2)}</td>
+                          <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">
+                            {item.windGust !== undefined && item.windGust !== null ? item.windGust.toFixed(1) : "—"}
+                          </td>
                           <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">{item.seaLevel.toFixed(1)}m</td>
                           <td className="p-3 text-center border-r border-white/5 text-pink-400 font-bold">{(item.waterPh ?? 7.80).toFixed(2)}</td>
                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.windDirection}°</td>
                           <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">{item.windSpeed.toFixed(1)}</td>
-                          <td className="p-3 text-center border-r border-white/5 text-[#38bdf8]">{item.rainfall.toFixed(1)}</td>
                           <td className="p-3 text-center text-slate-300 pr-4 text-right">{item.pressure.toFixed(1)}</td>
                         </tr>
                       ))
@@ -2690,14 +2913,11 @@ header("Content-Type: application/json; charset=UTF-8");
                             className="w-12 bg-[#050a12] border border-white/10 font-mono text-center text-xs p-1 text-white rounded outline-none"
                           />
                         </div>
-                        <p className="text-xs text-slate-500 font-mono mt-1 leading-normal">
-                          Configure storage frequency: commits data from 1 to 60 minutes per log row.
-                        </p>
                       </div>
 
                       {/* Local database API URL */}
                       <div>
-                        <span className="text-xs text-slate-400 uppercase font-mono block mb-1">Local XAMPP Database API Endpoint (PHP API Link)</span>
+                        <span className="text-xs text-slate-400 uppercase font-mono block mb-1">PostgreSQL Database API Endpoint (PHP API Link)</span>
                         <input 
                           type="text" 
                           value={config.localDbApiUrl || ''} 
@@ -2706,7 +2926,7 @@ header("Content-Type: application/json; charset=UTF-8");
                           className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-teal-400 rounded outline-none text-left"
                         />
                         <p className="text-xs text-slate-500 font-mono mt-1 leading-tight">
-                          Alamat file <code className="text-slate-400 bg-white/5 px-0.5 rounded">api.php</code> di htdocs XAMPP Anda. Berguna untuk sinkronisasi otomatis.
+                          Alamat file <code className="text-slate-400 bg-white/5 px-0.5 rounded">api.php</code> di htdocs / virtual host server Anda. Berguna untuk sinkronisasi otomatis.
                         </p>
                       </div>
 
@@ -2784,14 +3004,12 @@ header("Content-Type: application/json; charset=UTF-8");
                     { label: 'Temp Max', key: 'ch_4', color: '#f87171', source: tempStats.max + ' °C' },
                     { label: 'Temp Min', key: 'ch_6', color: '#22d3ee', source: tempStats.min + ' °C' },
                     { label: 'Humidity', key: 'ch_8', color: '#00f0ff', source: currentData.humidity + ' %' },
-                    { label: 'Dew Point', key: 'ch_12', color: '#00f0ff', source: computeDewPoint(currentData.temperature, currentData.humidity) + ' °C' },
-                    { label: 'Rain Rate', key: 'ch_1', color: '#38bdf8', source: currentData.rainfall.toFixed(1) + ' mm/h' },
-                    { label: 'Rain Acc.', key: 'ch_3', color: '#38bdf8', source: rainAccum + ' mm' },
                     { label: 'Solar Rad.', key: 'ch_5', color: '#f59e0b', source: currentData.solarRadiation + ' W/m²' },
-                    { label: 'Wave Ht.', key: 'ch_14', color: '#3b82f6', source: currentData.waveHeight + ' m' },
                     { label: 'Water Lvl', key: 'ch_15', color: '#3b82f6', source: currentData.seaLevel.toFixed(1) + ' m' },
                     { label: 'Wind Dir', key: 'ch_16', color: '#fbbf24', source: currentData.windDirection + ' °' },
                     { label: 'Wind Spd', key: 'ch_17', color: '#fbbf24', source: currentData.windSpeed.toFixed(1) + ' m/s' },
+                    { label: 'Wind Spd Max', key: 'ch_19', color: '#fbbf24', source: windStats.max.toFixed(1) + ' m/s' },
+                    { label: 'Wind Spd Min', key: 'ch_20', color: '#fbbf24', source: windStats.min.toFixed(1) + ' m/s' },
                     { label: 'Pres QFE', key: 'ch_9', color: '#94a3b8', source: currentData.pressure.toFixed(1) + ' hPa' },
                     { label: 'Pres QFF', key: 'ch_11', color: '#94a3b8', source: (currentData.pressure + 2.1).toFixed(1) + ' hPa' },
                     { label: 'Pres QNH', key: 'ch_13', color: '#94a3b8', source: (currentData.pressure - 1.2).toFixed(1) + ' hPa' },
@@ -2850,15 +3068,12 @@ header("Content-Type: application/json; charset=UTF-8");
                       'ch_4': '7',   // Temp Max (TA_Max)
                       'ch_6': '8',   // Temp Min (TA_Min)
                       'ch_8': '9',   // Humidity (RH_meas)
-                      'ch_12': '6',  // Dew point is computed
-                      'ch_1': 'OFF', // Rain rate not mapped
-                      'ch_3': 'OFF', // Rain acc. not mapped
                       'ch_5': '12',  // Solar Rad
-                      'ch_14': 'OFF',// Wave Height not mapped
-                      'ch_14_label': 'OFF',
                       'ch_15': '17', // Water Level (m)
                       'ch_16': '5',  // Wind Dir (WD_meas)
                       'ch_17': '3',  // Wind Spd (WS_meas)
+                      'ch_19': 'OFF',// Wind Spd Max (not mapped by preset)
+                      'ch_20': 'OFF',// Wind Spd Min (not mapped by preset)
                       'ch_7': '10',  // Pres STN
                       'ch_9': '10',  // Pres QFE
                       'ch_11': '10', // Pres QFF

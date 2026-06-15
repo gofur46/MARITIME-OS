@@ -10,6 +10,7 @@ export interface WeatherData {
   waveHeight: number; // meters
   seaLevel: number; // cm (relative to mean)
   waterPh: number; // pH scale 0-14
+  windGust?: number; // optional wind gust (m/s) if exists/detected
 }
 
 export type AlertLevel = 'Normal' | 'Caution' | 'Warning' | 'Critical';
