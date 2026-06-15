@@ -1150,18 +1150,18 @@ export default function App() {
             <div className="lg:col-span-3 flex flex-col space-y-4 h-full">
               
               {/* Thermal group - Card 1 */}
-              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between space-y-3.5">
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between space-y-3">
                 <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
                   <Thermometer className="w-3.5 h-3.5 text-[#22c55e]" />
                   <span>Thermal Sensors</span>
                 </div>
 
-                <div className="flex-1 flex flex-col justify-center space-y-3">
+                <div className="flex-1 flex flex-col justify-center space-y-2.5">
                   {/* Primary Air temp StatCard */}
-                  <div className="bg-[#0b1424] border border-white/5 rounded-xl p-3.5 text-center">
-                    <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">Air Temperature</div>
+                  <div className="bg-[#0b1424] border border-white/5 rounded-xl p-3 text-center">
+                    <div className="text-xs uppercase font-semibold text-slate-300 tracking-wide mb-1 font-sans">Air Temperature</div>
                     <div className="flex justify-center items-baseline">
-                      <span className="text-3xl font-extrabold font-mono tracking-tight text-white">{currentData.temperature.toFixed(1)}</span>
+                      <span className="text-2xl md:text-3xl font-bold font-mono tracking-tight text-white">{currentData.temperature.toFixed(1)}</span>
                       <span className="text-sm font-bold text-[#22c55e] ml-1">°C</span>
                     </div>
                   </div>
@@ -1169,15 +1169,15 @@ export default function App() {
                   {/* Avg, Max, Min grid row inside column 1 */}
                   <div className="grid grid-cols-3 gap-1.5">
                     <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-1.5 text-center">
-                      <div className="text-[9px] uppercase font-semibold text-slate-500 tracking-wider">Avg</div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-sans">Avg</div>
                       <div className="text-xs font-bold text-[#e0f2fe] font-mono mt-0.5">{tempStats.avg}</div>
                     </div>
                     <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-1.5 text-center">
-                      <div className="text-[9px] uppercase font-semibold text-slate-500 tracking-wider text-rose-400">Max</div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider text-rose-400 font-sans">Max</div>
                       <div className="text-xs font-bold text-rose-400 font-mono mt-0.5">{tempStats.max}</div>
                     </div>
                     <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-1.5 text-center">
-                      <div className="text-[9px] uppercase font-semibold text-slate-500 tracking-wider text-teal-400">Min</div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider text-teal-400 font-sans">Min</div>
                       <div className="text-xs font-bold text-teal-400 font-mono mt-0.5">{tempStats.min}</div>
                     </div>
                   </div>
@@ -1185,36 +1185,36 @@ export default function App() {
               </div>
 
               {/* Hygro & Solar Group - Card 2 */}
-              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between space-y-3">
-                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between space-y-3 font-sans">
+                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2 font-sans">
                   <Droplets className="w-3.5 h-3.5 text-[#00ff66]" />
                   <span>Hygrometry & Solar</span>
                 </div>
                 
-                <div className="flex-1 flex flex-col justify-between gap-2.5">
-                  <div className="bg-[#0b1424] border border-white/5 rounded-xl p-2.5 flex justify-between items-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Humidity</span>
+                <div className="flex-1 flex flex-col justify-between gap-2">
+                  <div className="bg-[#0b1424] border border-white/5 rounded-xl p-2.5 flex justify-between items-center transition-colors hover:border-[#00ff66]/10">
+                    <span className="text-xs uppercase font-semibold tracking-wide text-slate-300 font-sans">Humidity</span>
                     <div className="text-right">
-                      <span className="text-xl font-black font-mono text-white">{currentData.humidity}</span>
-                      <span className="text-[10px] text-[#00f0ff] ml-1 font-bold">%</span>
+                      <span className="text-xl font-bold font-mono text-white">{currentData.humidity}</span>
+                      <span className="text-xs text-[#00f0ff] ml-1 font-bold">%</span>
                     </div>
                   </div>
 
-                  <div className="bg-[#0b1424] border border-white/5 rounded-xl p-2.5 flex justify-between items-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Dew Point</span>
+                  <div className="bg-[#0b1424] border border-white/5 rounded-xl p-2.5 flex justify-between items-center transition-colors hover:border-[#00ff66]/10">
+                    <span className="text-xs uppercase font-semibold tracking-wide text-slate-300 font-sans">Dew Point</span>
                     <div className="text-right">
-                      <span className="text-lg font-black font-mono text-white">
+                      <span className="text-xl font-bold font-mono text-white">
                         {computeDewPoint(currentData.temperature, currentData.humidity)}
                       </span>
-                      <span className="text-[10px] text-[#00f0ff] ml-1 font-bold">°C</span>
+                      <span className="text-xs text-[#00f0ff] ml-1 font-bold">°C</span>
                     </div>
                   </div>
 
-                  <div className="bg-[#0b1424] border border-amber-500/10 rounded-xl p-2.5 flex justify-between items-center">
-                    <span className="text-[10px] uppercase font-bold text-amber-400">Irradiance</span>
+                  <div className="bg-[#0b1424] border border-amber-500/10 rounded-xl p-2.5 flex justify-between items-center transition-colors hover:border-amber-500/25">
+                    <span className="text-xs uppercase font-semibold tracking-wide text-amber-400 font-sans">Irradiance</span>
                     <div className="text-right">
-                      <span className="text-lg font-black font-mono text-amber-400">{currentData.solarRadiation}</span>
-                      <span className="text-[10px] text-amber-500 ml-1 font-bold">W/m²</span>
+                      <span className="text-xl font-bold font-mono text-amber-400">{currentData.solarRadiation}</span>
+                      <span className="text-xs text-amber-500 ml-1 font-bold">W/m²</span>
                     </div>
                   </div>
                 </div>
@@ -1241,17 +1241,17 @@ export default function App() {
 
                     <div className="flex-1 flex flex-col justify-center">
                       <div className="bg-[#050a12]/80 border border-white/5 p-3 rounded-xl space-y-2">
-                        <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-400 block border-b border-white/10 pb-1 font-sans">🌊 Live Water Quality Index</span>
+                        <span className="text-xs uppercase font-semibold tracking-wider text-slate-300 block border-b border-white/10 pb-1 font-sans">🌊 Live Water Quality Index</span>
                         <div className="grid grid-cols-2 gap-2 text-center">
-                          <div className="bg-[#0b1424] border border-pink-500/10 py-1.5 px-2 rounded-lg">
-                            <span className="text-[9px] uppercase text-slate-500 font-bold block">pH Value</span>
-                            <span className={`text-sm font-black font-mono ${isPhUnsafe ? 'text-amber-400' : 'text-pink-400'}`}>
-                              {phValue.toFixed(2)} <span className="text-[10px] font-semibold text-slate-400">pH</span>
+                          <div className="bg-[#0b1424] border border-pink-500/10 py-1.5 px-2 rounded-lg transition-colors hover:border-pink-500/20">
+                            <span className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">pH Value</span>
+                            <span className={`text-lg font-bold font-mono ${isPhUnsafe ? 'text-amber-400' : 'text-pink-400'}`}>
+                              {phValue.toFixed(2)} <span className="text-xs font-bold text-slate-400 ml-0.5">pH</span>
                             </span>
                           </div>
-                          <div className="bg-[#0b1424] border border-white/5 py-1.5 px-2 rounded-lg flex flex-col justify-center">
-                            <span className="text-[9px] uppercase text-slate-500 font-bold block">Status</span>
-                            <span className={`text-xs font-black font-mono uppercase ${isPhUnsafe ? 'text-amber-400' : phValue < 7.0 ? 'text-rose-400' : phValue > 8.5 ? 'text-pink-400' : 'text-emerald-400'}`}>
+                          <div className="bg-[#0b1424] border border-white/5 py-1.5 px-2 rounded-lg flex flex-col justify-center items-center transition-colors hover:border-white/10">
+                            <span className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Status</span>
+                            <span className={`text-xs md:text-sm font-bold font-mono uppercase ${isPhUnsafe ? 'text-amber-400' : phValue < 7.0 ? 'text-rose-400' : phValue > 8.5 ? 'text-pink-400' : 'text-emerald-400'}`}>
                               {isPhUnsafe ? "⚠️ BAHAYA" : phValue < 7.0 ? "Asam" : phValue > 8.5 ? "Basa" : "Ideal"}
                             </span>
                           </div>
@@ -1740,18 +1740,18 @@ export default function App() {
                   <div className="space-y-3 font-sans text-xs">
                     {/* Wind speed limit indicators */}
                     <div className="bg-[#050a12]/80 border border-white/5 p-3 rounded-xl space-y-2">
-                      <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-400 block border-b border-white/10 pb-1 font-sans">🌪️ Live Wind Speed Limits</span>
+                      <span className="text-xs uppercase font-semibold tracking-wider text-slate-300 block border-b border-white/10 pb-1 font-sans">🌪️ Live Wind Speed Limits</span>
                       <div className="grid grid-cols-2 gap-2 text-center">
-                        <div className="bg-[#0b1424] border border-emerald-500/10 py-1.5 px-2 rounded-lg">
-                          <span className="text-[9px] uppercase text-slate-500 font-bold block">Wind Max</span>
-                          <span className="text-sm font-black font-mono text-emerald-400">
-                            {windStats.max.toFixed(1)} <span className="text-[10px] font-semibold text-slate-400">m/s</span>
+                        <div className="bg-[#0b1424] border border-emerald-500/10 py-1.5 px-2 rounded-lg transition-colors hover:border-emerald-500/20">
+                          <span className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Wind Max</span>
+                          <span className="text-base font-bold font-mono text-emerald-400">
+                            {windStats.max.toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">m/s</span>
                           </span>
                         </div>
-                        <div className="bg-[#0b1424] border border-[#38bdf8]/10 py-1.5 px-2 rounded-lg">
-                          <span className="text-[9px] uppercase text-slate-500 font-bold block">Wind Min</span>
-                          <span className="text-sm font-black font-mono text-[#38bdf8]">
-                            {windStats.min.toFixed(1)} <span className="text-[10px] font-semibold text-slate-400">m/s</span>
+                        <div className="bg-[#0b1424] border border-[#38bdf8]/10 py-1.5 px-2 rounded-lg transition-colors hover:border-[#38bdf8]/20">
+                          <span className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Wind Min</span>
+                          <span className="text-base font-bold font-mono text-[#38bdf8]">
+                            {windStats.min.toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">m/s</span>
                           </span>
                         </div>
                       </div>
@@ -1759,23 +1759,23 @@ export default function App() {
 
                     {/* Last Wind Gust info */}
                     <div className="bg-[#050a12]/80 border border-white/5 p-3 rounded-xl space-y-2">
-                      <span className="text-[10px] uppercase font-extrabold tracking-wider text-amber-500 block border-b border-white/10 pb-1 font-sans">⚡ Last Gust Occurrence Event</span>
+                      <span className="text-xs uppercase font-semibold tracking-wider text-amber-500 block border-b border-white/10 pb-1 font-sans">⚡ Last Gust Occurrence Event</span>
                       <div className="grid grid-cols-2 gap-2 text-center font-sans">
-                        <div className="bg-[#0b1424] border border-amber-500/5 py-1.5 px-2 rounded-lg">
-                          <span className="text-[9px] uppercase text-slate-500 font-bold block">Gust Speed</span>
-                          <span className="text-sm font-black font-mono text-amber-400">
+                        <div className="bg-[#0b1424] border border-amber-500/5 py-1.5 px-2 rounded-lg transition-colors hover:border-amber-500/20">
+                          <span className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Gust Speed</span>
+                          <span className="text-base font-bold font-mono text-amber-400">
                             {lastWindGustVal !== null ? (
                               <>
-                                {lastWindGustVal.toFixed(1)} <span className="text-[10px] font-semibold text-slate-400">m/s</span>
+                                {lastWindGustVal.toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">m/s</span>
                               </>
                             ) : (
                               "—"
                             )}
                           </span>
                         </div>
-                        <div className="bg-[#0b1424] border border-amber-500/5 py-1.5 px-2 rounded-lg">
-                          <span className="text-[9px] uppercase text-slate-500 font-bold block">Time of Gust</span>
-                          <span className="text-[10px] font-black font-mono text-amber-300 truncate">
+                        <div className="bg-[#0b1424] border border-amber-500/5 py-1.5 px-2 rounded-lg flex flex-col justify-center items-center transition-colors hover:border-amber-500/20">
+                          <span className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Time of Gust</span>
+                          <span className="text-xs md:text-sm font-bold font-mono text-amber-300 truncate">
                             {lastWindGustTime !== null ? lastWindGustTime : "—"}
                           </span>
                         </div>
