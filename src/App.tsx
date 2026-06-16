@@ -3,7 +3,7 @@ import {
   Thermometer, Droplets, Droplet, Wind, Navigation, Gauge, Sun, CloudRain, 
   Waves, MoveDown, LayoutDashboard, History, Settings, FileText,
   AlertTriangle, Play, RefreshCw, Send, CheckCircle, Database,
-  Anchor, ArrowUpRight, Eye, Compass
+  Anchor, ArrowUpRight, Eye, Compass, X, ExternalLink, Maximize2
 } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { WeatherData, AlertLevel, PortInstruction } from './types';
@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 
 // Create Yesterday's baseline climatology averages for our math
 const CLIMATOLOGY_AVG = {
+  currentSpeed: 1.5, // Knots (ocean current speed)
   waveHeight: 1.15, // meters
   windSpeed: 10.4,   // Knots (or m/s depending on system unit)
   temperature: 28.5,
@@ -20,7 +21,7 @@ const CLIMATOLOGY_AVG = {
 // Initial Config state
 const DEFAULT_CONFIG = {
   idStation: 'SYS1000',
-  stationName: 'Pelabuhan Ciwandan',
+  stationName: 'Automatic Weather Station',
   transport: 'SERIAL', // SERIAL | TCP | OFF
   splitchar: ';',
   serialcom: 'COM3',
@@ -98,6 +99,7 @@ const generateInitialLogs = (count: number, intervalMinutes: number = 10): Weath
       solarRadiation: Math.round(250 + Math.random() * 400),
       rainfall: Math.random() > 0.88 ? parseFloat((Math.random() * 4).toFixed(1)) : 0,
       waveHeight: parseFloat((0.4 + Math.random() * 1.5).toFixed(2)),
+      currentSpeed: parseFloat((0.8 + Math.random() * 2.2).toFixed(2)), // simulated Knots (0.8 - 3.0)
       seaLevel: parseFloat((120 + Math.random() * 50).toFixed(1)), // cm
       waterPh: parseFloat((7.6 + Math.random() * 0.8).toFixed(2)), // pH
       windGust: windGustValue
@@ -119,6 +121,7 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
       solarRadiation: 300,
       rainfall: 0,
       waveHeight: 1.0,
+      currentSpeed: 1.5,
       seaLevel: 150.0,
       waterPh: 7.8
     };
@@ -132,6 +135,7 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
   let sumSolar = 0;
   let sumRain = 0; // Accumulation
   let sumWave = 0;
+  let sumCurrent = 0;
   let sumSea = 0;
   let sumPh = 0;
 
@@ -153,6 +157,7 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
     sumSolar += item.solarRadiation;
     sumRain += item.rainfall; // Sum accumulated rainfall
     sumWave += item.waveHeight;
+    sumCurrent += item.currentSpeed ?? (item.waveHeight * 1.5);
     sumSea += item.seaLevel;
     sumPh += item.waterPh ?? 7.8;
 
@@ -174,6 +179,7 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
     solarRadiation: Math.round(sumSolar / count),
     rainfall: parseFloat(sumRain.toFixed(1)), // Sum accumulated rainfall
     waveHeight: parseFloat((sumWave / count).toFixed(2)),
+    currentSpeed: parseFloat((sumCurrent / count).toFixed(2)),
     seaLevel: parseFloat((sumSea / count).toFixed(1)),
     waterPh: parseFloat((sumPh / count).toFixed(2)),
     windGust: computedWindGust
@@ -219,12 +225,15 @@ export const BMKG_CIWANDAN_FORECAST: BMKGForecastRow[] = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'realtime' | 'analyst' | 'database' | 'settings' | 'bmkg'>('realtime');
+  const [activeTab, setActiveTab] = useState<'realtime' | 'analyst' | 'telemetry' | 'database' | 'settings' | 'bmkg'>('realtime');
   
   // Persisted state setup matching your parameters
   const [config, setConfig] = useState(() => {
     const saved = localStorage.getItem('aws_config');
     const parsed = saved ? JSON.parse(saved) : DEFAULT_CONFIG;
+    if (parsed && (parsed.stationName === 'Pelabuhan Ciwandan' || !parsed.stationName)) {
+      parsed.stationName = 'Automatic Weather Station';
+    }
     return {
       ...DEFAULT_CONFIG,
       ...parsed,
@@ -252,6 +261,7 @@ export default function App() {
   const [bmkgForecast, setBmkgForecast] = useState<BMKGForecastRow[]>(BMKG_CIWANDAN_FORECAST);
   const [lastBmkgFetched, setLastBmkgFetched] = useState<string>('Preseed Data');
   const [bmkgSource, setBmkgSource] = useState<'static' | 'live' | 'cache' | 'stale-cache'>('static');
+  const [showTelemetryPopup, setShowTelemetryPopup] = useState(false);
   const [isLoadingBmkg, setIsLoadingBmkg] = useState<boolean>(false);
   const [bmkgErrorMsg, setBmkgErrorMsg] = useState<string>('');
   const selectedBmkgRow = (bmkgForecast && selectedForecastIndex !== null && selectedForecastIndex < bmkgForecast.length) 
@@ -672,6 +682,7 @@ export default function App() {
       const nextSolar = Math.floor(100 + Math.random() * 600);
       const nextRainRate = Math.random() > 0.9 ? parseFloat((Math.random() * 6).toFixed(1)) : 0;
       const nextWave = parseFloat((0.3 + Math.random() * 1.6).toFixed(2));
+      const nextCurrentSpeed = parseFloat((0.8 + Math.random() * 2.2).toFixed(2)); // simulated Knots
       const nextSeaLvl = parseFloat((110 + Math.random() * 60).toFixed(1));
       const nextPh = parseFloat((7.4 + Math.random() * 0.8).toFixed(2));
 
@@ -690,6 +701,7 @@ export default function App() {
         solarRadiation: nextSolar,
         rainfall: nextRainRate,
         waveHeight: nextWave,
+        currentSpeed: nextCurrentSpeed,
         seaLevel: nextSeaLvl,
         waterPh: nextPh
       };
@@ -994,36 +1006,36 @@ export default function App() {
   // --- CORE AI FORECAST ENGINE MATH (PORTED FROM YOUR CONCEPT) ---
   const aiForecastResult = (() => {
     // 1. Live historical momentum (last 6 captured records in history, simulating 1 hour back at 10m cycle)
-    const wave_hist = history.slice(-6).map(h => h.waveHeight);
+    const current_hist = history.slice(-6).map(h => h.currentSpeed ?? parseFloat((h.waveHeight * 1.5).toFixed(2)));
     const wind_hist = history.slice(-6).map(h => h.windSpeed);
     
     // Ensure historical array has elements
-    if (wave_hist.length === 0) {
-      wave_hist.push(1.10);
+    if (current_hist.length === 0) {
+      current_hist.push(1.50);
       wind_hist.push(10.0);
     }
 
-    const currentWave = wave_hist[wave_hist.length - 1];
+    const currentVal = current_hist[current_hist.length - 1];
     const currentWind = wind_hist[wind_hist.length - 1];
 
     // Yesterday's Climatology Baselines as specified in your logic
-    const yestWave = CLIMATOLOGY_AVG.waveHeight;
+    const yestCurrent = CLIMATOLOGY_AVG.currentSpeed;
     const yestWind = CLIMATOLOGY_AVG.windSpeed;
 
     // Seberapa cepat momentum pergerakan 1 jam terakhir 
-    let waveMomentum = 0;
+    let currentMomentum = 0;
     let windMomentum = 0;
-    if (wave_hist.length > 1) {
-      waveMomentum = (currentWave - wave_hist[0]) / wave_hist.length;
+    if (current_hist.length > 1) {
+      currentMomentum = (currentVal - current_hist[0]) / current_hist.length;
       windMomentum = (currentWind - wind_hist[0]) / wind_hist.length;
     }
 
     // ANOMALY OVERRIDE: Jika saat ini beda ekstrem dengan kemarin (> 50% atau sudah berbahaya)
     // Jika True = ADA BADAI / SQUALL, abaikan sejarah, fokus pada bacaan sensor live!
-    const isWaveStorm = Math.abs(currentWave - yestWave) > (yestWave * 0.5) || currentWave >= 1.5;
+    const isCurrentExtreme = Math.abs(currentVal - yestCurrent) > (yestCurrent * 0.5) || currentVal >= 2.5;
     const isWindStorm = Math.abs(currentWind - yestWind) > (yestWind * 0.5) || currentWind >= 15.0;
 
-    const forecastedWaves = [];
+    const forecastedCurrents = [];
     const forecastedWinds = [];
     const timestamps = [];
     const baseDate = new Date();
@@ -1032,22 +1044,22 @@ export default function App() {
       const stepTime = new Date(baseDate.getTime() + i * 10 * 60000);
       
       // Prediksi dasar murni dari gaya dorong (momentum) sensor saat ini
-      let futureWave = currentWave + (waveMomentum * i * 0.8); // 0.8 dumper 
+      let futureCurrent = currentVal + (currentMomentum * i * 0.8); // 0.8 dumper 
       let futureWind = currentWind + (windMomentum * i * 0.8);
 
       // Jika TIDAK ADA BADAI (Cuaca Normal), baru kita tarik ke siklus kemarin
-      if (!isWaveStorm) {
-        futureWave = (futureWave * 0.6) + (yestWave * 0.4); // 40% influence yesterday
+      if (!isCurrentExtreme) {
+        futureCurrent = (futureCurrent * 0.6) + (yestCurrent * 0.4); // 40% influence yesterday
       }
       if (!isWindStorm) {
         futureWind = (futureWind * 0.6) + (yestWind * 0.4); // 40% influence yesterday
       }
 
       // Tambahkan sedikit turbulensi acak alami
-      futureWave += (Math.random() * 0.08 - 0.04);
+      futureCurrent += (Math.random() * 0.16 - 0.08);
       futureWind += (Math.random() * 0.8 - 0.4);
 
-      forecastedWaves.push(parseFloat(Math.max(0.1, futureWave).toFixed(2)));
+      forecastedCurrents.push(parseFloat(Math.max(0.1, futureCurrent).toFixed(2)));
       forecastedWinds.push(parseFloat(Math.max(1.0, futureWind).toFixed(1)));
       timestamps.push(format(stepTime, 'HH:mm'));
     }
@@ -1082,11 +1094,12 @@ export default function App() {
     
     // Add Past elements
     last6.forEach(h => {
+      const cSpeed = h.currentSpeed ?? parseFloat((h.waveHeight * 1.5).toFixed(2));
       pastAndFutureData.push({
         time: format(h.timestamp, 'HH:mm'),
-        pastWave: h.waveHeight,
+        pastCurrent: cSpeed,
         pastWind: h.windSpeed,
-        futWave: null,
+        futCurrent: null,
         futWind: null
       });
     });
@@ -1094,23 +1107,23 @@ export default function App() {
     // Add linkage point so solid line touches dashed forecast line
     if (pastAndFutureData.length > 0) {
       const idx = pastAndFutureData.length - 1;
-      pastAndFutureData[idx].futWave = pastAndFutureData[idx].pastWave;
+      pastAndFutureData[idx].futCurrent = pastAndFutureData[idx].pastCurrent;
       pastAndFutureData[idx].futWind = pastAndFutureData[idx].pastWind;
     }
 
     // Append Future elements
-    forecastedWaves.forEach((w, idx) => {
+    forecastedCurrents.forEach((c, idx) => {
       pastAndFutureData.push({
         time: timestamps[idx],
-        pastWave: null,
+        pastCurrent: null,
         pastWind: null,
-        futWave: w,
+        futCurrent: c,
         futWind: forecastedWinds[idx]
       });
     });
 
     return {
-      forecastedWaves,
+      forecastedCurrents,
       forecastedWinds,
       timestamps,
       stormProb,
@@ -1381,42 +1394,67 @@ export default function App() {
 
               {/* Dynamic Maritime Hazard Alert Panel (EWS) */}
               {(() => {
-                const isAnginKencang = currentData.windSpeed >= 12.0;
-                const isGelombangTinggi = currentData.waveHeight >= 1.2;
+                const windSpeedVal = currentData.windSpeed;
+                const windGustVal = currentData.windGust ?? 0;
                 
-                if (isAnginKencang && isGelombangTinggi) {
+                // 1 m/s = 1.94 knots
+                const wsKts = windSpeedVal * 1.94384;
+                const wgKts = windGustVal * 1.94384;
+
+                const isStormHazard = windSpeedVal >= 15.0 || windGustVal >= 18.0;
+                const isGustWarning = !isStormHazard && windGustVal >= 14.0;
+                const isAnginKencang = !isStormHazard && !isGustWarning && windSpeedVal >= 10.0;
+
+                const relativeVesselWind = (currentData.windDirection - (parseFloat(config.pierAngle) || 0) + 360) % 360;
+                const crosswindSpeed = windSpeedVal * Math.abs(Math.sin((relativeVesselWind * Math.PI) / 180));
+                const crossKts = crosswindSpeed * 1.94384;
+                const isCrosswindHazard = !isStormHazard && !isGustWarning && !isAnginKencang && crosswindSpeed >= 8.0;
+
+                if (isStormHazard) {
                   return (
                     <div className="mx-auto mt-2.5 px-4 py-2 border border-rose-500/50 bg-rose-950/40 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.25)] select-none">
-                      <span className="flex h-2 w-2 relative">
+                      <span className="flex h-2.5 w-2.5 relative">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
                       </span>
                       <span className="text-xs font-extrabold text-rose-400 uppercase tracking-wider font-mono text-center">
-                        🔥 SIAGA 1: DOUBLE HAZARD (WIND & WAVE WARN)
+                        🔥 SIAGA 1: BADAI EKSTRIM ({windSpeedVal.toFixed(1)} m/s / {wsKts.toFixed(0)} kt • Gust: {windGustVal > 0 ? windGustVal.toFixed(1) + ' m/s' : '—'})
+                      </span>
+                    </div>
+                  );
+                } else if (isGustWarning) {
+                  return (
+                    <div className="mx-auto mt-2.5 px-4 py-2 border border-orange-500/50 bg-orange-950/30 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse select-none shadow-[0_0_10px_rgba(249,115,22,0.15)]">
+                      <span className="flex h-2 w-2 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                      </span>
+                      <span className="text-xs font-extrabold text-orange-400 uppercase tracking-wider font-mono text-center">
+                        💨 SIAGA 2: WIND GUST HEMBUSAN ({windGustVal.toFixed(1)} m/s / {wgKts.toFixed(0)} kt)
                       </span>
                     </div>
                   );
                 } else if (isAnginKencang) {
                   return (
-                    <div className="mx-auto mt-2.5 px-4 py-2 border border-amber-500/40 bg-amber-950/30 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse select-none shadow-[0_0_10px_rgba(245,158,11,0.15)]">
+                    <div className="mx-auto mt-2.5 px-4 py-2 border border-amber-500/45 bg-amber-950/20 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse select-none shadow-[0_0_10px_rgba(245,158,11,0.15)]">
                       <span className="flex h-2 w-2 relative">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                       </span>
                       <span className="text-xs font-extrabold text-amber-400 uppercase tracking-wider font-mono text-center">
-                        ⚠️ WARNING: ANGIN KENCANG ({currentData.windSpeed.toFixed(1)} m/s)
+                        ⚠️ SIAGA 3: ANGIN KENCANG ({windSpeedVal.toFixed(1)} m/s / {wsKts.toFixed(0)} kt)
                       </span>
                     </div>
                   );
-                } else if (isGelombangTinggi) {
+                } else if (isCrosswindHazard) {
                   return (
-                    <div className="mx-auto mt-2.5 px-4 py-2 border border-cyan-500/40 bg-[#082f49]/40 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse select-none shadow-[0_0_10px_rgba(6,182,212,0.15)]">
+                    <div className="mx-auto mt-2.5 px-4 py-2 border border-cyan-500/50 bg-[#082f49]/40 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse select-none shadow-[0_0_10px_rgba(6,182,212,0.15)]">
                       <span className="flex h-2 w-2 relative">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
                       </span>
                       <span className="text-xs font-extrabold text-cyan-400 uppercase tracking-wider font-mono text-center">
-                        🌊 WARNING: GELOMBANG TINGGI ({currentData.waveHeight}m)
+                        ⚠️ WARNING: ANGIN SAMPING / CROSSWIND ({crosswindSpeed.toFixed(1)} m/s / {crossKts.toFixed(0)} kt)
                       </span>
                     </div>
                   );
@@ -1443,15 +1481,22 @@ export default function App() {
 
                 {/* Compass Ring wrapper with dynamic warning colors */}
                 {(() => {
-                  const isAnginKencang = currentData.windSpeed >= 12.0;
-                  const isGelombangTinggi = currentData.waveHeight >= 1.2;
+                  const windSpeedVal = currentData.windSpeed;
+                  const windGustVal = currentData.windGust ?? 0;
+                  const isStormHazard = windSpeedVal >= 15.0 || windGustVal >= 18.0;
+                  const isGustWarning = windGustVal >= 14.0;
+                  const isAnginKencang = windSpeedVal >= 10.0;
+                  
+                  const relativeVesselWind = (currentData.windDirection - (parseFloat(config.pierAngle) || 0) + 360) % 360;
+                  const crosswindSpeed = windSpeedVal * Math.abs(Math.sin((relativeVesselWind * Math.PI) / 180));
+                  const isCrosswindHazard = crosswindSpeed >= 8.0;
                   
                   let ringBorderColor = "border-slate-700 shadow-[#00f0ff]/5";
-                  if (isAnginKencang && isGelombangTinggi) {
-                    ringBorderColor = "border-rose-900/80 shadow-[0_0_20px_rgba(239,68,68,0.2)] animate-pulse";
-                  } else if (isAnginKencang) {
-                    ringBorderColor = "border-amber-700/80 shadow-[0_0_15px_rgba(245,158,11,0.15)]";
-                  } else if (isGelombangTinggi) {
+                  if (isStormHazard) {
+                    ringBorderColor = "border-rose-900/80 shadow-[0_0_20px_rgba(239,68,68,0.3)] animate-pulse";
+                  } else if (isGustWarning || isAnginKencang) {
+                    ringBorderColor = "border-amber-700/80 shadow-[0_0_15px_rgba(245,158,11,0.2)]";
+                  } else if (isCrosswindHazard) {
                     ringBorderColor = "border-cyan-800/80 shadow-[0_0_15px_rgba(6,182,212,0.15)]";
                   }
 
@@ -1505,7 +1550,7 @@ export default function App() {
                       <div className="absolute w-20 h-20 rounded-full bg-[#030712]/95 border-2 border-[#00ff66]/50 flex flex-col items-center justify-center shadow-[0_0_18px_rgba(0,255,102,0.35)] z-30 font-mono pointer-events-none transition-all duration-300">
                         <span className="text-[9px] uppercase tracking-widest text-[#00ff66]/70 font-extrabold leading-none mb-1">WIND</span>
                         <span className="text-xl font-black text-[#00ff66] leading-none mb-0.5">{currentData.windSpeed.toFixed(1)}</span>
-                        <span className="text-[9px] text-slate-400 uppercase font-black leading-none font-sans">m/s</span>
+                        <span className="text-[8px] text-slate-400 font-sans leading-none font-bold text-center">m/s ({(currentData.windSpeed * 1.94384).toFixed(1)} kt)</span>
                       </div>
 
                       {/* Port/Darat vs Sea/Open Water Boundary Divider Line rotated with visual pierAngle state */}
@@ -1514,9 +1559,10 @@ export default function App() {
                         style={{ transform: `rotate(${config.pierAngle}deg)` }}
                       >
                         <div className="relative w-full h-full flex items-center justify-center">
-                          {/* Vertical high-contrast dashed neon-blue/emerald divider line through the whole dial - scaled to h-[250px] */}
-                          <div className="absolute h-[250px] w-[1.5px] bg-gradient-to-b from-cyan-400 via-transparent to-cyan-400 opacity-80" />
-                          <div className="absolute h-[250px] w-[1.5px] border-l border-dashed border-cyan-400/50" />
+                          {/* High-contrast thick rectangular block/pier separating PORT and OPEN SEA */}
+                          <div className="absolute h-[246px] w-[18px] bg-gradient-to-r from-cyan-600 via-cyan-400 to-cyan-600 rounded-sm border-2 border-cyan-300 shadow-[0_0_18px_rgba(6,182,212,0.75)]" />
+                          {/* Inner technical center dashed guide line */}
+                          <div className="absolute h-[246px] w-[2px] bg-white/30 border-l border-dashed border-white/40" />
                           
                           {/* Anchor dock markers at the edges of the line - aligned carefully */}
                           <div className="absolute top-[12px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
@@ -1590,16 +1636,18 @@ export default function App() {
                     <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Wind Dir</span>
                     <span className="text-base font-black font-mono text-[#00f0ff]">{currentData.windDirection}°</span>
                   </div>
-                  <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center">
+                  <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center flex flex-col justify-center items-center">
                     <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Wind Spd</span>
-                    <span className="text-base font-black font-mono text-[#00f0ff]">{currentData.windSpeed.toFixed(1)} <span className="text-xs font-sans">m/s</span></span>
+                    <span className="text-base font-black font-mono text-[#00f0ff]">{currentData.windSpeed.toFixed(1)} <span className="text-xs font-sans font-normal text-slate-400">m/s</span></span>
+                    <span className="text-xs font-bold text-emerald-400 font-sans mt-0.5">({(currentData.windSpeed * 1.94384).toFixed(1)} kt)</span>
                   </div>
-                  <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center">
+                  <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center flex flex-col justify-center items-center">
                     <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Wind Gust</span>
                     <span className="text-base font-black font-mono text-amber-400">
                       {currentData.windGust !== undefined && currentData.windGust !== null ? (
                         <>
-                          {currentData.windGust.toFixed(1)} <span className="text-xs font-sans">m/s</span>
+                          {currentData.windGust.toFixed(1)} <span className="text-xs font-sans font-normal text-slate-400">m/s</span>
+                          <span className="text-xs text-emerald-400 font-sans block font-bold mt-0.5">({(currentData.windGust * 1.94384).toFixed(1)} kt)</span>
                         </>
                       ) : (
                         "—"
@@ -1935,9 +1983,12 @@ export default function App() {
                       </span>
 
                       {/* Speed Pill with warm yellowish-orange border & text */}
-                      <div className="w-full bg-[#1c1206] border border-[#f59e0b]/20 py-1.5 px-3 rounded-lg">
-                        <span className="text-xs font-extrabold text-[#f59e0b] font-mono tracking-normal">
-                          {row.windSpeed.toFixed(0)} <span className="text-[10px] font-sans font-medium text-amber-500/70">m/s</span>
+                      <div className="w-full bg-[#1c1206] border border-[#f59e0b]/20 py-1 px-2.5 rounded-lg text-center">
+                        <span className="text-xs font-extrabold text-[#f59e0b] font-mono tracking-normal block">
+                          {row.windSpeed.toFixed(1)} <span className="text-[10px] font-sans font-normal text-amber-500/50">m/s</span>
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-400 font-sans block mt-0.5">
+                          ({(row.windSpeed * 1.94384).toFixed(1)} kt)
                         </span>
                       </div>
 
@@ -1954,46 +2005,249 @@ export default function App() {
 
         {/* PAGE tab 2: CHART ANALYST */}
         {activeTab === 'analyst' && (
-          <div className="space-y-8">
+          <div className="space-y-6">
             
-            {/* Calendar filters & action panels */}
-            <div className="bg-gradient-to-b from-[#0b1424] to-bg p-5 rounded-2xl border border-white/10 flex flex-wrap gap-5 items-end">
-              <div>
-                <label className="text-xs uppercase font-bold text-[#00f0ff] tracking-wider block mb-2 font-sans">Start Analysis Date</label>
-                <input 
-                  type="date" 
-                  value={dbStartDate}
-                  onChange={(e) => setDbStartDate(e.target.value)}
-                  className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-2 px-3.5 rounded-lg outline-none focus:border-[#00f0ff] transition" 
-                />
+            {/* Calendar filters & action panels with top-right shrunken threat badge */}
+            <div className="bg-gradient-to-b from-[#0b1424] to-bg p-5 rounded-2xl border border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5">
+              <div className="flex flex-wrap gap-4 items-end">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1.5 font-sans">Start Analysis Date</label>
+                  <input 
+                    type="date" 
+                    value={dbStartDate}
+                    onChange={(e) => setDbStartDate(e.target.value)}
+                    className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-1.5 px-3 rounded-lg outline-none focus:border-[#00f0ff] transition" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1.5 font-sans">End Analysis Date</label>
+                  <input 
+                    type="date" 
+                    value={dbEndDate}
+                    onChange={(e) => setDbEndDate(e.target.value)}
+                    className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-1.5 px-3 rounded-lg outline-none focus:border-[#00f0ff] transition" 
+                  />
+                </div>
+                <button 
+                  onClick={filterLogsData}
+                  className="bg-[#00f0ff] hover:bg-[#00d0f0] transition text-[#050a12] text-xs font-bold font-mono py-2 px-5 rounded-lg uppercase flex items-center justify-center gap-2 cursor-pointer h-9"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  REFRESH DATA
+                </button>
               </div>
-              <div>
-                <label className="text-xs uppercase font-bold text-[#00f0ff] tracking-wider block mb-2 font-sans">End Analysis Date</label>
-                <input 
-                  type="date" 
-                  value={dbEndDate}
-                  onChange={(e) => setDbEndDate(e.target.value)}
-                  className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-2 px-3.5 rounded-lg outline-none focus:border-[#00f0ff] transition" 
-                />
+
+              {/* Threat Radar & 24H Telemetry Window Link Button */}
+              <div className="flex flex-wrap items-center gap-3 self-stretch sm:self-auto justify-end">
+                <button
+                  onClick={() => setActiveTab('telemetry')}
+                  className="bg-transparent hover:bg-emerald-500/10 border border-emerald-500/40 hover:border-emerald-400 transition text-emerald-400 text-xs font-bold font-mono py-2 px-4 rounded-xl flex items-center gap-2 cursor-pointer h-10 shadow-[0_0_10px_rgba(16,185,129,0.1)] hover:shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                >
+                  <Maximize2 className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
+                  <span className="uppercase tracking-wider text-[10px] font-black">Buka Telemetri 24 Jam (AWS)</span>
+                </button>
+
+                {/* Shrunken Storm & Gale Threat Indicator Pill (Aligned to top right) */}
+                <div className={`flex items-center gap-2.5 border rounded-xl py-1.5 px-3 h-10 ${aiForecastResult.stormBg} select-none shadow-[0_0_15px_rgba(168,85,247,0.08)]`}>
+                  <div className={`text-xl ${aiForecastResult.stormPulse}`}>
+                    {aiForecastResult.stormIcon}
+                  </div>
+                  <div className="text-left font-sans">
+                    <div className="text-[8px] uppercase font-extrabold tracking-widest text-slate-400">Threat Radar</div>
+                    <div className="text-[11px] font-black font-mono text-white flex items-center gap-1.5">
+                      <span style={{ color: aiForecastResult.stormColor }}>{aiForecastResult.stormProb}% Risk</span>
+                      <span className="text-slate-500 font-normal">|</span>
+                      <span className="text-[10px] uppercase font-black tracking-tight" style={{ color: aiForecastResult.stormColor }}>{aiForecastResult.stormStatus}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <button 
-                onClick={filterLogsData}
-                className="bg-[#00f0ff] hover:bg-[#00d0f0] transition text-[#050a12] text-xs font-bold font-mono py-2.5 px-6 rounded-lg uppercase flex items-center gap-2 cursor-pointer"
-              >
-                <RefreshCw className="w-4 h-4" />
-                REFRESH ANALYTICS DATA
-              </button>
             </div>
 
-            {/* Row of 3 charts containing: Temp, Hum, Solar */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            {/* ROW 1: WIND SPEED FORECAST (LEFT) & WIND ROSE (RIGHT) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+              
+              {/* Wind Speed Forecast Chart (col-span-8) */}
+              <div className="lg:col-span-8 bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 p-5 rounded-2xl flex flex-col justify-between">
+                <div className="text-xs uppercase font-extrabold text-[#00f0ff] tracking-[0.15em] mb-4 flex justify-between items-center border-b border-white/5 pb-2">
+                  <span className="flex items-center gap-2">💨 WIND FORCE FORECAST & TRENDS (m/s)</span>
+                  <span className="text-[10px] font-mono text-[#00f0ff]/70 bg-[#00f0ff]/10 border border-[#00f0ff]/20 px-2 py-0.5 rounded">60m AHEAD</span>
+                </div>
+                <div className="h-[240px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={aiForecastResult.combinedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorPastWind" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#fbbf24" stopOpacity={0.25}/>
+                          <stop offset="100%" stopColor="#fbbf24" stopOpacity={0.01}/>
+                        </linearGradient>
+                        <linearGradient id="colorFutWind" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#ef4444" stopOpacity={0.25}/>
+                          <stop offset="100%" stopColor="#ef4444" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="time" tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#fbbf24' }} />
+                      <Legend wrapperStyle={{ fontSize: 10, fontFamily: 'monospace' }} />
+                      <Area type="monotone" dataKey="pastWind" name="Past Wind Speed" stroke="#fbbf24" strokeWidth={2.5} fillOpacity={1} strokeDasharray="" fill="url(#colorPastWind)" dot={false} connectNulls />
+                      <Area type="monotone" dataKey="futWind" name="Forecast (10m step)" stroke="#ef4444" strokeWidth={2.5} fillOpacity={1} strokeDasharray="4 4" fill="url(#colorFutWind)" dot={false} connectNulls />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Wind Rose 24H Card (col-span-4) */}
+              <div className="lg:col-span-4 bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 p-5 rounded-2xl flex flex-col justify-between">
+                <div className="text-xs font-extrabold text-[#00f0ff] uppercase tracking-[0.15em] flex items-center justify-between border-b border-white/5 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Navigation className="w-3.5 h-3.5 text-amber-500 transform rotate-45 animate-pulse" />
+                    <span>Wind Rose (24H Distribution)</span>
+                  </div>
+                  <span className="text-[9px] font-mono text-slate-500 bg-white/5 px-1.5 py-0.5 rounded">POLE INDEX</span>
+                </div>
+
+                <div className="flex justify-center items-center py-2">
+                  {(() => {
+                    const cx = 100;
+                    const cy = 100;
+                    const maxR = 75;
+                    
+                    // Bin windrose directions
+                    const matrix = Array.from({ length: 16 }, () => Array(7).fill(0));
+                    const totalLogs = history.length;
+                    
+                    history.forEach(row => {
+                      const deg = row.windDirection;
+                      const norm = ((deg % 360) + 360) % 360;
+                      const idx = Math.floor(((norm + 11.25) % 360) / 22.5);
+                      
+                      const speed = row.windSpeed;
+                      if (speed <= 4) matrix[idx][0]++;
+                      else if (speed <= 6) matrix[idx][1]++;
+                      else if (speed <= 10) matrix[idx][2]++;
+                      else if (speed <= 15) matrix[idx][3]++;
+                      else if (speed <= 20) matrix[idx][4]++;
+                      else if (speed <= 25) matrix[idx][5]++;
+                      else matrix[idx][6]++;
+                    });
+                    
+                    const maxCountInAnySector = Math.max(1, ...matrix.map(row => row.reduce((a, b) => a + b, 0)));
+                    const maxPctInAnySector = totalLogs > 0 ? (maxCountInAnySector / totalLogs) * 100 : 10;
+                    const maxPctScope = Math.max(10, Math.ceil(maxPctInAnySector / 5) * 5);
+                    
+                    const getXY = (r: number, deg: number) => {
+                      const rad = ((deg - 90) * Math.PI) / 180.0;
+                      return {
+                        x: cx + r * Math.cos(rad),
+                        y: cy + r * Math.sin(rad),
+                      };
+                    };
+                    
+                    const colors = [
+                      '#4a628a', // 0-4
+                      '#22c55e', // 4-6
+                      '#eab308', // 6-10
+                      '#f97316', // 10-15
+                      '#db2777', // 15-20
+                      '#7c3aed', // 20-25
+                      '#2563eb', // >25
+                    ];
+                    
+                    return (
+                      <svg viewBox="0 0 200 200" className="w-[170px] h-[170px] select-none font-sans">
+                        <circle cx={cx} cy={cy} r={maxR} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={0.7} strokeDasharray="2 3" />
+                        <circle cx={cx} cy={cy} r={maxR * 0.5} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={0.7} strokeDasharray="2 3" />
+                        <circle cx={cx} cy={cy} r={3} fill="#1e293b" stroke="rgba(255,255,255,0.2)" strokeWidth={0.5} />
+                        
+                        <line x1={cx} y1={cy - maxR} x2={cx} y2={cy + maxR} stroke="rgba(255,255,255,0.05)" strokeWidth={0.7} />
+                        <line x1={cx - maxR} y1={cy} x2={cx + maxR} y2={cy} stroke="rgba(255,255,255,0.05)" strokeWidth={0.7} />
+                        
+                        <text x={cx + 2} y={cy - maxR + 8} fill="rgba(0,240,255,0.4)" fontSize={5.5} className="font-mono font-bold">{maxPctScope.toFixed(0)}%</text>
+                        <text x={cx + 2} y={cy - (maxR * 0.5) + 6} fill="rgba(255,255,255,0.25)" fontSize={5.5} className="font-mono">{(maxPctScope / 2).toFixed(0)}%</text>
+
+                        <text x={cx} y={cy - maxR - 4} fill="#f8fafc" fontSize={7} fontWeight="bold" textAnchor="middle" alignmentBaseline="middle">N</text>
+                        <text x={cx + maxR + 5} y={cy} fill="#94a3b8" fontSize={7} fontWeight="bold" textAnchor="start" alignmentBaseline="middle">E</text>
+                        <text x={cx} y={cy + maxR + 5} fill="#94a3b8" fontSize={7} fontWeight="bold" textAnchor="middle" alignmentBaseline="middle">S</text>
+                        <text x={cx - maxR - 5} y={cy} fill="#94a3b8" fontSize={7} fontWeight="bold" textAnchor="end" alignmentBaseline="middle">W</text>
+
+                        {(() => {
+                          const rText = maxR - 10;
+                          const ne = getXY(rText, 45);
+                          const se = getXY(rText, 135);
+                          const sw = getXY(rText, 225);
+                          const nw = getXY(rText, 315);
+                          return (
+                            <>
+                              <text x={ne.x} y={ne.y} fill="rgba(255,255,255,0.12)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">NE</text>
+                              <text x={se.x} y={se.y} fill="rgba(255,255,255,0.12)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">SE</text>
+                              <text x={sw.x} y={sw.y} fill="rgba(255,255,255,0.12)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">SW</text>
+                              <text x={nw.x} y={nw.y} fill="rgba(255,255,255,0.12)" fontSize={5} textAnchor="middle" alignmentBaseline="middle">NW</text>
+                            </>
+                          );
+                        })()}
+
+                        {matrix.map((binsInSector, dIdx) => {
+                          const centralAngle = dIdx * 22.5;
+                          const angleStart = centralAngle - 7.5;
+                          const angleEnd = centralAngle + 7.5;
+                          
+                          let cumCount = 0;
+                          return binsInSector.map((countInBin, bIdx) => {
+                            if (countInBin === 0) return null;
+                            const startCount = cumCount;
+                            const endCount = cumCount + countInBin;
+                            cumCount = endCount; 
+                            if (totalLogs === 0) return null;
+                            const pctStart = (startCount / totalLogs) * 100;
+                            const pctEnd = (endCount / totalLogs) * 100;
+                            const rStart = Math.max(3, (pctStart / maxPctScope) * maxR);
+                            const rEnd = (pctEnd / maxPctScope) * maxR;
+                            if (rEnd - rStart < 0.2) return null;
+                            const p1 = getXY(rEnd, angleStart);
+                            const p2 = getXY(rEnd, angleEnd);
+                            const p3 = getXY(rStart, angleEnd);
+                            const p4 = getXY(rStart, angleStart);
+                            const path = `M ${p1.x} ${p1.y} A ${rEnd} ${rEnd} 0 0 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${rStart} ${rStart} 0 0 0 ${p4.x} ${p4.y} Z`;
+                            return (
+                              <path 
+                                key={`${dIdx}-${bIdx}`} 
+                                d={path} 
+                                fill={colors[bIdx]} 
+                                opacity={0.88} 
+                                className="transition-all duration-300 hover:opacity-100"
+                              />
+                            );
+                          });
+                        })}
+                      </svg>
+                    );
+                  })()}
+                </div>
+
+                <div className="grid grid-cols-4 gap-y-1 text-[8px] text-slate-400 border-t border-white/5 pt-2 font-mono">
+                  <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#4a628a]" /><span className="truncate">0-4 kt</span></div>
+                  <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#22c55e]" /><span className="truncate">4-6 kt</span></div>
+                  <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#eab308]" /><span className="truncate">6-10 kt</span></div>
+                  <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#f97316]" /><span className="truncate">10-15</span></div>
+                  <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#db2777]" /><span className="truncate">15-20</span></div>
+                  <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#7c3aed]" /><span className="truncate">20-25</span></div>
+                  <div className="flex items-center gap-1 col-span-2"><span className="w-1.5 h-1.5 rounded-full bg-[#2563eb]" /><span className="truncate">&gt;25 kt</span></div>
+                </div>
+              </div>
+            </div>
+
+            {/* ROW 2: CRITICAL WEATHER SENSOR HISTORIES */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               
               {/* Temp Area Chart */}
               <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3">
-                <div className="text-xs uppercase font-bold text-[#00f0ff] tracking-[0.2em] font-sans pb-2 border-b border-white/5">
-                  📈 Air Temperature History (°C)
+                <div className="text-xs uppercase font-extrabold text-[#38bdf8] tracking-[0.2em] font-sans pb-2 border-b border-white/5 flex items-center justify-between">
+                  <span>📈 AIR TEMPERATURE (°C)</span>
+                  <span className="text-[10px] font-mono text-slate-500">24H CYCLE</span>
                 </div>
-                <div className="h-[220px]">
+                <div className="h-[210px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={history.slice(-25)}>
                       <defs>
@@ -2014,10 +2268,11 @@ export default function App() {
 
               {/* Humidity Area Chart */}
               <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3">
-                <div className="text-xs uppercase font-bold text-[#22c55e] tracking-[0.2em] font-sans pb-2 border-b border-white/5">
-                  📈 Relative Humidity History (%)
+                <div className="text-xs uppercase font-extrabold text-[#22c55e] tracking-[0.2em] font-sans pb-2 border-b border-white/5 flex items-center justify-between">
+                  <span>📈 RELATIVE HUMIDITY (%)</span>
+                  <span className="text-[10px] font-mono text-slate-500">REALTIME</span>
                 </div>
-                <div className="h-[220px]">
+                <div className="h-[210px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={history.slice(-25)}>
                       <defs>
@@ -2038,10 +2293,11 @@ export default function App() {
 
               {/* Solar Radiation Spline Chart */}
               <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3">
-                <div className="text-xs uppercase font-bold text-[#f59e0b] tracking-[0.2em] font-sans pb-2 border-b border-white/5">
-                  📈 Solar Irradiance Acc. (W/m²)
+                <div className="text-xs uppercase font-extrabold text-[#f59e0b] tracking-[0.2em] font-sans pb-2 border-b border-white/5 flex items-center justify-between">
+                  <span>📈 SOLAR IRRADIANCE (W/m²)</span>
+                  <span className="text-[10px] font-mono text-slate-500">ACCUMULATED</span>
                 </div>
-                <div className="h-[220px]">
+                <div className="h-[210px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={history.slice(-25)}>
                       <defs>
@@ -2058,110 +2314,6 @@ export default function App() {
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
-              </div>
-
-            </div>
-
-            {/* AI MARINE PORT FORECAST ENGINE (PURPLE GLOW HIGH CONTRAST BOX) */}
-            <div className="border-[1.5px] border-purple-500/30 rounded-3xl p-6 bg-gradient-to-tr from-[#160f26] via-[#0b1424] to-bg relative shadow-[0_0_50px_rgba(168,85,247,0.15)] flex flex-col gap-6">
-              
-              <div className="absolute top-0 right-10 w-24 h-[1px] bg-gradient-to-r from-transparent via-purple-400 to-transparent" />
-              
-              <div className="flex flex-col md:flex-row pb-4 border-b border-white/10 items-start md:items-center justify-between gap-4">
-                <div>
-                  <h4 className="text-sm font-black text-purple-400 uppercase tracking-[0.25em] flex items-center gap-2">
-                    ⚡ AI MARINE PORT FORECAST ENGINE
-                  </h4>
-                  <p className="text-xs text-[#cbd5e1] font-mono mt-1 opacity-70">
-                    Sistem Prediksi Real-Time Berdasarkan Live Momentum Sensor Versus Database Kemarin (60m Ahead)
-                  </p>
-                </div>
-                <div className="bg-purple-900/40 border border-purple-500/30 font-mono text-xs font-bold py-1 px-4 tracking-widest text-[#e9d5ff] rounded">
-                  ENGINE STATUS: AUTOMATIC_MOMENTUM
-                </div>
-              </div>
-
-              {/* Rows of Forecast line charts containing: Wave, Wind & Safety Warning panel */}
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-stretch">
-                
-                {/* 1-Hour Wave Height Line Chart */}
-                <div className="xl:col-span-4 bg-[#050a12]/70 border border-white/5 p-4 rounded-xl flex flex-col justify-between">
-                  <div className="text-xs uppercase font-bold text-slate-300 tracking-[0.15em] mb-3 flex justify-between">
-                    <span>🌊 Wave Height Forecast (m)</span>
-                    <span className="text-xs font-mono text-purple-400">10m Steps</span>
-                  </div>
-                  <div className="h-[210px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={aiForecastResult.combinedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
-                        <XAxis dataKey="time" tick={{ fill: '#94a3b8', fontSize: 9 }} />
-                        <YAxis tick={{ fill: '#94a3b8', fontSize: 9 }} domain={['auto', 'auto']} />
-                        <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#a855f7' }} />
-                        <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'monospace' }} />
-                        <Line type="monotone" dataKey="pastWave" name="Past" stroke="#0ea5e9" strokeWidth={2.5} dot={false} connectNulls />
-                        <Line type="monotone" dataKey="futWave" name="Forecast" stroke="#a855f7" strokeWidth={3} strokeDasharray="5 5" dot={false} connectNulls />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* 1-Hour Wind Gust Line Chart */}
-                <div className="xl:col-span-4 bg-[#050a12]/70 border border-white/5 p-4 rounded-xl flex flex-col justify-between">
-                  <div className="text-xs uppercase font-bold text-slate-300 tracking-[0.15em] mb-3 flex justify-between">
-                    <span>💨 Wind Force Forecast (m/s)</span>
-                    <span className="text-xs font-mono text-purple-400">10m Steps</span>
-                  </div>
-                  <div className="h-[210px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={aiForecastResult.combinedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
-                        <XAxis dataKey="time" tick={{ fill: '#94a3b8', fontSize: 9 }} />
-                        <YAxis tick={{ fill: '#94a3b8', fontSize: 9 }} domain={['auto', 'auto']} />
-                        <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#f59e0b' }} />
-                        <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'monospace' }} />
-                        <Line type="monotone" dataKey="pastWind" name="Past" stroke="#fbbf24" strokeWidth={2.5} dot={false} connectNulls />
-                        <Line type="monotone" dataKey="futWind" name="Forecast" stroke="#ef4444" strokeWidth={3} strokeDasharray="5 5" dot={false} connectNulls />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* Storm & Gale Threat Radar warning interactive block */}
-                <div className={`xl:col-span-4 border rounded-2xl p-5 ${aiForecastResult.stormBg} flex flex-col justify-between text-center`}>
-                  <div className="text-xs uppercase font-bold text-slate-200 tracking-[0.15em] mb-2 flex justify-between">
-                    <span>⚠️ Storm & Gale Threat Radar</span>
-                    <span className="text-xs font-mono opacity-50">STORM_RDR_05</span>
-                  </div>
-
-                  <div className="my-auto flex flex-col items-center justify-center py-4">
-                    {/* Visual representation of radar danger: Gale wind spinner or boat */}
-                    <div className={`text-6xl mb-3 tracking-wider ${aiForecastResult.stormPulse}`}>
-                      {aiForecastResult.stormIcon}
-                    </div>
-
-                    {/* Threat indicator risk percent */}
-                    <div className="text-3xl font-mono tracking-tighter text-white font-black drop-shadow" style={{ color: aiForecastResult.stormColor, textShadow: `0 0 20px ${aiForecastResult.stormColor}50` }}>
-                      {aiForecastResult.stormProb}% Risk
-                    </div>
-
-                    {/* Standardised threat bar */}
-                    <div className="w-4/5 h-2.5 bg-white/5 rounded-full overflow-hidden mt-4 relative">
-                      <div 
-                        className="h-full rounded-full transition-all duration-1000 ease-out" 
-                        style={{ width: `${aiForecastResult.stormProb}%`, backgroundColor: aiForecastResult.stormColor, boxShadow: `0 0 10px ${aiForecastResult.stormColor}` }} 
-                      />
-                    </div>
-
-                    {/* Human Weather Status indicator */}
-                    <div 
-                      className="border border-white/10 rounded-full font-mono text-xs py-1.5 px-6 font-black uppercase inline-block mt-4"
-                      style={{ color: aiForecastResult.stormColor, borderColor: aiForecastResult.stormColor }}
-                    >
-                      {aiForecastResult.stormStatus}
-                    </div>
-                  </div>
-                </div>
-
               </div>
 
             </div>
@@ -2696,11 +2848,11 @@ header("Content-Type: application/json; charset=UTF-8");
                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Temp (°C)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Hum (%)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Rad (W/m²)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-[0.15em] text-amber-500 text-center text-xs">W-Gust (m/s)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-[0.15em] text-amber-500 text-center text-xs">W-Gust (m/s / kt)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-xs">W-Level (m)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-pink-400 text-center text-xs">pH Air</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Dir (°)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Spd (m/s)</th>
+                      <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Spd (m/s / kt)</th>
                       <th className="p-3.5 uppercase font-bold tracking-widest text-slate-400 text-center text-xs">Press (hPa)</th>
                     </tr>
                   </thead>
@@ -2719,12 +2871,12 @@ header("Content-Type: application/json; charset=UTF-8");
                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.humidity}%</td>
                           <td className="p-3 text-center border-r border-white/5 text-[#f59e0b]">{item.solarRadiation}</td>
                           <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">
-                            {item.windGust !== undefined && item.windGust !== null ? item.windGust.toFixed(1) : "—"}
+                            {item.windGust !== undefined && item.windGust !== null ? `${item.windGust.toFixed(1)} / ${(item.windGust * 1.94384).toFixed(0)}` : "—"}
                           </td>
                           <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">{item.seaLevel.toFixed(1)}m</td>
                           <td className="p-3 text-center border-r border-white/5 text-pink-400 font-bold">{(item.waterPh ?? 7.80).toFixed(2)}</td>
                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.windDirection}°</td>
-                          <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">{item.windSpeed.toFixed(1)}</td>
+                          <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">{item.windSpeed.toFixed(1)} / {(item.windSpeed * 1.94384).toFixed(0)}</td>
                           <td className="p-3 text-center text-slate-300 pr-4 text-right">{item.pressure.toFixed(1)}</td>
                         </tr>
                       ))
@@ -3136,9 +3288,9 @@ header("Content-Type: application/json; charset=UTF-8");
                     { label: 'Solar Rad.', key: 'ch_5', color: '#f59e0b', source: currentData.solarRadiation + ' W/m²' },
                     { label: 'Water Lvl', key: 'ch_15', color: '#3b82f6', source: currentData.seaLevel.toFixed(1) + ' m' },
                     { label: 'Wind Dir', key: 'ch_16', color: '#fbbf24', source: currentData.windDirection + ' °' },
-                    { label: 'Wind Spd', key: 'ch_17', color: '#fbbf24', source: currentData.windSpeed.toFixed(1) + ' m/s' },
-                    { label: 'Wind Spd Max', key: 'ch_19', color: '#fbbf24', source: windStats.max.toFixed(1) + ' m/s' },
-                    { label: 'Wind Spd Min', key: 'ch_20', color: '#fbbf24', source: windStats.min.toFixed(1) + ' m/s' },
+                    { label: 'Wind Spd', key: 'ch_17', color: '#fbbf24', source: `${currentData.windSpeed.toFixed(1)} m/s (${(currentData.windSpeed * 1.94384).toFixed(1)} kt)` },
+                    { label: 'Wind Spd Max', key: 'ch_19', color: '#fbbf24', source: `${windStats.max.toFixed(1)} m/s (${(windStats.max * 1.94384).toFixed(1)} kt)` },
+                    { label: 'Wind Spd Min', key: 'ch_20', color: '#fbbf24', source: `${windStats.min.toFixed(1)} m/s (${(windStats.min * 1.94384).toFixed(1)} kt)` },
                     { label: 'Pres QFE', key: 'ch_9', color: '#94a3b8', source: currentData.pressure.toFixed(1) + ' hPa' },
                     { label: 'Pres QFF', key: 'ch_11', color: '#94a3b8', source: (currentData.pressure + 2.1).toFixed(1) + ' hPa' },
                     { label: 'Pres QNH', key: 'ch_13', color: '#94a3b8', source: (currentData.pressure - 1.2).toFixed(1) + ' hPa' },
@@ -3788,11 +3940,11 @@ header("Content-Type: application/json; charset=UTF-8");
                   Reference Website
                 </span>
                 <p className="text-xs text-slate-400 mt-1">
-                  Seluruh data di atas disinkronkan secara presisi dengan laporan resmi BMKG Maritim Pelabuhan Ciwandan. Anda dapat membuka pranala web resminya melalui tombol di samping.
+                  Seluruh data di atas disinkronkan secara presisi dengan laporan resmi BMKG Maritim. Anda dapat membuka pranala web resminya melalui tombol di samping.
                 </p>
               </div>
               <a 
-                href="https://maritim.bmkg.go.id/cuaca/pelabuhan/pelabuhan-ciwandan" 
+                href="https://maritim.bmkg.go.id" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="w-full sm:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-extrabold font-mono tracking-wide rounded-xl flex items-center justify-center gap-2 cursor-pointer uppercase shadow-lg transition-all"
@@ -3805,11 +3957,148 @@ header("Content-Type: application/json; charset=UTF-8");
           </div>
         )}
 
+        {/* PAGE tab 6: AUTOMATIC WEATHER STATION TELEMETRY (24 Hours Charts) */}
+        {activeTab === 'telemetry' && (
+          <div className="space-y-6 animate-fade-in pb-10">
+            
+            {/* Main Telemetry Charts Grid rendering in full tab viewport width */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              
+              {/* Chart 1: Water Level */}
+              <div className="bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
+                <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#0ea5e9]/50 rounded-tl-xl" />
+                <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                  <span className="text-sm font-black text-[#0ea5e9] tracking-wider font-sans uppercase flex items-center gap-2">
+                    🌊 1. Water Level / Pasut (Meter)
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">Limit: 24 Jam</span>
+                </div>
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={history.slice(-144)}>
+                      <defs>
+                        <linearGradient id="colorPopupWaterLevel" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#0ea5e9" stopOpacity={0.25}/>
+                          <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} tickFormatter={(v) => (v / 100).toFixed(1) + 'm'} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#0ea5e9' }} labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} formatter={(value: any) => [(value / 100).toFixed(2) + ' m', 'Water Level']} />
+                      <Area type="monotone" dataKey="seaLevel" stroke="#0ea5e9" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupWaterLevel)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Chart 2: Air Pressure */}
+              <div className="bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
+                <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#22d3ee]/50 rounded-tl-xl" />
+                <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                  <span className="text-sm font-black text-[#22d3ee] tracking-wider font-sans uppercase flex items-center gap-2">
+                    🌀 2. Barometric Pressure (hPa)
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">Unit: Hectopascal</span>
+                </div>
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={history.slice(-144)}>
+                      <defs>
+                        <linearGradient id="colorPopupPressure" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.25}/>
+                          <stop offset="100%" stopColor="#22d3ee" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#22d3ee' }} labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} formatter={(value: any) => [value + ' hPa', 'Pressure']} />
+                      <Area type="monotone" dataKey="pressure" stroke="#22d3ee" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupPressure)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Chart 3: Water pH / Kualitas Air */}
+              <div className="bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
+                <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#fc63a3]/50 rounded-tl-xl" />
+                <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                  <span className="text-sm font-black text-[#fc63a3] tracking-wider font-sans uppercase flex items-center gap-2">
+                    🧪 3. Water pH Quality Index
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">pH Scale 0-14</span>
+                </div>
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={history.slice(-144)}>
+                      <defs>
+                        <linearGradient id="colorPopupPh" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#fc63a3" stopOpacity={0.25}/>
+                          <stop offset="100%" stopColor="#fc63a3" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[6.5, 9.0]} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#fc63a3' }} labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} formatter={(value: any) => [value.toFixed(2), 'Water pH']} />
+                      <Area type="monotone" dataKey="waterPh" stroke="#fc63a3" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupPh)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Chart 4: Wind Gust */}
+              <div className="bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
+                <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#f97316]/50 rounded-tl-xl" />
+                <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                  <span className="text-sm font-black text-[#f97316] tracking-wider font-sans uppercase flex items-center gap-2">
+                    ⚡ 4. Wind Gust Speeds (Knot)
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">Peak Speeds</span>
+                </div>
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={history.slice(-144).map(item => ({
+                      ...item,
+                      displayGust: item.windGust || parseFloat((item.windSpeed * 1.35).toFixed(1))
+                    }))}>
+                      <defs>
+                        <linearGradient id="colorPopupGust" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f97316" stopOpacity={0.25}/>
+                          <stop offset="100%" stopColor="#f97316" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#f97316' }} labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} formatter={(value: any) => [value + ' kt', 'Wind Gust']} />
+                      <Area type="monotone" dataKey="displayGust" stroke="#f97316" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupGust)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Informational Disclaimer Banner */}
+            <div className="bg-[#0b1424] border border-white/10 p-5 rounded-3xl flex flex-col md:flex-row gap-4 justify-between items-center bg-gradient-to-r from-emerald-950/15 to-transparent">
+              <p className="text-xs text-slate-400 font-sans leading-relaxed text-center md:text-left">
+                ⚠️ <strong>INFORMASI OPERASIONAL AWS:</strong> Grafik di atas menyajikan feed intermitten 24 jam terakhir dari stasiun meteorologi fisik <strong>Automatic Weather Station</strong>. Gunakan data telemetry ini sebagai acuan validasi operasional yang presisi.
+              </p>
+              <span className="text-[10px] font-mono text-emerald-400 font-extrabold bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20 whitespace-nowrap uppercase tracking-widest">
+                AWS ONLINE SECURE
+              </span>
+            </div>
+
+          </div>
+        )}
+
       </main>
 
       {/* Decorative subtle console metadata footer */}
       <footer className="fixed bottom-3 right-6 pointer-events-none opacity-20 flex flex-col items-end gap-0.5">
-        <span className="text-xs font-mono tracking-widest text-[#00f0ff] uppercase">RMS SYS STN: CONNECTED SECURE</span>
+        <span className="text-xs font-mono tracking-widest text-[#00f0ff] uppercase">AWS SYS STN: CONNECTED SECURE</span>
         <span className="text-xs font-mono tracking-widest text-slate-500">UTC: 2026-06-06 UTC+7 LOCAL SYSTEM</span>
       </footer>
     </div>
