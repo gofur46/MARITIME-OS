@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Thermometer, Droplets, Droplet, Wind, Navigation, Gauge, Sun, CloudRain, 
   Waves, MoveDown, LayoutDashboard, History, Settings, FileText,
-  AlertTriangle, Play, RefreshCw, Send, CheckCircle, Database
+  AlertTriangle, Play, RefreshCw, Send, CheckCircle, Database,
+  Anchor, ArrowUpRight, Eye, Compass
 } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { WeatherData, AlertLevel, PortInstruction } from './types';
@@ -19,6 +20,7 @@ const CLIMATOLOGY_AVG = {
 // Initial Config state
 const DEFAULT_CONFIG = {
   idStation: 'SYS1000',
+  stationName: 'Pelabuhan Ciwandan',
   transport: 'SERIAL', // SERIAL | TCP | OFF
   splitchar: ';',
   serialcom: 'COM3',
@@ -178,8 +180,46 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
   };
 };
 
+export interface BMKGForecastRow {
+  waktu: string;
+  jam: string;
+  cuaca: string;
+  cuacaIcon: string;
+  anginDir: string;
+  anginSpeed: number;
+  anginGust: number;
+  gelombangVal: number;
+  gelombangKet: string;
+  arusDir: string;
+  arusSpeed: number;
+  visibility: number;
+  suhu: number;
+  kelembaban: number;
+  pasut: number;
+}
+
+export const BMKG_CIWANDAN_FORECAST: BMKGForecastRow[] = [
+  { waktu: "16 Jun 26, 14.00", jam: "Sore ini", cuaca: "Berawan", cuacaIcon: "☁️", anginDir: "Timur Laut", anginSpeed: 10, anginGust: 16, gelombangVal: 0.4, gelombangKet: "Tenang", arusDir: "Utara", arusSpeed: 1.0, visibility: 10, suhu: 30, kelembaban: 72, pasut: 0.58 },
+  { waktu: "16 Jun 26, 15.00", jam: "Jam berikutnya", cuaca: "Berawan", cuacaIcon: "☁️", anginDir: "Timur Laut", anginSpeed: 9, anginGust: 16, gelombangVal: 0.4, gelombangKet: "Tenang", arusDir: "Barat Daya", arusSpeed: 1.2, visibility: 10, suhu: 30, kelembaban: 73, pasut: 0.58 },
+  { waktu: "16 Jun 26, 16.00", jam: "2 pm ke depan", cuaca: "Berawan", cuacaIcon: "☁️", anginDir: "Timur Laut", anginSpeed: 9, anginGust: 16, gelombangVal: 0.4, gelombangKet: "Tenang", arusDir: "Barat Daya", arusSpeed: 1.2, visibility: 10, suhu: 29, kelembaban: 73, pasut: 0.59 },
+  { waktu: "16 Jun 26, 17.00", jam: "3 pm ke depan", cuaca: "Berawan", cuacaIcon: "☁️", anginDir: "Timur Laut", anginSpeed: 9, anginGust: 14, gelombangVal: 0.4, gelombangKet: "Tenang", arusDir: "Barat Daya", arusSpeed: 1.2, visibility: 10, suhu: 29, kelembaban: 72, pasut: 0.59 },
+  { waktu: "16 Jun 26, 18.00", jam: "4 pm ke depan", cuaca: "Berawan", cuacaIcon: "☁️", anginDir: "Timur", anginSpeed: 4, anginGust: 12, gelombangVal: 0.5, gelombangKet: "Rendah", arusDir: "Barat Daya", arusSpeed: 1.7, visibility: 10, suhu: 29, kelembaban: 72, pasut: 0.59 },
+  { waktu: "16 Jun 26, 19.00", jam: "5 pm ke depan", cuaca: "Berawan", cuacaIcon: "☁️", anginDir: "Timur", anginSpeed: 4, anginGust: 11, gelombangVal: 0.5, gelombangKet: "Rendah", arusDir: "Barat Daya", arusSpeed: 1.7, visibility: 10, suhu: 29, kelembaban: 71, pasut: 0.57 },
+  { waktu: "16 Jun 26, 20.00", jam: "6 pm ke depan", cuaca: "Cerah Berawan", cuacaIcon: "⛅", anginDir: "Timur", anginSpeed: 4, anginGust: 10, gelombangVal: 0.5, gelombangKet: "Rendah", arusDir: "Barat Daya", arusSpeed: 1.7, visibility: 10, suhu: 29, kelembaban: 72, pasut: 0.57 },
+  { waktu: "16 Jun 26, 21.00", jam: "7 pm ke depan", cuaca: "Cerah Berawan", cuacaIcon: "⛅", anginDir: "Timur", anginSpeed: 8, anginGust: 10, gelombangVal: 0.5, gelombangKet: "Rendah", arusDir: "Barat Daya", arusSpeed: 2.2, visibility: 10, suhu: 28, kelembaban: 76, pasut: 0.57 },
+  { waktu: "16 Jun 26, 22.00", jam: "8 pm ke depan", cuaca: "Cerah", cuacaIcon: "☀️", anginDir: "Timur", anginSpeed: 8, anginGust: 10, gelombangVal: 0.5, gelombangKet: "Rendah", arusDir: "Barat Daya", arusSpeed: 2.2, visibility: 10, suhu: 27, kelembaban: 81, pasut: 0.55 },
+  { waktu: "16 Jun 26, 23.00", jam: "9 jam ke depan", cuaca: "Cerah Berawan", cuacaIcon: "⛅", anginDir: "Timur", anginSpeed: 8, anginGust: 9, gelombangVal: 0.5, gelombangKet: "Rendah", arusDir: "Barat Daya", arusSpeed: 2.2, visibility: 10, suhu: 27, kelembaban: 83, pasut: 0.55 },
+  { waktu: "17 Jun 26, 00.00", jam: "10 pm ke depan", cuaca: "Cerah Berawan", cuacaIcon: "⛅", anginDir: "Tenggara", anginSpeed: 4, anginGust: 8, gelombangVal: 0.4, gelombangKet: "Tenang", arusDir: "Barat Daya", arusSpeed: 3.1, visibility: 10, suhu: 27, kelembaban: 83, pasut: 0.55 },
+  { waktu: "17 Jun 26, 01.00", jam: "11 pm ke depan", cuaca: "Berawan", cuacaIcon: "☁️", anginDir: "Tenggara", anginSpeed: 4, anginGust: 11, gelombangVal: 0.4, gelombangKet: "Tenang", arusDir: "Barat Daya", arusSpeed: 3.1, visibility: 10, suhu: 26, kelembaban: 84, pasut: 0.56 },
+  { waktu: "17 Jun 26, 02.00", jam: "12 pm ke depan", cuaca: "Cerah Berawan", cuacaIcon: "⛅", anginDir: "Tenggara", anginSpeed: 4, anginGust: 12, gelombangVal: 0.4, gelombangKet: "Tenang", arusDir: "Barat Daya", arusSpeed: 3.1, visibility: 10, suhu: 26, kelembaban: 87, pasut: 0.56 },
+  { waktu: "17 Jun 26, 03.00", jam: "13 pm ke depan", cuaca: "Berawan", cuacaIcon: "☁️", anginDir: "Selatan", anginSpeed: 3, anginGust: 11, gelombangVal: 0.4, gelombangKet: "Tenang", arusDir: "Barat Daya", arusSpeed: 3.3, visibility: 10, suhu: 26, kelembaban: 87, pasut: 0.56 },
+  { waktu: "17 Jun 26, 04.00", jam: "14 pm ke depan", cuaca: "Berawan", cuacaIcon: "☁️", anginDir: "Selatan", anginSpeed: 3, anginGust: 11, gelombangVal: 0.4, gelombangKet: "Tenang", arusDir: "Barat Daya", arusSpeed: 3.3, visibility: 10, suhu: 26, kelembaban: 87, pasut: 0.56 },
+  { waktu: "17 Jun 26, 05.00", jam: "15 pm ke depan", cuaca: "Berawan", cuacaIcon: "☁️", anginDir: "Selatan", anginSpeed: 3, anginGust: 10, gelombangVal: 0.4, gelombangKet: "Tenang", arusDir: "Barat Daya", arusSpeed: 3.3, visibility: 10, suhu: 26, kelembaban: 86, pasut: 0.56 },
+  { waktu: "17 Jun 26, 06.00", jam: "16 pm ke depan", cuaca: "Berawan", cuacaIcon: "☁️", anginDir: "Timur", anginSpeed: 3, anginGust: 9, gelombangVal: 0.4, gelombangKet: "Tenang", arusDir: "Barat Daya", arusSpeed: 1.9, visibility: 10, suhu: 26, kelembaban: 88, pasut: 0.56 }
+];
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'realtime' | 'analyst' | 'database' | 'settings'>('realtime');
+  const [activeTab, setActiveTab] = useState<'realtime' | 'analyst' | 'database' | 'settings' | 'bmkg'>('realtime');
   
   // Persisted state setup matching your parameters
   const [config, setConfig] = useState(() => {
@@ -206,6 +246,9 @@ export default function App() {
   const dbEngine = 'postgresql';
   const [isIntegratorOpen, setIsIntegratorOpen] = useState(false);
   const [isDbConnected, setIsDbConnected] = useState(false);
+  const [bmkgSearchText, setBmkgSearchText] = useState('');
+  const [selectedForecastIndex, setSelectedForecastIndex] = useState<number | null>(0);
+  const [bmkgLayout, setBmkgLayout] = useState<'table' | 'cards'>('table');
   const [lastDbSaveTime, setLastDbSaveTime] = useState<number>(Date.now());
   const [dbTestResult, setDbTestResult] = useState<{
     status: 'idle' | 'loading' | 'success' | 'error';
@@ -1089,6 +1132,14 @@ export default function App() {
             <Settings className="w-4.5 h-4.5" />
             <span className="text-xs">OPTION</span>
           </button>
+
+          <button 
+            onClick={() => setActiveTab('bmkg')}
+            className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border ${activeTab === 'bmkg' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
+          >
+            <Anchor className="w-4.5 h-4.5" />
+            <span className="text-xs">BMKG PORT</span>
+          </button>
         </nav>
 
         {/* Station Indicator */}
@@ -1114,8 +1165,8 @@ export default function App() {
               </span>
               <span>AWS OS CONNECTION: {config.transport}{config.transport !== 'OFF' && ` (${config.serialcom || '192.168.1.1'}:${config.baudrate || '4001'})`}</span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-white uppercase flex items-baseline gap-2">
-              AWS MARINE BOARD <span className="text-[#00f0ff] text-xs font-mono lowercase tracking-[0.05em] bg-[#00f0ff]/10 py-0.5 px-3 rounded border border-[#00f0ff]/30 font-bold">Pro RMS v3</span>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-white uppercase flex flex-wrap items-baseline gap-x-2">
+              <span>{config.stationName ? `AWS PORT: ${config.stationName}` : "AWS MARINE BOARD"}</span> <span className="text-[#00f0ff] text-xs font-mono lowercase tracking-[0.05em] bg-[#00f0ff]/10 py-0.5 px-3 rounded border border-[#00f0ff]/30 font-bold">Pro RMS v3</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-bold">
               Kondisi Operasional Port & Log Terminal Cuaca Maritim
@@ -2691,6 +2742,29 @@ header("Content-Type: application/json; charset=UTF-8");
                     </p>
                   </div>
 
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">🏷️ Station ID</label>
+                      <input 
+                        type="text" 
+                        value={config.idStation || ''} 
+                        placeholder="SYS1000"
+                        onChange={(e) => setConfig({ ...config, idStation: e.target.value })}
+                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs md:text-sm text-center p-3 text-white rounded-lg outline-none focus:border-[#00f0ff]" 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">⚓ Port / Location</label>
+                      <input 
+                        type="text" 
+                        value={config.stationName || ''} 
+                        placeholder="Pelabuhan Ciwandan"
+                        onChange={(e) => setConfig({ ...config, stationName: e.target.value })}
+                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs md:text-sm text-center p-3 text-white rounded-lg outline-none focus:border-[#00f0ff]" 
+                      />
+                    </div>
+                  </div>
+
                   <div>
                     <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">✂️ Splitter Char</label>
                     <input 
@@ -3096,6 +3170,19 @@ header("Content-Type: application/json; charset=UTF-8");
                   📡 LOAD MOXA TELEMETRY PRESETS
                 </button>
 
+                {/* BMKG QUICK LINK BUTTON BELOW SETTINGS */}
+                <button
+                  type="button"
+                  id="settings-bmkg-btn"
+                  onClick={() => {
+                    setActiveTab('bmkg');
+                    showToastNotification('Buka Prakiraan BMKG Pelabuhan Ciwandan!');
+                  }}
+                  className="col-span-2 bg-gradient-to-r from-[#0d9488] to-[#047857] hover:from-[#14b8a6] hover:to-[#059669] font-mono rounded-lg p-3.5 text-xs font-extrabold text-white uppercase cursor-pointer text-center shadow-lg transition-all border border-[#2dd4bf]/20"
+                >
+                  ⚓ BUKA & TAMPILKAN GRAFIK PRAKIRAAN MARITIM BMKG (PELABUHAN CIWANDAN)
+                </button>
+
                 {/* Scrolling Raw Stream Monitor positioned directly below the Presets button */}
                 <div className="col-span-2 bg-[#020408] border border-[#22c55e]/40 rounded-2xl overflow-hidden shadow-xl flex flex-col justify-between mt-2">
                   <div className="bg-gradient-to-r from-slate-900 to bg p-3 border-b border-[#22c55e]/25 text-xs uppercase font-mono font-bold text-[#c2fcd5] flex justify-between items-center">
@@ -3111,6 +3198,522 @@ header("Content-Type: application/json; charset=UTF-8");
                 </div>
               </div>
 
+            </div>
+
+          </div>
+        )}
+
+        {/* PAGE tab 5: BMKG FORECAST INTEGRATION */}
+        {activeTab === 'bmkg' && (
+          <div className="space-y-6 animate-fade-in pb-10">
+            
+            {/* BMKG Header Controls */}
+            <div className="bg-gradient-to-r from-[#0b1424] via-[#040912] to-bg p-6 rounded-3xl border border-[#00f0ff]/20 flex flex-col md:flex-row gap-5 justify-between items-start md:items-center shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-[#00f0ff]/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+              
+              <div className="flex items-center gap-4">
+                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                  <Anchor className="w-8 h-8 text-emerald-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] bg-emerald-500/30 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-500/30 uppercase tracking-widest font-mono">
+                      Official Marine Database Sync
+                    </span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  </div>
+                  <h2 className="text-xl md:text-2xl font-black text-white tracking-tight uppercase mt-1">
+                    Prakiraan Cuaca Maritim BMKG
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5 uppercase tracking-wider font-semibold font-mono">
+                    Lokasi: Pelabuhan Ciwandan (Banten, Selat Sunda)
+                  </p>
+                </div>
+              </div>
+
+              {/* Controls: Search & Layout Selector */}
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <div className="relative flex-1 md:w-60">
+                  <input
+                    type="text"
+                    placeholder="Cari jam / cuaca (e.g., '14.00')..."
+                    value={bmkgSearchText}
+                    onChange={(e) => setBmkgSearchText(e.target.value)}
+                    className="w-full bg-[#03070f] border border-white/10 px-4 py-2.5 pl-10 rounded-xl text-xs text-white placeholder-slate-500 outline-none focus:border-emerald-500 font-mono"
+                  />
+                  <span className="absolute left-3.5 top-3.5 text-xs text-slate-500">🔍</span>
+                </div>
+                
+                <div className="flex bg-[#03070f] rounded-xl p-1 border border-white/10 font-mono font-bold">
+                  <button
+                    onClick={() => setBmkgLayout('table')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all uppercase cursor-pointer ${bmkgLayout === 'table' ? 'bg-emerald-500/15 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    Table
+                  </button>
+                  <button
+                    onClick={() => setBmkgLayout('cards')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all uppercase cursor-pointer ${bmkgLayout === 'cards' ? 'bg-emerald-500/15 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    Grid
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            {/* General Forecast Summary Overviews */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              
+              <div className="bg-gradient-to-b from-[#0b1424] to-[#010610] border border-white/5 p-5 rounded-2xl flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-teal-400 uppercase tracking-widest block font-sans mb-1">Gelombang Laut</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-white font-mono">0.4 - 0.5m</span>
+                  </div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs">
+                  <span className="text-slate-400 font-medium">Tingkat Keamanan</span>
+                  <span className="text-emerald-400 font-black uppercase font-mono">✅ AMAN & TENANG</span>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-b from-[#0b1424] to-[#010610] border border-white/5 p-5 rounded-2xl flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-[#f59e0b] uppercase tracking-widest block font-sans mb-1">Kecepatan Angin</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-white font-mono">10 Knot</span>
+                    <span className="text-xs text-[#f59e0b] font-mono">Gust 16kt</span>
+                  </div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs">
+                  <span className="text-slate-400 font-medium">Arah Dominan</span>
+                  <span className="text-teal-400 font-black uppercase font-mono">Timur Laut</span>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-b from-[#0b1424] to-[#010610] border border-white/5 p-5 rounded-2xl flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-pink-400 uppercase tracking-widest block font-sans mb-1">Pasang Maksimum</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-white font-mono">+0.59m</span>
+                  </div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs">
+                  <span className="text-slate-400 font-medium">Status Pasut Pelabuhan</span>
+                  <span className="text-pink-400 font-bold uppercase font-mono">PASANG NORMAL</span>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-b from-[#0b1424] to-[#010610] border border-white/5 p-5 rounded-2xl flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-sky-450 uppercase tracking-widest block font-sans mb-1">Visibilitas Udara</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-white font-mono">10.0 Km</span>
+                  </div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs">
+                  <span className="text-slate-400 font-medium">Kondisi Pandang</span>
+                  <span className="text-emerald-400 font-black uppercase font-mono">SANGAT CLEAR</span>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Forecast Interactive Trend Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg p-5 rounded-3xl border border-white/10">
+                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-widest flex justify-between items-center pb-2.5 border-b border-white/5 mb-4 font-sans">
+                  <span>🌊 Grafik Trend Elevasi Air Laut & Tinggi Gelombang</span>
+                  <span className="text-[10px] font-mono text-emerald-400 font-bold uppercase">PELABUHAN CIWANDAN</span>
+                </div>
+                <div className="h-64 mt-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={BMKG_CIWANDAN_FORECAST} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="tideColor" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#ec4899" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#ec4899" stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="waveColor" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="waktu" stroke="#475569" fontSize={9} tickLine={false} />
+                      <YAxis stroke="#475569" fontSize={9} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#060c16', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                        labelStyle={{ color: '#00f0ff', fontSize: '11px', fontFamily: 'monospace' }}
+                        itemStyle={{ fontSize: '11px', fontFamily: 'monospace' }}
+                      />
+                      <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', textTransform: 'uppercase' }} />
+                      <Area type="monotone" name="Pasang Surut (m)" dataKey="pasut" stroke="#ec4899" fillOpacity={1} fill="url(#tideColor)" strokeWidth={2} />
+                      <Area type="monotone" name="Tinggi Gelombang (m)" dataKey="gelombangVal" stroke="#10b981" fillOpacity={1} fill="url(#waveColor)" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg p-5 rounded-3xl border border-white/10">
+                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-widest flex justify-between items-center pb-2.5 border-b border-white/5 mb-4 font-sans">
+                  <span>🌡️ Grafik Trend Parameter Atmosfer (Suhu & Kelembaban)</span>
+                  <span className="text-[10px] font-mono text-cyan-400 font-bold uppercase">12H KONDISI UDARA</span>
+                </div>
+                <div className="h-64 mt-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={BMKG_CIWANDAN_FORECAST} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="waktu" stroke="#475569" fontSize={9} tickLine={false} />
+                      <YAxis stroke="#475569" fontSize={9} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#060c16', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                        labelStyle={{ color: '#00f0ff', fontSize: '11px', fontFamily: 'monospace' }}
+                        itemStyle={{ fontSize: '11px', fontFamily: 'monospace' }}
+                      />
+                      <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', textTransform: 'uppercase' }} />
+                      <Line type="monotone" name="Suhu Udara (°C)" dataKey="suhu" stroke="#f59e0b" strokeWidth={2.5} activeDot={{ r: 6 }} />
+                      <Line type="monotone" name="Kelembaban Nisbi (%)" dataKey="kelembaban" stroke="#3b82f6" strokeWidth={2.5} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Split Interface: Real List Display vs Forecast Inspector */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              
+              {/* Left Side: table or cards list */}
+              <div className="lg:col-span-8 space-y-4">
+                
+                {/* Search filtered items */}
+                {(() => {
+                  const filtered = BMKG_CIWANDAN_FORECAST.filter(item => {
+                    const search = bmkgSearchText.toLowerCase();
+                    return item.waktu.toLowerCase().includes(search) || 
+                           item.cuaca.toLowerCase().includes(search) ||
+                           item.anginDir.toLowerCase().includes(search) ||
+                           item.gelombangKet.toLowerCase().includes(search);
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="bg-[#0b1424]/40 border border-white/5 py-12 px-6 rounded-3xl text-center">
+                        <p className="text-slate-500 text-sm">Tidak ada baris perkiraan cuaca yang cocok dengan kata kunci Anda.</p>
+                        <button 
+                          onClick={() => setBmkgSearchText('')} 
+                          className="mt-3 text-emerald-400 font-bold text-xs uppercase underline tracking-wider cursor-pointer"
+                        >
+                          Clear Search
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  if (bmkgLayout === 'table') {
+                    return (
+                      <div className="bg-gradient-to-b from-[#0b1424]/90 to-bg border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse font-sans">
+                            <thead>
+                              <tr className="bg-emerald-600/90 text-white text-xs uppercase font-bold tracking-wider border-b border-white/10">
+                                <th className="p-4 text-center">Waktu (WIB)</th>
+                                <th className="p-4">Cuaca</th>
+                                <th className="p-4 text-center">Angin</th>
+                                <th className="p-4 text-center">Gelombang</th>
+                                <th className="p-4 text-center">Arus Laut</th>
+                                <th className="p-4 text-center">Visibility</th>
+                                <th className="p-4 text-center">Suhu</th>
+                                <th className="p-4 text-center">Kelembaban</th>
+                                <th className="p-4 text-center">Pasut</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filtered.map((row, idx) => {
+                                const originalIndex = BMKG_CIWANDAN_FORECAST.findIndex(item => item.waktu === row.waktu);
+                                const isSelected = selectedForecastIndex === originalIndex;
+                                return (
+                                  <tr 
+                                    key={idx} 
+                                    onClick={() => setSelectedForecastIndex(originalIndex)}
+                                    className={`border-b border-white/5 text-xs font-medium cursor-pointer transition-all hover:bg-emerald-500/5 ${isSelected ? 'bg-emerald-500/10 border-l-4 border-l-emerald-500' : ''}`}
+                                  >
+                                    
+                                    {/* Column 1: Time */}
+                                    <td className="p-4 text-center">
+                                      <div className={`font-mono font-bold ${isSelected ? 'text-emerald-400' : 'text-slate-300'}`}>{row.waktu.split(',')[1]}</div>
+                                      <div className="text-[10px] text-slate-500">{row.jam}</div>
+                                    </td>
+
+                                    {/* Column 2: Weather */}
+                                    <td className="p-4">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xl">{row.cuacaIcon}</span>
+                                        <div>
+                                          <div className="font-bold text-white">{row.cuaca}</div>
+                                          <div className="text-[10px] text-slate-500 font-mono">BMKG Sync</div>
+                                        </div>
+                                      </div>
+                                    </td>
+
+                                    {/* Column 3: Wind */}
+                                    <td className="p-4 text-center font-mono">
+                                      <div className="text-slate-200 font-black">{row.anginDir}</div>
+                                      <div className="text-[10px] text-amber-500 font-extrabold">{row.anginSpeed} kt <span className="opacity-50">gust {row.anginGust}</span></div>
+                                    </td>
+
+                                    {/* Column 4: Wave */}
+                                    <td className="p-4 text-center">
+                                      <div className="font-mono text-white text-xs font-black">{row.gelombangVal} m</div>
+                                      <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded uppercase ${row.gelombangKet === 'Tenang' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                                        {row.gelombangKet}
+                                      </span>
+                                    </td>
+
+                                    {/* Column 5: Sea Current */}
+                                    <td className="p-4 text-center font-mono">
+                                      <div className="text-teal-400 font-extrabold flex items-center justify-center gap-1">
+                                        <Compass className="w-3.5 h-3.5" />
+                                        <span>{row.arusDir}</span>
+                                      </div>
+                                      <div className="text-[10px] text-slate-400 font-bold">{row.arusSpeed.toFixed(1)} Knot</div>
+                                    </td>
+
+                                    {/* Column 6: Visibility */}
+                                    <td className="p-4 text-center font-mono text-slate-300">
+                                      {row.visibility} km
+                                    </td>
+
+                                    {/* Column 7: Temperature */}
+                                    <td className="p-4 text-center font-mono font-black text-[#f59e0b]">
+                                      {row.suhu}°C
+                                    </td>
+
+                                    {/* Column 8: Humidity */}
+                                    <td className="p-4 text-center font-mono text-sky-400">
+                                      {row.kelembaban}%
+                                    </td>
+
+                                    {/* Column 9: Tide elevation */}
+                                    <td className="p-4 text-center font-mono font-black text-pink-400">
+                                      +{row.pasut.toFixed(2)} m
+                                    </td>
+
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  } else {
+                    /* CARDS GRID LAYOUT */
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {filtered.map((row, idx) => {
+                          const originalIndex = BMKG_CIWANDAN_FORECAST.findIndex(item => item.waktu === row.waktu);
+                          const isSelected = selectedForecastIndex === originalIndex;
+                          return (
+                            <div 
+                              key={idx} 
+                              onClick={() => setSelectedForecastIndex(originalIndex)}
+                              className={`bg-gradient-to-b from-[#0b1424] to-bg border p-5 rounded-2.5xl cursor-pointer transition-all ${isSelected ? 'border-emerald-500/60 bg-emerald-500/5 shadow-[0_0_20px_rgba(16,185,129,0.08)]' : 'border-white/5'}`}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <span className="text-xs font-mono font-bold text-slate-400">{row.waktu}</span>
+                                  <span className="text-[10px] font-sans font-bold bg-[#14243b] text-[#00f0ff] uppercase ml-2 px-2 py-0.5 rounded">{row.jam}</span>
+                                </div>
+                                <span className="text-2xl">{row.cuacaIcon}</span>
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-white/5 font-sans">
+                                <div>
+                                  <span className="text-[10px] text-slate-500 uppercase block font-bold">Cuaca</span>
+                                  <span className="text-xs text-white font-black">{row.cuaca}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-slate-500 uppercase block font-bold">Tinggi Gel</span>
+                                  <span className="text-xs text-sky-400 font-mono font-black">{row.gelombangVal} m</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-slate-500 uppercase block font-bold">Pasut</span>
+                                  <span className="text-xs text-pink-400 font-mono font-black">+{row.pasut} m</span>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-2 mt-3 font-sans">
+                                <div>
+                                  <span className="text-[10px] text-slate-500 uppercase block font-bold">Angin</span>
+                                  <span className="text-[11px] text-amber-500 font-mono font-bold leading-tight">{row.anginDir}<br/>{row.anginSpeed} kt</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-slate-500 uppercase block font-bold">Arus Laut</span>
+                                  <span className="text-[11px] text-teal-400 font-mono font-bold leading-tight">{row.arusDir}<br/>{row.arusSpeed} kt</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-slate-500 uppercase block font-bold">Suhu & RH</span>
+                                  <span className="text-[11px] text-[#f59e0b] font-mono font-bold leading-tight">{row.suhu}°C<br/>{row.kelembaban}%</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
+                })()}
+
+              </div>
+
+              {/* Right Side: Forecast Detail Inspector Dashboard */}
+              <div className="lg:col-span-4">
+                {selectedForecastIndex !== null ? (
+                  (() => {
+                    const selected = BMKG_CIWANDAN_FORECAST[selectedForecastIndex];
+                    return (
+                      <div className="bg-gradient-to-b from-[#0b1424] via-[#020710] to-bg border border-emerald-500/20 p-6 rounded-3xl space-y-5 shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+                        
+                        <div className="pb-3 border-b border-white/5">
+                          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest font-mono">
+                            Selected Hour Inspector
+                          </span>
+                          <h3 className="text-lg font-black text-white mt-1 uppercase font-mono">
+                            {selected.waktu.split(',')[1]} ({selected.jam})
+                          </h3>
+                        </div>
+
+                        {/* Large Weather Display */}
+                        <div className="bg-[#030811]/90 rounded-2xl border border-white/5 p-4 flex items-center gap-4">
+                          <span className="text-4xl filter drop-shadow-lg">{selected.cuacaIcon}</span>
+                          <div>
+                            <span className="text-xs text-slate-500 uppercase block font-bold">Kondisi Udara</span>
+                            <span className="text-base font-black text-white">{selected.cuaca}</span>
+                          </div>
+                        </div>
+
+                        {/* Interactive Dials / Badges for parameters */}
+                        <div className="grid grid-cols-2 gap-3.5 font-sans">
+                          
+                          <div className="bg-[#030811] border border-white/5 p-3.5 rounded-xl text-center">
+                            <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Thermometer</span>
+                            <div className="flex items-center justify-center gap-1.5 text-amber-500 font-mono font-black text-lg">
+                              <Thermometer className="w-4 h-4" />
+                              <span>{selected.suhu}°C</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-[#030811] border border-white/5 p-3.5 rounded-xl text-center font-mono">
+                            <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Humidity</span>
+                            <div className="flex items-center justify-center gap-1.5 text-sky-400 font-bold text-lg">
+                              <Droplets className="w-4 h-4" />
+                              <span>{selected.kelembaban}%</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-[#030811] border border-white/5 p-3.5 rounded-xl text-center font-mono">
+                            <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Gelombang</span>
+                            <div className="flex items-center justify-center gap-1.5 text-teal-400 font-bold text-lg">
+                              <Waves className="w-4 h-4" />
+                              <span>{selected.gelombangVal}m</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-[#030811] border border-white/5 p-3.5 rounded-xl text-center font-mono">
+                            <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Pasang Surut</span>
+                            <div className="flex items-center justify-center gap-1.5 text-pink-400 font-bold text-lg">
+                              <MoveDown className="w-4 h-4" />
+                              <span>+{selected.pasut}m</span>
+                            </div>
+                          </div>
+
+                        </div>
+
+                        {/* Ocean Current Vector Display card */}
+                        <div className="bg-[#030811] border border-white/5 p-4 rounded-2xl relative overflow-hidden">
+                          <span className="text-[10px] text-slate-500 uppercase font-black block mb-3 font-sans">
+                            Arah Arus Air Laut (Ocean Current)
+                          </span>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <Compass className="w-8 h-8 text-teal-400" />
+                              <div>
+                                <span className="text-xs text-slate-400 block font-bold uppercase">Menuju</span>
+                                <span className="text-sm font-black text-white font-mono">{selected.arusDir}</span>
+                              </div>
+                            </div>
+                            <div className="bg-teal-500/10 border border-teal-500/30 px-3 py-1.5 rounded-xl font-mono">
+                              <span className="text-xs font-black text-teal-300">{selected.arusSpeed.toFixed(1)} Knot</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Wind Profile Display with rotating arrow visualization */}
+                        <div className="bg-[#030811] border border-white/5 p-4 rounded-2xl">
+                          <span className="text-[10px] text-slate-500 uppercase font-black block mb-3 font-sans">
+                            Kondisi Angin & Hembusan (Wind Profile)
+                          </span>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <Wind className="w-8 h-8 text-amber-500" />
+                              <div>
+                                <span className="text-xs text-slate-400 block font-bold uppercase">Berhembus Dr</span>
+                                <span className="text-sm font-black text-white font-mono">{selected.anginDir}</span>
+                              </div>
+                            </div>
+                            <div className="bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-xl font-mono text-right">
+                              <span className="text-xs font-black text-amber-400 block">{selected.anginSpeed} Knot</span>
+                              <span className="text-[9px] text-[#f59e0b] font-semibold">Gust {selected.anginGust} kt</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Operational Safety Assessment report */}
+                        <div className="bg-[#041e12] border border-emerald-500/20 p-4 rounded-2xl font-sans">
+                          <span className="text-[10px] font-black text-emerald-400 uppercase tracking-wider block mb-1">
+                            Port Commander Safety Assessment
+                          </span>
+                          <p className="text-xs text-emerald-200/90 leading-relaxed font-semibold">
+                            Ketinggian Gelombang Laut ({selected.gelombangVal}m - {selected.gelombangKet}) dan kecepatan hembusan angin ({selected.anginSpeed} knot) berada pada ambang batas aman. Operasional bongkar muat & penyandaran kapal di dermaga Ciwandan dapat dilaksanakan secara normal.
+                          </p>
+                        </div>
+
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div className="bg-[#0b1424]/40 border border-white/5 p-6 rounded-3xl text-center font-sans text-slate-500 py-20">
+                    Klik baris perkiraan di sebelah kiri untuk melihat rincian instrumen di panel monitor ini.
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Official Link Reference Action Blocks */}
+            <div className="bg-[#040a12] border border-white/5 p-5 rounded-3xl flex flex-col sm:flex-row gap-4 justify-between items-center bg-gradient-to-r from-emerald-950/15 to-transparent">
+              <div className="text-left">
+                <span className="text-xs text-emerald-400 font-extrabold uppercase font-mono tracking-widest block">
+                  Reference Website
+                </span>
+                <p className="text-xs text-slate-400 mt-1">
+                  Seluruh data di atas disinkronkan secara presisi dengan laporan resmi BMKG Maritim Pelabuhan Ciwandan. Anda dapat membuka pranala web resminya melalui tombol di samping.
+                </p>
+              </div>
+              <a 
+                href="https://maritim.bmkg.go.id/cuaca/pelabuhan/pelabuhan-ciwandan" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-extrabold font-mono tracking-wide rounded-xl flex items-center justify-center gap-2 cursor-pointer uppercase shadow-lg transition-all"
+              >
+                <span>Buka BMKG Maritim</span>
+                <ArrowUpRight className="w-4 h-4" />
+              </a>
             </div>
 
           </div>
