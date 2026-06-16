@@ -249,6 +249,14 @@ export default function App() {
   const [bmkgSearchText, setBmkgSearchText] = useState('');
   const [selectedForecastIndex, setSelectedForecastIndex] = useState<number | null>(0);
   const [bmkgLayout, setBmkgLayout] = useState<'table' | 'cards'>('table');
+  const [bmkgForecast, setBmkgForecast] = useState<BMKGForecastRow[]>(BMKG_CIWANDAN_FORECAST);
+  const [lastBmkgFetched, setLastBmkgFetched] = useState<string>('Preseed Data');
+  const [bmkgSource, setBmkgSource] = useState<'static' | 'live' | 'cache' | 'stale-cache'>('static');
+  const [isLoadingBmkg, setIsLoadingBmkg] = useState<boolean>(false);
+  const [bmkgErrorMsg, setBmkgErrorMsg] = useState<string>('');
+  const selectedBmkgRow = (bmkgForecast && selectedForecastIndex !== null && selectedForecastIndex < bmkgForecast.length) 
+    ? bmkgForecast[selectedForecastIndex] 
+    : (bmkgForecast && bmkgForecast.length > 0 ? bmkgForecast[0] : null);
   const [lastDbSaveTime, setLastDbSaveTime] = useState<number>(Date.now());
   const [dbTestResult, setDbTestResult] = useState<{
     status: 'idle' | 'loading' | 'success' | 'error';
@@ -591,6 +599,50 @@ export default function App() {
   };
 
   const [systemAlert, setSystemAlert] = useState<string | null>(null);
+
+  const fetchBmkgLive = async (showToast = false) => {
+    setIsLoadingBmkg(true);
+    setBmkgErrorMsg('');
+    try {
+      const res = await fetch('/api/bmkg');
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const dataJson = await res.json();
+      if (dataJson.success && Array.isArray(dataJson.data)) {
+        setBmkgForecast(dataJson.data);
+        setBmkgSource(dataJson.source);
+        const formatTime = format(new Date(dataJson.lastUpdated), 'dd MMM yy, HH:mm:ss');
+        setLastBmkgFetched(formatTime);
+        if (showToast) {
+          showToastNotification(`🟢 BMKG MARITIM BERHASIL DISINKRONKAN (${dataJson.source.toUpperCase()})`);
+        }
+      } else {
+        throw new Error(dataJson.error || 'Format data JSON tidak valid');
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch live BMKG forecast:', err);
+      // Fallback gracefully - bmkgForecast preserves the previous/static data automatically
+      setBmkgErrorMsg(err.message || 'Gagal terhubung ke API scraping.');
+      if (showToast) {
+        showToastNotification(`🔴 SYNC BMKG GAGAL: ${err.message || 'Koneksi error'}`);
+      }
+    } finally {
+      setIsLoadingBmkg(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBmkgLive(false);
+
+    // Auto-sync every 1 hour (3600000ms)
+    const intervalId = setInterval(() => {
+      console.log("[Auto-Refresh] Commencing hourly BMKG marine forecast sync...");
+      fetchBmkgLive(true);
+    }, 3600000);
+
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Raw serial/tcp terminal steam content
   const [streamLogs, setStreamLogs] = useState<string>(
@@ -3225,14 +3277,42 @@ header("Content-Type: application/json; charset=UTF-8");
                   <h2 className="text-xl md:text-2xl font-black text-white tracking-tight uppercase mt-1">
                     Prakiraan Cuaca Maritim BMKG
                   </h2>
-                  <p className="text-xs text-slate-400 mt-0.5 uppercase tracking-wider font-semibold font-mono">
-                    Lokasi: Pelabuhan Ciwandan (Banten, Selat Sunda)
-                  </p>
+                  <div className="flex flex-col gap-0.5">
+                    <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold font-mono">
+                      Lokasi: Pelabuhan Ciwandan (Banten, Selat Sunda)
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] mt-1">
+                      <span className="text-slate-500 font-bold uppercase">Sumber:</span>
+                      <span className={`px-2 py-0.2 rounded text-[9px] font-extrabold uppercase border ${
+                        bmkgSource === 'live' ? 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30' :
+                        bmkgSource === 'cache' ? 'bg-blue-500/15 text-blue-400 border-blue-500/30' :
+                        bmkgSource === 'stale-cache' ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' :
+                        'bg-slate-500/15 text-slate-400 border-slate-500/30'
+                      }`}>
+                        {bmkgSource}
+                      </span>
+                      <span className="text-slate-500 font-bold uppercase ml-1">Terakhir Diperbarui:</span>
+                      <span className="text-emerald-400 font-semibold">{lastBmkgFetched}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Controls: Search & Layout Selector */}
+              {/* Controls: Live Sync, Search & Layout Selector */}
               <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <button
+                  onClick={() => fetchBmkgLive(true)}
+                  disabled={isLoadingBmkg}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-mono tracking-wider transition-all uppercase flex items-center gap-2 border cursor-pointer ${
+                    isLoadingBmkg 
+                    ? 'bg-emerald-950/20 text-slate-500 border-white/5 cursor-not-allowed'
+                    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25 active:bg-emerald-500/30 font-black'
+                  }`}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingBmkg ? 'animate-spin' : ''}`} />
+                  <span>{isLoadingBmkg ? 'Syncing...' : 'Sync Live'}</span>
+                </button>
+
                 <div className="relative flex-1 md:w-60">
                   <input
                     type="text"
@@ -3269,12 +3349,14 @@ header("Content-Type: application/json; charset=UTF-8");
                 <div>
                   <span className="text-[10px] font-bold text-teal-400 uppercase tracking-widest block font-sans mb-1">Gelombang Laut</span>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-white font-mono">0.4 - 0.5m</span>
+                    <span className="text-3xl font-black text-white font-mono">{selectedBmkgRow ? `${selectedBmkgRow.gelombangVal}m` : '0.4m'}</span>
                   </div>
                 </div>
                 <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs">
                   <span className="text-slate-400 font-medium">Tingkat Keamanan</span>
-                  <span className="text-emerald-400 font-black uppercase font-mono">✅ AMAN & TENANG</span>
+                  <span className={`${selectedBmkgRow && selectedBmkgRow.gelombangVal > 1.25 ? 'text-amber-500 animate-pulse' : 'text-emerald-400'} font-black uppercase font-mono`}>
+                    {selectedBmkgRow ? `✅ ${selectedBmkgRow.gelombangKet.toUpperCase()}` : '✅ TENANG'}
+                  </span>
                 </div>
               </div>
 
@@ -3282,26 +3364,28 @@ header("Content-Type: application/json; charset=UTF-8");
                 <div>
                   <span className="text-[10px] font-bold text-[#f59e0b] uppercase tracking-widest block font-sans mb-1">Kecepatan Angin</span>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-white font-mono">10 Knot</span>
-                    <span className="text-xs text-[#f59e0b] font-mono">Gust 16kt</span>
+                    <span className="text-3xl font-black text-white font-mono">{selectedBmkgRow ? `${selectedBmkgRow.anginSpeed} kt` : '10 kt'}</span>
+                    <span className="text-xs text-[#f59e0b] font-mono">{selectedBmkgRow ? `Gust ${selectedBmkgRow.anginGust}kt` : 'Gust 16kt'}</span>
                   </div>
                 </div>
                 <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs">
                   <span className="text-slate-400 font-medium">Arah Dominan</span>
-                  <span className="text-teal-400 font-black uppercase font-mono">Timur Laut</span>
+                  <span className="text-teal-400 font-black uppercase font-mono">{selectedBmkgRow ? selectedBmkgRow.anginDir : 'Timur Laut'}</span>
                 </div>
               </div>
 
               <div className="bg-gradient-to-b from-[#0b1424] to-[#010610] border border-white/5 p-5 rounded-2xl flex flex-col justify-between">
                 <div>
-                  <span className="text-[10px] font-bold text-pink-400 uppercase tracking-widest block font-sans mb-1">Pasang Maksimum</span>
+                  <span className="text-[10px] font-bold text-pink-400 uppercase tracking-widest block font-sans mb-1">Pasang Air Laut</span>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-white font-mono">+0.59m</span>
+                    <span className="text-3xl font-black text-white font-mono">{selectedBmkgRow ? `${selectedBmkgRow.pasut > 0 ? '+' : ''}${selectedBmkgRow.pasut.toFixed(2)}m` : '+0.59m'}</span>
                   </div>
                 </div>
                 <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs">
                   <span className="text-slate-400 font-medium">Status Pasut Pelabuhan</span>
-                  <span className="text-pink-400 font-bold uppercase font-mono">PASANG NORMAL</span>
+                  <span className="text-pink-400 font-bold uppercase font-mono">
+                    {selectedBmkgRow ? (selectedBmkgRow.pasut > 1.0 ? 'PASANG TINGGI' : 'PASANG NORMAL') : 'PASANG NORMAL'}
+                  </span>
                 </div>
               </div>
 
@@ -3309,12 +3393,14 @@ header("Content-Type: application/json; charset=UTF-8");
                 <div>
                   <span className="text-[10px] font-bold text-sky-450 uppercase tracking-widest block font-sans mb-1">Visibilitas Udara</span>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-white font-mono">10.0 Km</span>
+                    <span className="text-3xl font-black text-white font-mono">{selectedBmkgRow ? `${selectedBmkgRow.visibility.toFixed(1)} Km` : '10.0 Km'}</span>
                   </div>
                 </div>
                 <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs">
                   <span className="text-slate-400 font-medium">Kondisi Pandang</span>
-                  <span className="text-emerald-400 font-black uppercase font-mono">SANGAT CLEAR</span>
+                  <span className="text-emerald-400 font-black uppercase font-mono">
+                    {selectedBmkgRow && selectedBmkgRow.visibility >= 8 ? 'SANGAT CLEAR' : 'SEDANG/TERBATAS'}
+                  </span>
                 </div>
               </div>
 
@@ -3330,7 +3416,7 @@ header("Content-Type: application/json; charset=UTF-8");
                 </div>
                 <div className="h-64 mt-2">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={BMKG_CIWANDAN_FORECAST} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <AreaChart data={bmkgForecast} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="tideColor" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#ec4899" stopOpacity={0.3}/>
@@ -3364,7 +3450,7 @@ header("Content-Type: application/json; charset=UTF-8");
                 </div>
                 <div className="h-64 mt-2">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={BMKG_CIWANDAN_FORECAST} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <LineChart data={bmkgForecast} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                       <XAxis dataKey="waktu" stroke="#475569" fontSize={9} tickLine={false} />
                       <YAxis stroke="#475569" fontSize={9} />
@@ -3391,7 +3477,7 @@ header("Content-Type: application/json; charset=UTF-8");
                 
                 {/* Search filtered items */}
                 {(() => {
-                  const filtered = BMKG_CIWANDAN_FORECAST.filter(item => {
+                  const filtered = bmkgForecast.filter(item => {
                     const search = bmkgSearchText.toLowerCase();
                     return item.waktu.toLowerCase().includes(search) || 
                            item.cuaca.toLowerCase().includes(search) ||
@@ -3433,7 +3519,7 @@ header("Content-Type: application/json; charset=UTF-8");
                             </thead>
                             <tbody>
                               {filtered.map((row, idx) => {
-                                const originalIndex = BMKG_CIWANDAN_FORECAST.findIndex(item => item.waktu === row.waktu);
+                                const originalIndex = bmkgForecast.findIndex(item => item.waktu === row.waktu);
                                 const isSelected = selectedForecastIndex === originalIndex;
                                 return (
                                   <tr 
@@ -3515,7 +3601,7 @@ header("Content-Type: application/json; charset=UTF-8");
                     return (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {filtered.map((row, idx) => {
-                          const originalIndex = BMKG_CIWANDAN_FORECAST.findIndex(item => item.waktu === row.waktu);
+                          const originalIndex = bmkgForecast.findIndex(item => item.waktu === row.waktu);
                           const isSelected = selectedForecastIndex === originalIndex;
                           return (
                             <div 
@@ -3572,9 +3658,9 @@ header("Content-Type: application/json; charset=UTF-8");
 
               {/* Right Side: Forecast Detail Inspector Dashboard */}
               <div className="lg:col-span-4">
-                {selectedForecastIndex !== null ? (
+                {selectedBmkgRow ? (
                   (() => {
-                    const selected = BMKG_CIWANDAN_FORECAST[selectedForecastIndex];
+                    const selected = selectedBmkgRow;
                     return (
                       <div className="bg-gradient-to-b from-[#0b1424] via-[#020710] to-bg border border-emerald-500/20 p-6 rounded-3xl space-y-5 shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
