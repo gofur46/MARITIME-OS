@@ -1215,7 +1215,7 @@ export default function App() {
       </aside>
 
       {/* MAIN CONTAINER */}
-      <main className="flex-1 p-5 md:p-8 space-y-6 max-w-full w-full overflow-hidden flex flex-col justify-between">
+      <main className="flex-1 p-5 md:p-8 space-y-6 max-w-full w-full overflow-hidden flex flex-col justify-start">
         
         {/* SHARED HEADER CONTROLLER */}
         <header className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center bg-gradient-to-r from-[#0b1424]/90 via-[#0b1424]/50 to-bg/90 backdrop-blur-xl p-5 md:p-6 rounded-[1.5rem] border border-[#00f0ff]/20 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative">
