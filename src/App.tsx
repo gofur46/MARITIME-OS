@@ -33,6 +33,11 @@ const DEFAULT_CONFIG = {
   ftpUser: 'aws_logger',
   ftpPass: '********',
   ftpPath: '/data/xml',
+  mqttBroker: 'mqtt.portmarine.gov',
+  mqttPort: '1883',
+  mqttTopic: 'aws/ports/sys1000/telemetry',
+  mqttUser: 'aws_client_01',
+  mqttPass: '********',
   ind_date: '1',
   ind_id: '0',
   minPhThreshold: '6.5', // Default min safe pH
@@ -3049,11 +3054,13 @@ header("Content-Type: application/json; charset=UTF-8");
                         <option value="OFF">OFF</option>
                         <option value="HTTP">HTTP API</option>
                         <option value="FTP">FTP</option>
+                        <option value="MQTT">MQTT</option>
                         <option value="BOTH">BOTH (HTTP & FTP)</option>
+                        <option value="ALL">ALL (HTTP, FTP & MQTT)</option>
                       </select>
                     </div>
 
-                    {(config.cloudMode === 'HTTP' || config.cloudMode === 'BOTH') && (
+                    {(config.cloudMode === 'HTTP' || config.cloudMode === 'BOTH' || config.cloudMode === 'ALL') && (
                       <div className="space-y-1">
                         <label className="text-xs uppercase font-bold text-slate-400 tracking-wider block">HTTP API URL</label>
                         <input 
@@ -3065,7 +3072,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       </div>
                     )}
 
-                    {(config.cloudMode === 'FTP' || config.cloudMode === 'BOTH') && (
+                    {(config.cloudMode === 'FTP' || config.cloudMode === 'BOTH' || config.cloudMode === 'ALL') && (
                       <div className="space-y-2 p-3 bg-teal-950/20 border border-teal-500/20 rounded-lg">
                         <span className="text-xs font-black text-teal-400 font-mono block uppercase tracking-wider mb-1">📁 KREDENSIAL SERVER FTP</span>
                         
@@ -3112,6 +3119,69 @@ header("Content-Type: application/json; charset=UTF-8");
                             onChange={(e) => setConfig({ ...config, ftpPath: e.target.value })}
                             className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none text-left" 
                           />
+                        </div>
+                      </div>
+                    )}
+
+                    {(config.cloudMode === 'MQTT' || config.cloudMode === 'ALL') && (
+                      <div className="space-y-2 p-3 bg-amber-950/20 border border-amber-500/20 rounded-lg">
+                        <span className="text-xs font-black text-amber-400 font-mono block uppercase tracking-wider mb-1">📡 KREDENSIAL MQTT BROKER</span>
+                        
+                        <div className="space-y-1">
+                          <label className="text-xs uppercase font-bold text-slate-400 block font-mono">MQTT Broker (Host)</label>
+                          <input 
+                            type="text" 
+                            value={config.mqttBroker}
+                            placeholder="mqtt.portmarine.gov"
+                            onChange={(e) => setConfig({ ...config, mqttBroker: e.target.value })}
+                            className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none text-left" 
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-xs uppercase font-bold text-slate-400 block font-mono">MQTT Port</label>
+                            <input 
+                              type="text" 
+                              value={config.mqttPort}
+                              placeholder="1883"
+                              onChange={(e) => setConfig({ ...config, mqttPort: e.target.value })}
+                              className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none text-left" 
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold tracking-wide text-slate-400 block font-mono mb-1">MQTT Topic</label>
+                            <input 
+                              type="text" 
+                              value={config.mqttTopic}
+                              placeholder="aws/ports/sys1000/telemetry"
+                              onChange={(e) => setConfig({ ...config, mqttTopic: e.target.value })}
+                              className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none text-left" 
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-xs uppercase font-bold text-slate-400 block font-mono">MQTT Username</label>
+                            <input 
+                              type="text" 
+                              value={config.mqttUser}
+                              placeholder="aws_client_01"
+                              onChange={(e) => setConfig({ ...config, mqttUser: e.target.value })}
+                              className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none text-left" 
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold tracking-wide text-slate-400 block font-mono mb-1">MQTT Password</label>
+                            <input 
+                              type="password" 
+                              value={config.mqttPass}
+                              placeholder="********"
+                              onChange={(e) => setConfig({ ...config, mqttPass: e.target.value })}
+                              className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none text-left" 
+                            />
+                          </div>
                         </div>
                       </div>
                     )}
