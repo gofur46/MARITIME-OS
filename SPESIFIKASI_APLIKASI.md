@@ -341,4 +341,55 @@ Sistem didesain sangat tangguh (*resilient*) untuk meminimalkan kehilangan data 
    * Segera setelah PostgreSQL terkoneksi kembali, operator tinggal mengklik tombol **"Export CSV"** di tab database dan mengunggahnya langsung ke postgres demi sinkronisasi tanpa ada data yang tercecer.
 
 ---
+
+## 📡 8. INTEGRASI MANDIRI: AUTO-CAPTURE MOXA TCP/IP GATEWAY (TANPA MEMBUKA BROWSER)
+
+Sangat penting diperhatikan bahwa **Web Browser** berjalan pada lingkungan terproteksi (*sandbox*) yang tidak diizinkan oleh sistem operasi untuk bertindak sebagai Server atau Client Soket TCP/IP murni guna mendengarkan atau menghubungkan langsung ke jaringan perangkat nirkabel di port lokal.
+
+Oleh karena itu, kami menyertakan **Background Daemon Client** khusus bernama `tcp_moxa_listener.js`.
+
+### Konsep Kerja Baru (Moxa sebagai TCP Server & Aplikasi sebagai TCP Client):
+1. **Moxa NPort** beroperasi dalam **TCP Server Mode**, membuka port (misalnya `10001` dengan IP Moxa e.g., `192.168.127.254`).
+2. **`tcp_moxa_listener.js`** beroperasi sebagai **TCP Client**. Begitu komputer Anda menyala, daemon ini akan secara aktif melakukan panggilan (*dial/connect*) ke alamat Moxa.
+3. **Mesin Autorecover & Reconnect**: Jika kabel dicabut, listrik mati, atau Moxa direstart, daemon client ini akan mendeteksi putusan, melepaskan socket usang, dan kembali melakukan percobaan jabat tangan (*handshake retry*) **setiap 5 detik** tanpa batas waktu hingga Moxa kembali online.
+4. Data yang berhasil dikoleksi dikirimkan secara internal dengan metode HTTP POST ke jembatan `api.php` di port `8000` untuk ditulis ke PostgreSQL lokal.
+
+### Langkah-langkah Memasang Layanan Client Moxa Otomatis (Service NSSM Ketiga):
+1. Buka berkas `C:\MARITIME-OS-main\MARITIME-OS-main\tcp_moxa_listener.js` menggunakan Notepad.
+2. Pada baris konfigurasi teratas, sesuaikan variabel berikut dengan konfigurasi Moxa Anda:
+   ```javascript
+   const MOXA_IP = '192.168.127.254'; // Isikan IP Address alat Moxa Anda
+   const MOXA_PORT = 10001;          // Isikan port TCP Server Moxa Anda
+   ```
+3. Buka **Command Prompt** dengan hak akses **Administrator** (*Run as Administrator*).
+4. Masuk ke direktori utama aplikasi port:
+   ```cmd
+   cd /d "C:\MARITIME-OS-main\MARITIME-OS-main"
+   ```
+5. Pasang layanan ketiga untuk listener Moxa menggunakan perintah NSSM:
+   ```cmd
+   nssm install AWSMoxaListener
+   ```
+6. Jendela GUI NSSM ketiga akan segera muncul. Atur parameternya:
+   * **Path**: `node` (atau arahkan ke berkas Node.js absolut Anda, misal: `C:\Program Files\nodejs\node.exe`)
+   * **Startup directory**: `C:\MARITIME-OS-main\MARITIME-OS-main`
+   * **Arguments**: `tcp_moxa_listener.js`
+7. Masuk ke tab **Details** dan berikan isian:
+   * **Display name**: `AWS Moxa Gateway TCP/IP Client Listener`
+   * **Description**: `Daemon client penangkap telemetri yang aktif mendial Moxa TCP Server Port 10001 dan memompanya langsung ke postgres.`
+   * **Startup type**: `Automatic`
+8. Masuk ke tab **Log On**:
+   * Ubah bulatannya ke **This account** lalu masukkan profil user Windows Anda (seperti langkah Service sebelumnya) untuk menjamin hak akses path dan logs.
+9. Tekan **Install Service**.
+10. Jalankan layanan tersebut secara instan:
+    ```cmd
+    net start AWSMoxaListener
+    ```
+
+Sistem pelabuhan Anda kini telah terproteksi penuh dari mati lampu! Listrik padam, menyala kembali, Windows boot, seluruh 3 background services bekerja secara otomatis tanpa Operator harus login:
+1. **Layanan Aplikasi Visual Dashboard**: Menyajikan data visual di port `3000`.
+2. **Layanan Jembatan Database (api.php)**: Menerima POST request dan mengelolanya ke database PostgreSQL di port `8000`.
+3. **Layanan Penangkap TCP Moxa Client**: Aktif menghubungkan komputer ke perangkat Moxa di port `10001` untuk menyerap data tangkapan cuaca real-time.
+
+---
 *Dokumen ini diperbarui secara berkala oleh tim teknisi AI Studio untuk mengawal operasional keselamatan maritim pelabuhan.*

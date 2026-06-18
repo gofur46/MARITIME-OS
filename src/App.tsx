@@ -71,7 +71,9 @@ const DEFAULT_CONFIG = {
 const generateInitialLogs = (count: number, intervalMinutes: number = 10): WeatherData[] => {
   const data: WeatherData[] = [];
   const spacingMs = intervalMinutes * 60 * 1000;
-  let baseTime = Date.now() - count * spacingMs;
+  // Align to exact clock boundary (e.g., 00, 10, 20, 30, 40, 50 minutes)
+  const nowAligned = Math.floor(Date.now() / spacingMs) * spacingMs;
+  let baseTime = nowAligned - count * spacingMs;
   for (let i = 0; i < count; i++) {
     const temp = 27 + Math.random() * 4;
     const hum = 75 + Math.random() * 15;
@@ -451,11 +453,13 @@ export default function App() {
       setSampleBuffer(prevBuf => {
         const updated = [...prevBuf, record];
         const now = Date.now();
-        const elapsedMs = now - lastDbSaveTime;
-        const intervalMs = (config.dbStorageInterval || 10) * 60 * 1000;
+        const intervalMin = config.dbStorageInterval || 10;
+        const intervalMs = intervalMin * 60 * 1000;
+        const currentBlock = Math.floor(now / intervalMs);
+        const lastSaveBlock = Math.floor(lastDbSaveTime / intervalMs);
 
-        // Check if the configured minute interval has elapsed
-        if (elapsedMs >= intervalMs && updated.length > 0) {
+        // Check if we have entered a new clock-aligned interval block
+        if (currentBlock > lastSaveBlock && updated.length > 0) {
           // Wrap side-effects in a microtask to keep the state reducer pure
           setTimeout(() => {
             let recordToSave: WeatherData;
@@ -478,8 +482,8 @@ export default function App() {
               msgLog = `📦 saved raw instantaneous record for ${config.dbStorageInterval}-minute interval directly to database successfully.`;
             }
 
-            // Adjust timestamp of record to reflect the completed logging window
-            recordToSave.timestamp = Date.now() - intervalMs;
+            // Adjust timestamp of record to reflect the completed logging window boundary precisely (e.g. 19:40:00, 19:50:00)
+            recordToSave.timestamp = currentBlock * intervalMs;
 
             // Asynchronously post to local PostgreSQL database backend
             postLogToLocalPostgres(recordToSave);
@@ -494,8 +498,8 @@ export default function App() {
               return output.join('\n');
             });
 
-            // Reset the last saved time mark
-            setLastDbSaveTime(Date.now());
+            // Reset the last saved time mark to exactly the saved block timestamp
+            setLastDbSaveTime(currentBlock * intervalMs);
           }, 0);
 
           return []; // Clear the buffer
@@ -738,9 +742,11 @@ export default function App() {
             msgLog = `📦 saved raw instantaneous record for ${config.dbStorageInterval}-minute interval directly to database successfully.`;
           }
           
-          // Adjust simulated timestamp backward to show historical interval
-          const intervalMs = (config.dbStorageInterval || 10) * 60 * 1000;
-          recordToSave.timestamp = Date.now() - intervalMs;
+          // Adjust simulated timestamp to reflect precise clock block boundary (e.g. 10, 20, 30...)
+          const intervalMin = config.dbStorageInterval || 10;
+          const intervalMs = intervalMin * 60 * 1000;
+          const alignedTimestamp = Math.floor(Date.now() / intervalMs) * intervalMs;
+          recordToSave.timestamp = alignedTimestamp;
 
           // Asynchronously post to local PostgreSQL database script
           postLogToLocalPostgres(recordToSave);
