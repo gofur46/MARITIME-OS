@@ -262,6 +262,9 @@ export default function App() {
   const dbEngine = 'postgresql';
   const [isIntegratorOpen, setIsIntegratorOpen] = useState(false);
   const [isDbConnected, setIsDbConnected] = useState(false);
+  const [realDbLogs, setRealDbLogs] = useState<WeatherData[]>([]);
+  const [isFetchingRealDb, setIsFetchingRealDb] = useState(false);
+  const [showRealDb, setShowRealDb] = useState(false);
   const [bmkgSearchText, setBmkgSearchText] = useState('');
   const [selectedForecastIndex, setSelectedForecastIndex] = useState<number | null>(0);
   const [bmkgLayout, setBmkgLayout] = useState<'table' | 'cards'>('table');
@@ -922,14 +925,99 @@ export default function App() {
     return () => clearInterval(interval);
   }, [config]);
 
+  // Helper to parse database row into WeatherData object safely
+  const parseDbRowToWeatherData = (row: any): WeatherData => {
+    let parsedTimestamp: number;
+    if (row.timestamp) {
+      const rawTs = String(row.timestamp);
+      // SQLite/PostgreSQL date conversion safety
+      parsedTimestamp = new Date(rawTs.replace(' ', 'T')).getTime();
+      if (isNaN(parsedTimestamp)) {
+        parsedTimestamp = new Date(rawTs).getTime();
+      }
+      if (isNaN(parsedTimestamp)) {
+        parsedTimestamp = Date.now();
+      }
+    } else {
+      parsedTimestamp = Date.now();
+    }
+
+    return {
+      timestamp: parsedTimestamp,
+      temperature: parseFloat(row.temperature) || 0,
+      humidity: parseInt(row.humidity) || 0,
+      windSpeed: parseFloat(row.wind_speed) || 0,
+      windDirection: parseInt(row.wind_direction) || 0,
+      pressure: parseFloat(row.pressure) || 0,
+      solarRadiation: parseInt(row.solar_radiation) || 0,
+      rainfall: parseFloat(row.rainfall) || 0,
+      waveHeight: parseFloat(row.wave_height) || 0,
+      seaLevel: parseFloat(row.sea_level) || 0,
+      waterPh: parseFloat(row.water_ph) || 7.0,
+      windGust: row.wind_gust ? parseFloat(row.wind_gust) : undefined,
+    };
+  };
+
+  // Download real database records from the local api.php
+  const fetchRealDatabaseLogs = async (silent = false) => {
+    setIsFetchingRealDb(true);
+    const testUrl = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
+    const fetchUrl = `${testUrl}?get_telemetry_logs=1`;
+    
+    if (!silent) {
+      showToastNotification("🔄 Memuat log telemetri asli dari PostgreSQL...");
+    }
+
+    try {
+      const res = await fetch(fetchUrl);
+      if (res.ok) {
+        let rawRows = await res.json();
+        if (rawRows && rawRows.data && Array.isArray(rawRows.data)) {
+          rawRows = rawRows.data;
+        }
+        
+        if (Array.isArray(rawRows)) {
+          const parsedRows: WeatherData[] = rawRows.map(parseDbRowToWeatherData);
+          setRealDbLogs(parsedRows);
+          setShowRealDb(parsedRows.length > 0);
+          setIsDbConnected(true);
+          
+          if (!silent) {
+            showToastNotification(`🟢 Berhasil sinkronisasi ${parsedRows.length} data asli dari PostgreSQL database!`);
+          }
+        } else {
+          throw new Error("Respon api.php tidak valid.");
+        }
+      } else {
+        throw new Error(`HTTP Error ${res.status}`);
+      }
+    } catch (e) {
+      console.error("Failed to fetch database logs:", e);
+      if (!silent) {
+        showToastNotification("⚠️ Gagal memuat data dari PostgreSQL. Silakan cek status web server.");
+      }
+    } finally {
+      setIsFetchingRealDb(false);
+    }
+  };
+
+  // Auto-fetch real logs when the active tab shifts to 'database'
+  useEffect(() => {
+    if (activeTab === 'database') {
+      fetchRealDatabaseLogs(true);
+    }
+  }, [activeTab]);
+
   // Handle default initial filter for database search logs
   useEffect(() => {
     filterLogsData();
-  }, [history, dbStartDate, dbEndDate, dbSearchTerm]);
+  }, [history, realDbLogs, showRealDb, dbStartDate, dbEndDate, dbSearchTerm]);
 
   const filterLogsData = () => {
-    const active = history.filter(row => {
-      const rowDateStr = format(row.timestamp, 'yyyy-MM-dd');
+    const dataSource = showRealDb ? realDbLogs : history;
+    const active = dataSource.filter(row => {
+      let ts = row.timestamp;
+      const rowDateStr = format(ts, 'yyyy-MM-dd');
       const startMatch = dbStartDate ? rowDateStr >= dbStartDate : true;
       const endMatch = dbEndDate ? rowDateStr <= dbEndDate : true;
       
@@ -938,12 +1026,15 @@ export default function App() {
         row.windSpeed.toString().includes(dbSearchTerm) ||
         row.windDirection.toString().includes(dbSearchTerm) ||
         row.pressure.toString().includes(dbSearchTerm) ||
-        (row.waterPh && row.waterPh.toString().includes(dbSearchTerm))
+        (row.waterPh !== undefined && row.waterPh.toString().includes(dbSearchTerm))
       ) : true;
 
       return startMatch && endMatch && searchMatch;
     });
-    setFilteredLogs(active.reverse());
+
+    // Ensure database logs are ordered newest to oldest
+    const sorted = [...active].sort((a, b) => b.timestamp - a.timestamp);
+    setFilteredLogs(sorted);
   };
 
   const currentData = history[history.length - 1] || {
@@ -2757,6 +2848,20 @@ try {
     exit();
 }
 
+// 2. GET Request: Ambil data dari tabel tbl_sensor_logs untuk ditampilkan di Dashboard
+if (\$_SERVER['REQUEST_METHOD'] === 'GET' && isset(\$_GET['get_telemetry_logs'])) {
+    try {
+        \$stmt = \$conn->prepare("SELECT * FROM tbl_sensor_logs ORDER BY timestamp DESC LIMIT 500");
+        \$stmt->execute();
+        \$rows = \$stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode(\$rows);
+    } catch (PDOException \$e) {
+        http_response_code(500);
+        echo json_encode(["status" => "error", "message" => "Fetch Logs Failed: " . \$e->getMessage()]);
+    }
+    exit();
+}
+
 if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
     \$input = file_get_contents("php://input");
     \$data = json_decode(\$input, true);
@@ -2917,6 +3022,87 @@ header("Content-Type: application/json; charset=UTF-8");
                     </pre>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Database Data Source Controller Panel */}
+            <div className="bg-[#0b1424] border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col md:flex-row items-center justify-between gap-5">
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center border transition-all ${
+                  showRealDb 
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25 shadow-[0_0_15px_rgba(16,185,129,0.15)]' 
+                    : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                }`}>
+                  <Database className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h5 className="text-sm font-bold text-white uppercase tracking-wider font-sans">
+                      MODE PENAMPILAN DATA TELEMETRI
+                    </h5>
+                    <span className={`text-[10px] uppercase tracking-wider font-mono font-black py-0.5 px-2 rounded-full border ${
+                      showRealDb 
+                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20 animate-pulse' 
+                        : 'bg-amber-500/15 text-amber-300 border-amber-500/20'
+                    }`}>
+                      {showRealDb ? 'DATABASE RAW POSTGRESQL' : 'TRANSIENT OFFLINE SIMULATION'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-normal max-w-[650px]">
+                    {showRealDb ? (
+                      <span>Menampilkan <strong>{filteredLogs.length} data riwayat nyata</strong> yang bersumber langsung dari tabel PostgreSQL <code className="text-[#00f0ff] font-mono">tbl_sensor_logs</code> komputer/server lokal Anda untuk keperluan audit/inspeksi.</span>
+                    ) : (
+                      <span>Menampilkan data log simulasi offline karena basis data PostgreSQL belum terhubung atau ditarik. Klik tombol di kanan untuk memuat data asli database jika PostgreSQL Anda aktif.</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+                {/* Selector Buttons */}
+                <span className="text-xs text-slate-500 uppercase font-bold font-mono mr-2 hidden md:inline">SUMBER LOG:</span>
+                <div className="flex bg-[#050a12] p-1 border border-white/10 rounded-lg w-full md:w-auto justify-center md:justify-start">
+                  <button
+                    onClick={() => {
+                      setShowRealDb(false);
+                      showToastNotification("Log beralih ke Mode Simulasi Offline.");
+                    }}
+                    className={`text-xs px-3.5 py-1.5 rounded-md font-mono uppercase font-black transition cursor-pointer flex-1 md:flex-initial text-center ${
+                      !showRealDb 
+                        ? 'bg-amber-500/15 text-amber-300 border border-amber-500/20 shadow-sm' 
+                        : 'text-slate-400 hover:text-slate-300'
+                    }`}
+                  >
+                    📴 Offline Logs
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (realDbLogs.length === 0) {
+                        fetchRealDatabaseLogs(false);
+                      } else {
+                        setShowRealDb(true);
+                        showToastNotification("Log beralih ke Mode Database PostgreSQL.");
+                      }
+                    }}
+                    className={`text-xs px-3.5 py-1.5 rounded-md font-mono uppercase font-black transition cursor-pointer flex-1 md:flex-initial text-center ${
+                      showRealDb 
+                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-sm' 
+                        : 'text-slate-400 hover:text-slate-300'
+                    }`}
+                  >
+                    🐘 PostgreSQL Table
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => fetchRealDatabaseLogs(false)}
+                  disabled={isFetchingRealDb}
+                  className={`w-full md:w-auto text-xs font-black uppercase py-2.5 px-4 rounded-lg bg-[#00f0ff]/10 hover:bg-[#00f0ff]/20 text-[#00f0ff] border border-[#00f0ff]/30 transition duration-250 cursor-pointer flex items-center justify-center gap-1.5 font-mono ${
+                    isFetchingRealDb ? 'opacity-55 cursor-wait' : ''
+                  }`}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isFetchingRealDb ? 'animate-spin' : ''}`} />
+                  {isFetchingRealDb ? "SYNCING..." : "🔄 SYNC & AMBIL DATA ASLI"}
+                </button>
               </div>
             </div>
 
