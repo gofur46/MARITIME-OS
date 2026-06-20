@@ -971,7 +971,23 @@ export default function App() {
     try {
       const res = await fetch(fetchUrl);
       if (res.ok) {
-        let rawRows = await res.json();
+        const rawText = await res.text();
+        let rawRows;
+        try {
+          rawRows = JSON.parse(rawText.trim());
+        } catch (err) {
+          const matches = rawText.match(/\[\s*\{[^]*\}\s*\]/g);
+          if (matches && matches.length > 0) {
+            rawRows = JSON.parse(matches[matches.length - 1]);
+          } else {
+            const singleMatches = rawText.match(/\{"status"[^}]*\}/g) || rawText.match(/\{[^}]*\}/g);
+            if (singleMatches && singleMatches.length > 0) {
+              rawRows = JSON.parse(singleMatches[singleMatches.length - 1]);
+            } else {
+              throw err;
+            }
+          }
+        }
         if (rawRows && rawRows.data && Array.isArray(rawRows.data)) {
           rawRows = rawRows.data;
         }
@@ -979,7 +995,7 @@ export default function App() {
         if (Array.isArray(rawRows)) {
           const parsedRows: WeatherData[] = rawRows.map(parseDbRowToWeatherData);
           setRealDbLogs(parsedRows);
-          setShowRealDb(parsedRows.length > 0);
+          setShowRealDb(true);
           setIsDbConnected(true);
           
           if (!silent) {
@@ -994,7 +1010,14 @@ export default function App() {
     } catch (e) {
       console.error("Failed to fetch database logs:", e);
       if (!silent) {
-        showToastNotification("⚠️ Gagal memuat data dari PostgreSQL. Silakan cek status web server.");
+        const isHttps = window.location.protocol === 'https:';
+        const isLocalApi = testUrl.includes('localhost') || testUrl.includes('127.0.0.1');
+        
+        if (isHttps && isLocalApi) {
+          showToastNotification("⚠️ Keamanan Browser: Koneksi HTTPS memblokir HTTP lokal (Mixed Content). Jalankan Dashboard secara lokal or matikan Mixed Content Shield browser Anda!");
+        } else {
+          showToastNotification("⚠️ Gagal memuat data! Gantilah isi api.php lokal Anda dengan file script terbaru di bawah ini.");
+        }
       }
     } finally {
       setIsFetchingRealDb(false);
@@ -2938,7 +2961,19 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
                             try {
                               const res = await fetch(testUrl, { method: 'GET' });
                               if (res.ok) {
-                                const parsed = await res.json();
+                                const rawText = await res.text();
+                                let parsed;
+                                try {
+                                  parsed = JSON.parse(rawText.trim());
+                                } catch (err) {
+                                  // Mengurai secara defensif apabila PHP menghasilkan keluaran ganda (double-JSON) atau peringatan teks
+                                  const matches = rawText.match(/\{"status"[^}]*\}/g) || rawText.match(/\{[^}]*\}/g);
+                                  if (matches && matches.length > 0) {
+                                    parsed = JSON.parse(matches[matches.length - 1]);
+                                  } else {
+                                    throw err;
+                                  }
+                                }
                                 setIsDbConnected(true);
                                 setDbTestResult({
                                   status: 'success',
