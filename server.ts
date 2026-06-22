@@ -83,29 +83,44 @@ function convertUtcToWib(waktuUtc: string): string {
   }
 }
 
-// In-memory cache for BMKG weather data
-let cachedBmkData: BMKGForecastRow[] | null = null;
-let lastCacheTime: number = 0;
+// In-memory cache for BMKG weather data, keyed by port slug
+interface CacheEntry {
+  data: BMKGForecastRow[];
+  time: number;
+}
+const cachedBmkPortData: Record<string, CacheEntry> = {};
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes cache timeout
 
 // API Endpoint to fetch live BMKG data
 app.get("/api/bmkg", async (req, res) => {
   const now = Date.now();
+  const rawPortParam = req.query.port;
+  let portSlug = typeof rawPortParam === 'string' ? rawPortParam.trim().toLowerCase() : 'pelabuhan-ciwandan';
   
+  // Clean portSlug to prevent path traversal or unsanitized URL building
+  portSlug = portSlug.replace(/[^a-z0-9\-]/g, '');
+  if (!portSlug) {
+    portSlug = 'pelabuhan-ciwandan';
+  }
+
+  const cachedValue = cachedBmkPortData[portSlug];
+
   // If cache is valid, return cached results directly
-  if (cachedBmkData && (now - lastCacheTime < CACHE_TTL_MS)) {
-    console.log("[BMKG API] Serving from Cache. Cache Age:", Math.round((now - lastCacheTime)/1000), "seconds");
+  if (cachedValue && (now - cachedValue.time < CACHE_TTL_MS)) {
+    console.log(`[BMKG API] Serving ${portSlug} from Cache. Cache Age:`, Math.round((now - cachedValue.time)/1000), "seconds");
     return res.json({
       success: true,
       source: 'cache',
-      lastUpdated: new Date(lastCacheTime).toISOString(),
-      data: cachedBmkData
+      lastUpdated: new Date(cachedValue.time).toISOString(),
+      data: cachedValue.data
     });
   }
 
   try {
-    console.log("[BMKG API] Cache missed/expired. Fetching fresh data from BMKG Maritim Website...");
-    const bmkgResponse = await fetch('https://maritim.bmkg.go.id/cuaca/pelabuhan/pelabuhan-ciwandan', {
+    console.log(`[BMKG API] Cache missed/expired for ${portSlug}. Fetching fresh data from BMKG Maritim Website...`);
+    const bmkgUrl = `https://maritim.bmkg.go.id/cuaca/pelabuhan/${portSlug}`;
+    console.log(`[BMKG API] Target URL: ${bmkgUrl}`);
+    const bmkgResponse = await fetch(bmkgUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       }
@@ -119,7 +134,7 @@ app.get("/api/bmkg", async (req, res) => {
     const tableMatches = [...html.matchAll(/<table[^>]*>([\s\S]*?)<\/table>/g)];
     
     if (tableMatches.length === 0) {
-      throw new Error("No tables found on BMKG response page.");
+      throw new Error(`No tables found on BMKG response page for ${portSlug}. Possibly invalid port slug.`);
     }
 
     const rowsList: BMKGForecastRow[] = [];
@@ -237,10 +252,12 @@ app.get("/api/bmkg", async (req, res) => {
     }
 
     // Success - cache and return
-    cachedBmkData = rowsList;
-    lastCacheTime = now;
+    cachedBmkPortData[portSlug] = {
+      data: rowsList,
+      time: now
+    };
 
-    console.log(`[BMKG API] Successfully scraped ${rowsList.length} rows. Updating Cache.`);
+    console.log(`[BMKG API] Successfully scraped ${rowsList.length} rows for ${portSlug}. Updating Cache.`);
     return res.json({
       success: true,
       source: 'live',
@@ -251,14 +268,15 @@ app.get("/api/bmkg", async (req, res) => {
     console.error("[BMKG API] Exception during fetching:", apiErr.message || apiErr);
     
     // In case of any networks/scraping errors, serve cached data if ever existed
-    if (cachedBmkData) {
-      console.log("[BMKG API] Serving stale cache due to BMKG fetch error.");
+    const staleVal = cachedBmkPortData[portSlug];
+    if (staleVal) {
+      console.log(`[BMKG API] Serving stale cache for ${portSlug} due to BMKG fetch error.`);
       return res.json({
         success: false,
         error: apiErr.message,
         source: 'stale-cache',
-        lastUpdated: new Date(lastCacheTime).toISOString(),
-        data: cachedBmkData
+        lastUpdated: new Date(staleVal.time).toISOString(),
+        data: staleVal.data
       });
     }
 

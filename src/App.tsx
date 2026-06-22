@@ -45,6 +45,8 @@ const DEFAULT_CONFIG = {
   dbStorageMode: 'AVG', // 'AVG' (Rata-Rata) | 'RAW' (Instan/Setiap Detik/Sesaat)
   dbStorageInterval: 10, // 1 to 60 Minutes
   localDbApiUrl: 'http://localhost:8000/api.php',
+  bmkgPortSlug: 'pelabuhan-ciwandan',
+  bmkgPortLabel: 'Pelabuhan Ciwandan',
   uiZoom: '115', // Default font size scale (%) for excellent laptop reading
   isSimulationOn: 'OFF', // ON / OFF simulation mode
   sensors: {
@@ -898,7 +900,8 @@ export default function App() {
     setIsLoadingBmkg(true);
     setBmkgErrorMsg('');
     try {
-      const res = await fetch('/api/bmkg');
+      const portQuery = config.bmkgPortSlug ? `?port=${config.bmkgPortSlug}` : '';
+      const res = await fetch(`/api/bmkg${portQuery}`);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
@@ -936,7 +939,7 @@ export default function App() {
     }, 3600000);
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [config.bmkgPortSlug]);
 
   // Raw serial/tcp terminal steam content
   const [streamLogs, setStreamLogs] = useState<string>(
@@ -3519,7 +3522,7 @@ header("Content-Type: application/json; charset=UTF-8");
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-3 mb-2">
                     <div>
                       <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">🏷️ Station ID</label>
                       <input 
@@ -3532,15 +3535,135 @@ header("Content-Type: application/json; charset=UTF-8");
                     </div>
                     <div>
                       <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">⚓ Port / Location</label>
-                      <input 
-                        type="text" 
-                        value={config.stationName || ''} 
-                        placeholder="Pelabuhan Ciwandan"
-                        onChange={(e) => setConfig({ ...config, stationName: e.target.value })}
-                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs md:text-sm text-center p-3 text-white rounded-lg outline-none focus:border-[#00f0ff]" 
-                      />
+                      <select 
+                        value={
+                          ['pelabuhan-ciwandan', 'pelabuhan-merak', 'pelabuhan-bakauheni', 'pelabuhan-bojonegara', 'pelabuhan-tanjung-priok', 'pelabuhan-sunda-kelapa', 'pelabuhan-banten'].includes(config.bmkgPortSlug || '')
+                            ? config.bmkgPortSlug
+                            : 'custom'
+                        } 
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'custom') {
+                            setConfig((prev: any) => ({
+                              ...prev,
+                              bmkgPortSlug: prev.bmkgPortSlug || 'pelabuhan-ciwandan',
+                              bmkgPortLabel: prev.stationName || prev.bmkgPortLabel || 'Pelabuhan Ciwandan'
+                            }));
+                          } else {
+                            const selectedObj = [
+                              { slug: 'pelabuhan-ciwandan', label: 'Pelabuhan Ciwandan' },
+                              { slug: 'pelabuhan-merak', label: 'Pelabuhan Merak' },
+                              { slug: 'pelabuhan-bakauheni', label: 'Pelabuhan Bakauheni' },
+                              { slug: 'pelabuhan-bojonegara', label: 'Pelabuhan Bojonegara' },
+                              { slug: 'pelabuhan-tanjung-priok', label: 'Pelabuhan Tanjung Priok' },
+                              { slug: 'pelabuhan-sunda-kelapa', label: 'Pelabuhan Sunda Kelapa' },
+                              { slug: 'pelabuhan-banten', label: 'Pelabuhan Karangantu' },
+                            ].find(item => item.slug === val);
+                            if (selectedObj) {
+                              setConfig((prev: any) => ({
+                                ...prev,
+                                stationName: selectedObj.label,
+                                bmkgPortSlug: selectedObj.slug,
+                                bmkgPortLabel: selectedObj.label
+                              }));
+                              showToastNotification(`Lokasi diubah: ${selectedObj.label}`);
+                            }
+                          }
+                        }}
+                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs md:text-sm text-center p-3 text-teal-400 font-bold rounded-lg outline-none focus:border-[#00f0ff] cursor-pointer"
+                      >
+                        <option value="pelabuhan-ciwandan">Pelabuhan Ciwandan</option>
+                        <option value="pelabuhan-merak">Pelabuhan Merak</option>
+                        <option value="pelabuhan-bakauheni">Pelabuhan Bakauheni</option>
+                        <option value="pelabuhan-bojonegara">Pelabuhan Bojonegara</option>
+                        <option value="pelabuhan-tanjung-priok">Pelabuhan Tj Priok</option>
+                        <option value="pelabuhan-sunda-kelapa">Pelabuhan Sunda Kelapa</option>
+                        <option value="pelabuhan-banten">Pelabuhan Karangantu</option>
+                        <option value="custom">── LAINNYA / CUSTOM ──</option>
+                      </select>
                     </div>
                   </div>
+
+                  {/* Horizontal Scroll Selector (Scol View) list wrapper for simple port clicking */}
+                  <div className="space-y-1 mb-3.5">
+                    <span className="text-[10px] text-slate-500 font-mono uppercase font-bold tracking-wider block">⚡ Quick Select Port (Scol View)</span>
+                    <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-teal-500/20 scrollbar-track-transparent">
+                      {[
+                        { slug: 'pelabuhan-ciwandan', label: 'Ciwandan' },
+                        { slug: 'pelabuhan-merak', label: 'Merak' },
+                        { slug: 'pelabuhan-bakauheni', label: 'Bakauheni' },
+                        { slug: 'pelabuhan-bojonegara', label: 'Bojonegara' },
+                        { slug: 'pelabuhan-tanjung-priok', label: 'Priok' },
+                        { slug: 'pelabuhan-sunda-kelapa', label: 'Sunda Kelapa' },
+                        { slug: 'pelabuhan-banten', label: 'Karangantu' }
+                      ].map((item) => {
+                        const isSelected = config.bmkgPortSlug === item.slug;
+                        return (
+                          <button
+                            key={item.slug}
+                            type="button"
+                            onClick={() => {
+                              const fullLabels: Record<string, string> = {
+                                'pelabuhan-ciwandan': 'Pelabuhan Ciwandan',
+                                'pelabuhan-merak': 'Pelabuhan Merak',
+                                'pelabuhan-bakauheni': 'Pelabuhan Bakauheni',
+                                'pelabuhan-bojonegara': 'Pelabuhan Bojonegara',
+                                'pelabuhan-tanjung-priok': 'Pelabuhan Tanjung Priok',
+                                'pelabuhan-sunda-kelapa': 'Pelabuhan Sunda Kelapa',
+                                'pelabuhan-banten': 'Pelabuhan Karangantu'
+                              };
+                              const fullLabel = fullLabels[item.slug] || item.label;
+                              setConfig((prev: any) => ({
+                                ...prev,
+                                stationName: fullLabel,
+                                bmkgPortSlug: item.slug,
+                                bmkgPortLabel: fullLabel
+                              }));
+                              showToastNotification(`Lokasi diubah: ${fullLabel}`);
+                            }}
+                            className={`px-3 py-1.5 text-[10px] font-mono tracking-tight font-extrabold rounded-lg whitespace-nowrap border shrink-0 transition-all cursor-pointer ${
+                              isSelected 
+                                ? 'bg-emerald-500/10 border-emerald-400 text-emerald-400 font-black shadow-[0_0_8px_rgba(16,185,129,0.25)]' 
+                                : 'bg-[#050a12] border-white/5 text-slate-400 hover:text-white hover:border-white/10'
+                            }`}
+                          >
+                            📍 {item.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Inline editable Custom Name and Slug inputs if Custom selected */}
+                  {(!['pelabuhan-ciwandan', 'pelabuhan-merak', 'pelabuhan-bakauheni', 'pelabuhan-bojonegara', 'pelabuhan-tanjung-priok', 'pelabuhan-sunda-kelapa', 'pelabuhan-banten'].includes(config.bmkgPortSlug || '')) && (
+                    <div className="grid grid-cols-2 gap-2 p-2.5 bg-black/40 border border-[#00f0ff]/10 rounded-xl mb-3.5 animate-fade-in">
+                      <div>
+                        <span className="text-[9px] text-slate-500 font-mono uppercase block mb-1">Custom Slug</span>
+                        <input 
+                          type="text" 
+                          value={config.bmkgPortSlug || ''} 
+                          placeholder="pelabuhan-custom"
+                          onChange={(e) => {
+                            const val = e.target.value.toLowerCase().replace(/[^a-z0-9\-]/g, '');
+                            setConfig((prev: any) => ({ ...prev, bmkgPortSlug: val }));
+                          }}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-[11px] p-2 text-[#00f0ff] rounded outline-none"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-500 font-mono uppercase block mb-1">Custom Name (Display)</span>
+                        <input 
+                          type="text" 
+                          value={config.stationName || ''} 
+                          placeholder="Pelabuhan Custom"
+                          onChange={(e) => {
+                            setConfig((prev: any) => ({ ...prev, stationName: e.target.value, bmkgPortLabel: e.target.value }));
+                          }}
+                          className="w-full bg-[#050a12] border border-white/10 font-sans text-[11px] p-2 text-white rounded outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">✂️ Splitter Char</label>
@@ -4063,11 +4186,11 @@ header("Content-Type: application/json; charset=UTF-8");
                   id="settings-bmkg-btn"
                   onClick={() => {
                     setActiveTab('bmkg');
-                    showToastNotification('Buka Prakiraan BMKG Pelabuhan Ciwandan!');
+                    showToastNotification(`Buka Prakiraan BMKG ${config.bmkgPortLabel || 'Pelabuhan Ciwandan'}!`);
                   }}
                   className="col-span-2 bg-gradient-to-r from-[#0d9488] to-[#047857] hover:from-[#14b8a6] hover:to-[#059669] font-mono rounded-lg p-3.5 text-xs font-extrabold text-white uppercase cursor-pointer text-center shadow-lg transition-all border border-[#2dd4bf]/20"
                 >
-                  ⚓ BUKA & TAMPILKAN GRAFIK PRAKIRAAN MARITIM BMKG (PELABUHAN CIWANDAN)
+                  ⚓ BUKA & TAMPILKAN GRAFIK PRAKIRAAN MARITIM BMKG ({(config.bmkgPortLabel || 'Pelabuhan Ciwandan').toUpperCase()})
                 </button>
 
                 {/* Scrolling Raw Stream Monitor positioned directly below the Presets button */}
@@ -4114,7 +4237,7 @@ header("Content-Type: application/json; charset=UTF-8");
                   </h2>
                   <div className="flex flex-col gap-0.5">
                     <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold font-mono">
-                      Lokasi: Pelabuhan Ciwandan (Banten, Selat Sunda)
+                      Lokasi: {config.bmkgPortLabel || 'Pelabuhan Ciwandan'} (BMKG Maritim)
                     </p>
                     <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] mt-1">
                       <span className="text-slate-500 font-bold uppercase">Sumber:</span>
@@ -4600,7 +4723,7 @@ header("Content-Type: application/json; charset=UTF-8");
                             Port Commander Safety Assessment
                           </span>
                           <p className="text-xs text-emerald-200/90 leading-relaxed font-semibold">
-                            Ketinggian Gelombang Laut ({selected.gelombangVal}m - {selected.gelombangKet}) dan kecepatan hembusan angin ({selected.anginSpeed} knot) berada pada ambang batas aman. Operasional bongkar muat & penyandaran kapal di dermaga Ciwandan dapat dilaksanakan secara normal.
+                            Ketinggian Gelombang Laut ({selected.gelombangVal}m - {selected.gelombangKet}) dan kecepatan hembusan angin ({selected.anginSpeed} knot) berada pada ambang batas aman. Operasional bongkar muat & penyandaran kapal di {config.bmkgPortLabel || 'Pelabuhan Ciwandan'} dapat dilaksanakan secara normal.
                           </p>
                         </div>
 
@@ -4627,7 +4750,7 @@ header("Content-Type: application/json; charset=UTF-8");
                 </p>
               </div>
               <a 
-                href="https://maritim.bmkg.go.id" 
+                href={`https://maritim.bmkg.go.id/cuaca/pelabuhan/${config.bmkgPortSlug || 'pelabuhan-ciwandan'}`}
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="w-full sm:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-extrabold font-mono tracking-wide rounded-xl flex items-center justify-center gap-2 cursor-pointer uppercase shadow-lg transition-all"
