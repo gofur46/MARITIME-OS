@@ -3511,10 +3511,24 @@ header("Content-Type: application/json; charset=UTF-8");
                           </p>
                           <p>
                             🔵 <strong>Metode 2: PM2 Service (Silent & Auto-Restart)</strong><br />
-                            Gunakan Node.js Process Manager agar berjalan 100% senyap di background. Menjalankannya cukup sekali saja lewat CMD atau PowerShell:
-                            <code className="text-[#00f0ff] bg-black px-1.5 py-0.5 mt-1 block rounded font-mono text-[9px] select-all border border-white/5 leading-normal">
-                              {`npm install -g pm2\npm2 start tcp_moxa_listener.js --name "moxa-telemetry" --args "${config.localDbApiUrl || 'http://localhost/aws_marine/api.php'} ${config.serialcom || '192.168.1.254'} ${config.baudrate || '4001'}"\npm2 save\npm2 startup`}
-                            </code>
+                            Agar berjalan senyap di background tanpa jendela CMD terbuka, gunakan PM2. Jalankan perintah di bawah ini sesuai terminal yang Anda gunakan:
+                            <div className="mt-1 space-y-1 bg-black/40 p-2 rounded">
+                              <div>
+                                <span className="text-[9px] text-teal-400 font-bold block mb-0.5">Jika menggunakan Command Prompt (CMD):</span>
+                                <code className="text-[#00f0ff] font-mono text-[9px] select-all block whitespace-pre-wrap breakdown-words leading-none bg-black/20 p-1 border border-teal-500/10">
+                                  {`npm install -g pm2\npm2 start tcp_moxa_listener.js --name "moxa-telemetry" -- "${config.localDbApiUrl || 'http://localhost/aws_marine/api.php'}" "${config.serialcom || '192.168.1.254'}" "${config.baudrate || '4001'}"`}
+                                </code>
+                              </div>
+                              <div className="pt-1.5 border-t border-white/5">
+                                <span className="text-[9px] text-amber-400 font-bold block mb-0.5">Jika menggunakan PowerShell:</span>
+                                <code className="text-[#ffcb6b] font-mono text-[9px] select-all block whitespace-pre-wrap breakdown-words leading-none bg-black/20 p-1 border border-amber-500/10">
+                                  {`npm install -g pm2\npm2 start tcp_moxa_listener.js --name "moxa-telemetry" '--' "${config.localDbApiUrl || 'http://localhost/aws_marine/api.php'}" "${config.serialcom || '192.168.1.254'}" "${config.baudrate || '4001'}"`}
+                                </code>
+                              </div>
+                              <div className="text-[8px] text-slate-400 pt-1">
+                                Setelah berhasil start, jalankan: <code className="text-white">pm2 save</code> dan <code className="text-white">pm2 startup</code> agar otomatis menyala setelah PC reboot.
+                              </div>
+                            </div>
                           </p>
                         </div>
                       </div>
