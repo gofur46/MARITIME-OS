@@ -92,60 +92,68 @@ function generateMockForecast(portSlug: string): BMKGForecastRow[] {
     hash = portSlug.charCodeAt(i) + ((hash << 5) - hash);
   }
   
-  // Base parameters based on portSlug
-  let avgWave = 0.4;
-  let waveKet = "Tenang";
-  let avgWind = 9;
-  let avgTemp = 29;
-  let baseCurrentDir = "Barat Daya";
-  let windDir = "Timur Laut";
-  
-  const cleanSlug = portSlug.toLowerCase();
-  
-  if (cleanSlug.includes('merak')) {
-    avgWave = 0.65;
-    waveKet = "Rendah";
-    avgWind = 11;
-    avgTemp = 29;
-    baseCurrentDir = "Selatan";
-    windDir = "Timur Laut";
-  } else if (cleanSlug.includes('bakauheni')) {
-    avgWave = 0.85;
-    waveKet = "Sedang";
-    avgWind = 13;
-    avgTemp = 28;
-    baseCurrentDir = "Barat Daya";
-    windDir = "Tenggara";
-  } else if (cleanSlug.includes('priok') || cleanSlug.includes('jakarta')) {
-    avgWave = 0.3;
-    waveKet = "Tenang";
-    avgWind = 7;
-    avgTemp = 31;
-    baseCurrentDir = "Barat";
-    windDir = "Utara";
-  } else if (cleanSlug.includes('sunda-kelapa')) {
-    avgWave = 0.2;
-    waveKet = "Tenang";
-    avgWind = 6;
-    avgTemp = 31;
-    baseCurrentDir = "Barat Laut";
-    windDir = "Utara";
-  } else if (cleanSlug.includes('banten') || cleanSlug.includes('karangantu')) {
-    avgWave = 0.35;
-    waveKet = "Tenang";
-    avgWind = 8;
-    avgTemp = 29;
-    baseCurrentDir = "Utara";
-    windDir = "Timur";
-  } else {
-    // Ciwandan or Custom default
-    avgWave = 0.45;
-    waveKet = "Tenang";
-    avgWind = 9;
-    avgTemp = 29;
-    baseCurrentDir = "Barat Daya";
-    windDir = "Timur Laut";
-  }
+  // Base profile data for all 32 ports shown in the user's photos
+  const PORT_PROFILES: Record<string, {
+    avgWave: number;
+    waveKet: string;
+    avgWind: number;
+    avgTemp: number;
+    baseCurrentDir: string;
+    windDir: string;
+  }> = {
+    // Banten Group (18 Ports)
+    pelabuhan_cituis: { avgWave: 0.3, waveKet: "Tenang", avgWind: 7, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+    pelabuhan_kronjo: { avgWave: 0.3, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+    pelabuhan_tanjung_pasir: { avgWave: 0.25, waveKet: "Tenang", avgWind: 7, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Timur" },
+    pelabuhan_anyer: { avgWave: 0.45, waveKet: "Tenang", avgWind: 9, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Timur Laut" },
+    pelabuhan_kepuh: { avgWave: 0.4, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+    pelabuhan_lontar: { avgWave: 0.35, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur Laut" },
+    pelabuhan_pasauran: { avgWave: 0.5, waveKet: "Tenang", avgWind: 10, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Tenggara" },
+    pelabuhan_bojonegara: { avgWave: 0.55, waveKet: "Tenang", avgWind: 8, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Tenggara" },
+    pelabuhan_banten: { avgWave: 0.35, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+    pelabuhan_merak: { avgWave: 0.65, waveKet: "Rendah", avgWind: 11, avgTemp: 29, baseCurrentDir: "Selatan", windDir: "Timur Laut" },
+    pelabuhan_ciwandan: { avgWave: 0.42, waveKet: "Tenang", avgWind: 9, avgTemp: 28, baseCurrentDir: "Barat Daya", windDir: "Timur Laut" },
+    pelabuhan_carita: { avgWave: 0.5, waveKet: "Tenang", avgWind: 9, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Timur" },
+    pelabuhan_labuan: { avgWave: 0.55, waveKet: "Tenang", avgWind: 10, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Tenggara" },
+    pelabuhan_panimbang: { avgWave: 0.45, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Selatan" },
+    pelabuhan_tamanjaya: { avgWave: 0.6, waveKet: "Rendah", avgWind: 10, avgTemp: 28, baseCurrentDir: "Barat Daya", windDir: "Tenggara" },
+    pelabuhan_binuangeun: { avgWave: 0.8, waveKet: "Sedang", avgWind: 12, avgTemp: 28, baseCurrentDir: "Barat Daya", windDir: "Tenggara" },
+    pelabuhan_suralaya: { avgWave: 0.5, waveKet: "Tenang", avgWind: 10, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+    pelabuhan_kbs: { avgWave: 0.42, waveKet: "Tenang", avgWind: 9, avgTemp: 28, baseCurrentDir: "Barat Daya", windDir: "Timur Laut" },
+
+    // Jakarta Group (14 Ports)
+    pelabuhan_tanjung_priok: { avgWave: 0.3, waveKet: "Tenang", avgWind: 7, avgTemp: 31, baseCurrentDir: "Barat", windDir: "Utara" },
+    pelabuhan_sunda_kelapa: { avgWave: 0.2, waveKet: "Tenang", avgWind: 6, avgTemp: 31, baseCurrentDir: "Barat Laut", windDir: "Utara" },
+    pelabuhan_muara_angke: { avgWave: 0.25, waveKet: "Tenang", avgWind: 6, avgTemp: 30, baseCurrentDir: "Barat", windDir: "Utara" },
+    pelabuhan_muara_baru: { avgWave: 0.2, waveKet: "Tenang", avgWind: 6, avgTemp: 30, baseCurrentDir: "Barat", windDir: "Utara" },
+    pelabuhan_kalibaru: { avgWave: 0.25, waveKet: "Tenang", avgWind: 7, avgTemp: 30, baseCurrentDir: "Barat", windDir: "Utara" },
+    pelabuhan_marunda: { avgWave: 0.2, waveKet: "Tenang", avgWind: 6, avgTemp: 30, baseCurrentDir: "Barat", windDir: "Utara" },
+    pelabuhan_p_untung_jawa: { avgWave: 0.2, waveKet: "Tenang", avgWind: 8, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+    pelabuhan_p_lancang: { avgWave: 0.25, waveKet: "Tenang", avgWind: 8, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+    pelabuhan_p_pari: { avgWave: 0.3, waveKet: "Tenang", avgWind: 9, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+    pelabuhan_p_tidung: { avgWave: 0.35, waveKet: "Tenang", avgWind: 9, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+    pelabuhan_p_pramuka: { avgWave: 0.3, waveKet: "Tenang", avgWind: 8, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+    pelabuhan_p_kelapa: { avgWave: 0.35, waveKet: "Tenang", avgWind: 9, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+    pelabuhan_p_babelokan: { avgWave: 0.45, waveKet: "Tenang", avgWind: 10, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Barat" },
+    pelabuhan_p_sabira: { avgWave: 0.5, waveKet: "Tenang", avgWind: 11, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Barat" }
+  };
+
+  const cleanSlug = portSlug.toLowerCase().replace(/-/g, '_');
+  const profile = PORT_PROFILES[cleanSlug] || {
+    avgWave: 0.45,
+    waveKet: "Tenang",
+    avgWind: 9,
+    avgTemp: 29,
+    baseCurrentDir: "Barat Daya",
+    windDir: "Timur Laut"
+  };
+
+  const avgWave = profile.avgWave;
+  const waveKet = profile.waveKet;
+  const avgWind = profile.avgWind;
+  const avgTemp = profile.avgTemp;
+  const baseCurrentDir = profile.baseCurrentDir;
+  const windDir = profile.windDir;
   
   const weathers = ["Berawan", "Cerah Berawan", "Cerah", "Cerah Berawan", "Berawan", "Hujan Ringan", "Berawan"];
   const directions = ["Timur Laut", "Timur", "Tenggara", "Selatan", "Barat Daya", "Barat", "Barat Laut", "Utara"];
@@ -239,18 +247,31 @@ const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes cache timeout
 app.get("/api/bmkg", async (req, res) => {
   const now = Date.now();
   const rawPortParam = req.query.port;
-  let portSlug = typeof rawPortParam === 'string' ? rawPortParam.trim().toLowerCase() : 'pelabuhan-ciwandan';
+  let portSlug = typeof rawPortParam === 'string' ? rawPortParam.trim().toLowerCase() : 'pelabuhan_ciwandan';
   
   // Clean portSlug to prevent path traversal or unsanitized URL building
-  portSlug = portSlug.replace(/[^a-z0-9\-]/g, '');
+  portSlug = portSlug.replace(/[^a-z0-9\-_]/g, '');
   if (!portSlug) {
-    portSlug = 'pelabuhan-ciwandan';
+    portSlug = 'pelabuhan_ciwandan';
+  }
+
+  // Normalize hyphens to underscores since BMKG Maritim URLs use underscores (e.g. pelabuhan_ciwandan)
+  portSlug = portSlug.replace(/-/g, '_');
+
+  // Map any special/alternative slugs to the actual BMKG endpoint slug
+  if (portSlug === 'pelabuhan_karangantu') {
+    portSlug = 'pelabuhan_banten';
+  } else if (portSlug === 'pelabuhan_kalibaru_cilincing' || portSlug === 'pelabuhan_cilincing') {
+    portSlug = 'pelabuhan_kalibaru';
+  } else if (portSlug === 'pelabuhan_p_pabelokan') {
+    portSlug = 'pelabuhan_p_babelokan';
   }
 
   const cachedValue = cachedBmkPortData[portSlug];
+  const forceRefresh = req.query.refresh === 'true';
 
-  // If cache is valid, return cached results directly
-  if (cachedValue && (now - cachedValue.time < CACHE_TTL_MS)) {
+  // If cache is valid and not force-refresh, return cached results directly
+  if (!forceRefresh && cachedValue && (now - cachedValue.time < CACHE_TTL_MS)) {
     console.log(`[BMKG API] Serving ${portSlug} from Cache. Cache Age:`, Math.round((now - cachedValue.time)/1000), "seconds");
     return res.json({
       success: true,
@@ -275,6 +296,24 @@ app.get("/api/bmkg", async (req, res) => {
     }
 
     const html = await bmkgResponse.text();
+    const lowerHtml = html.toLowerCase();
+
+    // Verify fetched page content to guard against BMKG's silent redirects (e.g., serving Ciwandan or Index for invalid ports)
+    let requiredKeyword = "";
+    const slugParts = portSlug.split('_');
+    const coreWords = slugParts.filter(p => p !== 'pelabuhan' && p !== 'p' && p !== 'pulau');
+    if (coreWords.length > 0) {
+      requiredKeyword = coreWords[0];
+      // Keep "priok" or "pasir" or similar sub-words as the verification string
+      if ((requiredKeyword === 'tanjung' || requiredKeyword === 'muara' || requiredKeyword === 'kalibaru') && coreWords[1]) {
+        requiredKeyword = coreWords[1];
+      }
+    }
+
+    if (requiredKeyword && !lowerHtml.includes(requiredKeyword)) {
+      throw new Error(`BMKG server redirected or returned non-${requiredKeyword} page for slug: ${portSlug}`);
+    }
+
     const tableMatches = [...html.matchAll(/<table[^>]*>([\s\S]*?)<\/table>/g)];
     
     if (tableMatches.length === 0) {

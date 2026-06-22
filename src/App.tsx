@@ -233,6 +233,50 @@ export const BMKG_CIWANDAN_FORECAST: BMKGForecastRow[] = [
   { waktu: "17 Jun 26, 06.00", jam: "16 pm ke depan", cuaca: "Berawan", cuacaIcon: "☁️", anginDir: "Timur", anginSpeed: 3, anginGust: 9, gelombangVal: 0.4, gelombangKet: "Tenang", arusDir: "Barat Daya", arusSpeed: 1.9, visibility: 10, suhu: 26, kelembaban: 88, pasut: 0.56 }
 ];
 
+export interface BmkgPortOption {
+  slug: string;
+  label: string;
+  region: 'Banten' | 'Jakarta';
+}
+
+export const BMKG_PORTS_LIST: BmkgPortOption[] = [
+  // Banten Group (18 Ports)
+  { slug: 'pelabuhan_cituis', label: 'Pelabuhan Cituis', region: 'Banten' },
+  { slug: 'pelabuhan_kronjo', label: 'Pelabuhan Kronjo', region: 'Banten' },
+  { slug: 'pelabuhan_tanjung_pasir', label: 'Pelabuhan Tanjung Pasir', region: 'Banten' },
+  { slug: 'pelabuhan_anyer', label: 'Pelabuhan Anyer', region: 'Banten' },
+  { slug: 'pelabuhan_kepuh', label: 'Pelabuhan Kepuh', region: 'Banten' },
+  { slug: 'pelabuhan_lontar', label: 'Pelabuhan Lontar', region: 'Banten' },
+  { slug: 'pelabuhan_pasauran', label: 'Pelabuhan Pasauran', region: 'Banten' },
+  { slug: 'pelabuhan_bojonegara', label: 'Pelabuhan Bojonegara', region: 'Banten' },
+  { slug: 'pelabuhan_banten', label: 'Pelabuhan Karangantu', region: 'Banten' },
+  { slug: 'pelabuhan_merak', label: 'Pelabuhan Merak', region: 'Banten' },
+  { slug: 'pelabuhan_ciwandan', label: 'Pelabuhan Ciwandan', region: 'Banten' },
+  { slug: 'pelabuhan_carita', label: 'Pelabuhan Carita', region: 'Banten' },
+  { slug: 'pelabuhan_labuan', label: 'Pelabuhan Labuan', region: 'Banten' },
+  { slug: 'pelabuhan_panimbang', label: 'Pelabuhan Panimbang', region: 'Banten' },
+  { slug: 'pelabuhan_tamanjaya', label: 'Pelabuhan Tamanjaya', region: 'Banten' },
+  { slug: 'pelabuhan_binuangeun', label: 'Pelabuhan Binuangeun', region: 'Banten' },
+  { slug: 'pelabuhan_suralaya', label: 'Pelabuhan Suralaya', region: 'Banten' },
+  { slug: 'pelabuhan_kbs', label: 'Pelabuhan KBS', region: 'Banten' },
+
+  // Jakarta Group (14 Ports)
+  { slug: 'pelabuhan_tanjung_priok', label: 'Pelabuhan Tanjung Priok', region: 'Jakarta' },
+  { slug: 'pelabuhan_sunda_kelapa', label: 'Pelabuhan Sunda Kelapa', region: 'Jakarta' },
+  { slug: 'pelabuhan_muara_angke', label: 'Pelabuhan Muara Angke', region: 'Jakarta' },
+  { slug: 'pelabuhan_muara_baru', label: 'Pelabuhan Muara Baru', region: 'Jakarta' },
+  { slug: 'pelabuhan_kalibaru', label: 'Pelabuhan Kalibaru Cilincing', region: 'Jakarta' },
+  { slug: 'pelabuhan_marunda', label: 'Pelabuhan Marunda', region: 'Jakarta' },
+  { slug: 'pelabuhan_p_untung_jawa', label: 'Pelabuhan P. Untung Jawa', region: 'Jakarta' },
+  { slug: 'pelabuhan_p_lancang', label: 'Pelabuhan P. Lancang', region: 'Jakarta' },
+  { slug: 'pelabuhan_p_pari', label: 'Pelabuhan P. Pari', region: 'Jakarta' },
+  { slug: 'pelabuhan_p_tidung', label: 'Pelabuhan P. Tidung', region: 'Jakarta' },
+  { slug: 'pelabuhan_p_pramuka', label: 'Pelabuhan P. Pramuka', region: 'Jakarta' },
+  { slug: 'pelabuhan_p_kelapa', label: 'Pelabuhan P. Kelapa', region: 'Jakarta' },
+  { slug: 'pelabuhan_p_babelokan', label: 'Pelabuhan P. Pabelokan', region: 'Jakarta' },
+  { slug: 'pelabuhan_p_sabira', label: 'Pelabuhan P. Sabira', region: 'Jakarta' }
+];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'realtime' | 'analyst' | 'telemetry' | 'database' | 'settings' | 'bmkg'>('realtime');
   
@@ -268,6 +312,8 @@ export default function App() {
   const [isFetchingRealDb, setIsFetchingRealDb] = useState(false);
   const [showRealDb, setShowRealDb] = useState(false);
   const [bmkgSearchText, setBmkgSearchText] = useState('');
+  const [portSearchQuery, setPortSearchQuery] = useState('');
+  const [selectedRegion, setSelectedRegion] = useState<'all' | 'Banten' | 'Jakarta'>('all');
   const [selectedForecastIndex, setSelectedForecastIndex] = useState<number | null>(0);
   const [bmkgLayout, setBmkgLayout] = useState<'table' | 'cards'>('table');
   const [bmkgForecast, setBmkgForecast] = useState<BMKGForecastRow[]>(BMKG_CIWANDAN_FORECAST);
@@ -900,9 +946,10 @@ export default function App() {
     setIsLoadingBmkg(true);
     setBmkgErrorMsg('');
     const actualShowToast = typeof slugToFetch === 'boolean' ? slugToFetch : showToast;
+    const isRefresh = (slugToFetch === true || showToast === true);
     const targetSlug = (slugToFetch && typeof slugToFetch === 'string') ? slugToFetch : (config.bmkgPortSlug || 'pelabuhan-ciwandan');
     try {
-      const portQuery = `?port=${targetSlug}`;
+      const portQuery = `?port=${targetSlug}${isRefresh ? '&refresh=true' : ''}`;
       const res = await fetch(`/api/bmkg${portQuery}`);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
@@ -3537,57 +3584,54 @@ header("Content-Type: application/json; charset=UTF-8");
                     </div>
                     <div>
                       <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">⚓ Port / Location</label>
-                      <select 
-                        value={
-                          ['pelabuhan-ciwandan', 'pelabuhan-merak', 'pelabuhan-bakauheni', 'pelabuhan-bojonegara', 'pelabuhan-tanjung-priok', 'pelabuhan-sunda-kelapa', 'pelabuhan-banten'].includes(config.bmkgPortSlug || '')
-                            ? config.bmkgPortSlug
-                            : 'custom'
-                        } 
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === 'custom') {
-                            const newCfg = {
-                              ...config,
-                              bmkgPortSlug: config.bmkgPortSlug || 'pelabuhan-ciwandan',
-                              bmkgPortLabel: config.stationName || config.bmkgPortLabel || 'Pelabuhan Ciwandan'
-                            };
-                            setConfig(newCfg);
-                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
-                          } else {
-                            const selectedObj = [
-                              { slug: 'pelabuhan-ciwandan', label: 'Pelabuhan Ciwandan' },
-                              { slug: 'pelabuhan-merak', label: 'Pelabuhan Merak' },
-                              { slug: 'pelabuhan-bakauheni', label: 'Pelabuhan Bakauheni' },
-                              { slug: 'pelabuhan-bojonegara', label: 'Pelabuhan Bojonegara' },
-                              { slug: 'pelabuhan-tanjung-priok', label: 'Pelabuhan Tanjung Priok' },
-                              { slug: 'pelabuhan-sunda-kelapa', label: 'Pelabuhan Sunda Kelapa' },
-                              { slug: 'pelabuhan-banten', label: 'Pelabuhan Karangantu' },
-                            ].find(item => item.slug === val);
-                            if (selectedObj) {
-                              const newCfg = {
-                                ...config,
-                                stationName: selectedObj.label,
-                                bmkgPortSlug: selectedObj.slug,
-                                bmkgPortLabel: selectedObj.label
-                              };
-                              setConfig(newCfg);
-                              localStorage.setItem('aws_config', JSON.stringify(newCfg));
-                              showToastNotification(`Lokasi diubah: ${selectedObj.label}`);
-                              fetchBmkgLive(selectedObj.slug, true);
-                            }
-                          }
-                        }}
-                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs md:text-sm text-center p-3 text-teal-400 font-bold rounded-lg outline-none focus:border-[#00f0ff] cursor-pointer"
-                      >
-                        <option value="pelabuhan-ciwandan">Pelabuhan Ciwandan</option>
-                        <option value="pelabuhan-merak">Pelabuhan Merak</option>
-                        <option value="pelabuhan-bakauheni">Pelabuhan Bakauheni</option>
-                        <option value="pelabuhan-bojonegara">Pelabuhan Bojonegara</option>
-                        <option value="pelabuhan-tanjung-priok">Pelabuhan Tj Priok</option>
-                        <option value="pelabuhan-sunda-kelapa">Pelabuhan Sunda Kelapa</option>
-                        <option value="pelabuhan-banten">Pelabuhan Karangantu</option>
-                        <option value="custom">── LAINNYA / CUSTOM ──</option>
-                      </select>
+                      {(() => {
+                        const normalizedActiveSlug = (config.bmkgPortSlug || 'pelabuhan_ciwandan').replace(/-/g, '_');
+                        const isPresetPort = BMKG_PORTS_LIST.some(p => p.slug === normalizedActiveSlug);
+                        return (
+                          <select 
+                            value={isPresetPort ? normalizedActiveSlug : 'custom'} 
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === 'custom') {
+                                const newCfg = {
+                                  ...config,
+                                  bmkgPortSlug: config.bmkgPortSlug || 'pelabuhan_ciwandan',
+                                  bmkgPortLabel: config.stationName || config.bmkgPortLabel || 'Pelabuhan Ciwandan'
+                                };
+                                setConfig(newCfg);
+                                localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                              } else {
+                                const selectedObj = BMKG_PORTS_LIST.find(item => item.slug === val);
+                                if (selectedObj) {
+                                  const newCfg = {
+                                    ...config,
+                                    stationName: selectedObj.label,
+                                    bmkgPortSlug: selectedObj.slug,
+                                    bmkgPortLabel: selectedObj.label
+                                  };
+                                  setConfig(newCfg);
+                                  localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                                  showToastNotification(`Lokasi diubah: ${selectedObj.label}`);
+                                  fetchBmkgLive(selectedObj.slug, true);
+                                }
+                              }
+                            }}
+                            className="w-full bg-[#050a12] border border-white/10 font-mono text-xs md:text-sm text-center p-3 text-teal-400 font-bold rounded-lg outline-none focus:border-[#00f0ff] cursor-pointer"
+                          >
+                            <optgroup label="WILAYAH BANTEN">
+                              {BMKG_PORTS_LIST.filter(p => p.region === 'Banten').map(port => (
+                                <option key={port.slug} value={port.slug}>{port.label}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="WILAYAH DKI JAKARTA">
+                              {BMKG_PORTS_LIST.filter(p => p.region === 'Jakarta').map(port => (
+                                <option key={port.slug} value={port.slug}>{port.label}</option>
+                              ))}
+                            </optgroup>
+                            <option value="custom">── LAINNYA / CUSTOM ──</option>
+                          </select>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -3596,28 +3640,31 @@ header("Content-Type: application/json; charset=UTF-8");
                     <span className="text-[10px] text-slate-500 font-mono uppercase font-bold tracking-wider block">⚡ Quick Select Port (Scol View)</span>
                     <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-teal-500/20 scrollbar-track-transparent">
                       {[
-                        { slug: 'pelabuhan-ciwandan', label: 'Ciwandan' },
-                        { slug: 'pelabuhan-merak', label: 'Merak' },
-                        { slug: 'pelabuhan-bakauheni', label: 'Bakauheni' },
-                        { slug: 'pelabuhan-bojonegara', label: 'Bojonegara' },
-                        { slug: 'pelabuhan-tanjung-priok', label: 'Priok' },
-                        { slug: 'pelabuhan-sunda-kelapa', label: 'Sunda Kelapa' },
-                        { slug: 'pelabuhan-banten', label: 'Karangantu' }
+                        { slug: 'pelabuhan_ciwandan', label: 'Ciwandan' },
+                        { slug: 'pelabuhan_bojonegara', label: 'Bojonegara' },
+                        { slug: 'pelabuhan_banten', label: 'Karangantu' },
+                        { slug: 'pelabuhan_merak', label: 'Merak' },
+                        { slug: 'pelabuhan_tanjung_priok', label: 'Priok' },
+                        { slug: 'pelabuhan_sunda_kelapa', label: 'Sunda Kelapa' },
+                        { slug: 'pelabuhan_muara_angke', label: 'Muara Angke' },
+                        { slug: 'pelabuhan_p_tidung', label: 'P. Tidung' }
                       ].map((item) => {
-                        const isSelected = config.bmkgPortSlug === item.slug;
+                        const activeSlugNormalized = (config.bmkgPortSlug || 'pelabuhan_ciwandan').replace(/-/g, '_');
+                        const isSelected = activeSlugNormalized === item.slug;
                         return (
                           <button
                             key={item.slug}
                             type="button"
                             onClick={() => {
                               const fullLabels: Record<string, string> = {
-                                'pelabuhan-ciwandan': 'Pelabuhan Ciwandan',
-                                'pelabuhan-merak': 'Pelabuhan Merak',
-                                'pelabuhan-bakauheni': 'Pelabuhan Bakauheni',
-                                'pelabuhan-bojonegara': 'Pelabuhan Bojonegara',
-                                'pelabuhan-tanjung-priok': 'Pelabuhan Tanjung Priok',
-                                'pelabuhan-sunda-kelapa': 'Pelabuhan Sunda Kelapa',
-                                'pelabuhan-banten': 'Pelabuhan Karangantu'
+                                'pelabuhan_ciwandan': 'Pelabuhan Ciwandan',
+                                'pelabuhan_bojonegara': 'Pelabuhan Bojonegara',
+                                'pelabuhan_banten': 'Pelabuhan Karangantu',
+                                'pelabuhan_merak': 'Pelabuhan Merak',
+                                'pelabuhan_tanjung_priok': 'Pelabuhan Tanjung Priok',
+                                'pelabuhan_sunda_kelapa': 'Pelabuhan Sunda Kelapa',
+                                'pelabuhan_muara_angke': 'Pelabuhan Muara Angke',
+                                'pelabuhan_p_tidung': 'Pelabuhan P. Tidung'
                               };
                               const fullLabel = fullLabels[item.slug] || item.label;
                               const newCfg = {
@@ -3645,39 +3692,45 @@ header("Content-Type: application/json; charset=UTF-8");
                   </div>
 
                   {/* Inline editable Custom Name and Slug inputs if Custom selected */}
-                  {(!['pelabuhan-ciwandan', 'pelabuhan-merak', 'pelabuhan-bakauheni', 'pelabuhan-bojonegara', 'pelabuhan-tanjung-priok', 'pelabuhan-sunda-kelapa', 'pelabuhan-banten'].includes(config.bmkgPortSlug || '')) && (
-                    <div className="grid grid-cols-2 gap-2 p-2.5 bg-black/40 border border-[#00f0ff]/10 rounded-xl mb-3.5 animate-fade-in">
-                      <div>
-                        <span className="text-[9px] text-slate-500 font-mono uppercase block mb-1">Custom Slug</span>
-                        <input 
-                          type="text" 
-                          value={config.bmkgPortSlug || ''} 
-                          placeholder="pelabuhan-custom"
-                          onChange={(e) => {
-                            const val = e.target.value.toLowerCase().replace(/[^a-z0-9\-]/g, '');
-                            const newCfg = { ...config, bmkgPortSlug: val };
-                            setConfig(newCfg);
-                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
-                          }}
-                          className="w-full bg-[#050a12] border border-white/10 font-mono text-[11px] p-2 text-[#00f0ff] rounded outline-none"
-                        />
+                  {(() => {
+                    const activeSlugNormalized = (config.bmkgPortSlug || 'pelabuhan_ciwandan').replace(/-/g, '_');
+                    const isPreset = BMKG_PORTS_LIST.some(p => p.slug === activeSlugNormalized);
+                    if (isPreset) return null;
+
+                    return (
+                      <div className="grid grid-cols-2 gap-2 p-2.5 bg-black/40 border border-[#00f0ff]/10 rounded-xl mb-3.5 animate-fade-in">
+                        <div>
+                          <span className="text-[9px] text-slate-500 font-mono uppercase block mb-1">Custom Slug</span>
+                          <input 
+                            type="text" 
+                            value={config.bmkgPortSlug || ''} 
+                            placeholder="pelabuhan-custom"
+                            onChange={(e) => {
+                              const val = e.target.value.toLowerCase().replace(/[^a-z0-9\-_]/g, '');
+                              const newCfg = { ...config, bmkgPortSlug: val };
+                              setConfig(newCfg);
+                              localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                            }}
+                            className="w-full bg-[#050a12] border border-white/10 font-mono text-[11px] p-2 text-[#00f0ff] rounded outline-none"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-slate-500 font-mono uppercase block mb-1">Custom Name (Display)</span>
+                          <input 
+                            type="text" 
+                            value={config.stationName || ''} 
+                            placeholder="Pelabuhan Custom"
+                            onChange={(e) => {
+                              const newCfg = { ...config, stationName: e.target.value, bmkgPortLabel: e.target.value };
+                              setConfig(newCfg);
+                              localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                            }}
+                            className="w-full bg-[#050a12] border border-white/10 font-sans text-[11px] p-2 text-white rounded outline-none"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-[9px] text-slate-500 font-mono uppercase block mb-1">Custom Name (Display)</span>
-                        <input 
-                          type="text" 
-                          value={config.stationName || ''} 
-                          placeholder="Pelabuhan Custom"
-                          onChange={(e) => {
-                            const newCfg = { ...config, stationName: e.target.value, bmkgPortLabel: e.target.value };
-                            setConfig(newCfg);
-                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
-                          }}
-                          className="w-full bg-[#050a12] border border-white/10 font-sans text-[11px] p-2 text-white rounded outline-none"
-                        />
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   <div>
                     <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">✂️ Splitter Char</label>
@@ -4312,6 +4365,136 @@ header("Content-Type: application/json; charset=UTF-8");
                 </div>
               </div>
 
+            </div>
+
+            {/* 32 PORT CARDS EXPLORER DIRECTORY */}
+            <div className="bg-[#040912]/80 border border-white/5 p-6 rounded-3xl space-y-4">
+              <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] bg-sky-500/10 text-sky-400 font-bold px-2 py-0.5 rounded border border-sky-500/20 uppercase tracking-widest font-mono">
+                      Port Directory
+                    </span>
+                    <span className="text-slate-500 font-mono text-xs font-bold leading-none">
+                      32 Active Licences
+                    </span>
+                  </div>
+                  <h3 className="text-base font-black text-white uppercase tracking-tight mt-1">
+                    🗂️ Explorer Database Pelabuhan Berlisensi (BMKG Sync)
+                  </h3>
+                  <p className="text-xs text-slate-400 max-w-xl">
+                    Klik kartu pelabuhan di bawah ini untuk berpindah lokasi pemantauan dan memuat data prakiraan cuaca maritim real-time dari situs resmi BMKG secara otomatis.
+                  </p>
+                </div>
+
+                {/* Filter Controls */}
+                <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                  <div className="relative flex-1 sm:flex-none">
+                    <input
+                      type="text"
+                      placeholder="Cari pelabuhan..."
+                      value={portSearchQuery}
+                      onChange={(e) => setPortSearchQuery(e.target.value)}
+                      className="w-full sm:w-48 bg-[#03070f] border border-white/10 px-3 py-2 pl-8 rounded-xl text-xs text-white placeholder-slate-500 outline-none focus:border-sky-500 font-mono"
+                    />
+                    <span className="absolute left-2.5 top-2.5 text-[11px] text-slate-500">🔍</span>
+                  </div>
+
+                  <div className="flex bg-[#03070f] rounded-xl p-1 border border-white/10 font-mono text-[10px] font-bold">
+                    <button
+                      onClick={() => setSelectedRegion('all')}
+                      className={`px-3 py-1.5 rounded-lg transition-all uppercase cursor-pointer ${selectedRegion === 'all' ? 'bg-sky-500/15 text-sky-400 font-black shadow-[0_0_10px_rgba(14,165,233,0.1)]' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                      Semua
+                    </button>
+                    <button
+                      onClick={() => setSelectedRegion('Banten')}
+                      className={`px-3 py-1.5 rounded-lg transition-all uppercase cursor-pointer ${selectedRegion === 'Banten' ? 'bg-sky-500/15 text-sky-400 font-black shadow-[0_0_10px_rgba(14,165,233,0.1)]' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                      Banten ({BMKG_PORTS_LIST.filter(p => p.region === 'Banten').length})
+                    </button>
+                    <button
+                      onClick={() => setSelectedRegion('Jakarta')}
+                      className={`px-3 py-1.5 rounded-lg transition-all uppercase cursor-pointer ${selectedRegion === 'Jakarta' ? 'bg-sky-500/15 text-sky-400 font-black shadow-[0_0_10px_rgba(14,165,233,0.1)]' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                      DKI Jakarta ({BMKG_PORTS_LIST.filter(p => p.region === 'Jakarta').length})
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid cards */}
+              {(() => {
+                const filteredPorts = BMKG_PORTS_LIST.filter(port => {
+                  const matchesSearch = port.label.toLowerCase().includes(portSearchQuery.toLowerCase());
+                  const matchesRegion = selectedRegion === 'all' || port.region === selectedRegion;
+                  return matchesSearch && matchesRegion;
+                });
+
+                if (filteredPorts.length === 0) {
+                  return (
+                    <div className="bg-[#03070f] border border-white/5 p-8 rounded-2xl text-center text-xs text-slate-500 font-mono uppercase">
+                      ❌ Tidak ada pelabuhan yang cocok dengan pencarian "{portSearchQuery}"
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 max-h-[360px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                    {filteredPorts.map((port) => {
+                      const activeSlugNormalized = (config.bmkgPortSlug || 'pelabuhan_ciwandan').replace(/-/g, '_');
+                      const isActive = activeSlugNormalized === port.slug;
+                      return (
+                        <div
+                          key={port.slug}
+                          onClick={() => {
+                            const newCfg = {
+                              ...config,
+                              stationName: port.label,
+                              bmkgPortSlug: port.slug,
+                              bmkgPortLabel: port.label
+                            };
+                            setConfig(newCfg);
+                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                            showToastNotification(`Mengalihkan lokasi cuaca ke: ${port.label}`);
+                            fetchBmkgLive(port.slug, true);
+                          }}
+                          className={`p-3 rounded-2xl border transition-all duration-200 cursor-pointer flex items-center justify-between ${
+                            isActive
+                              ? 'bg-emerald-500/10 border-emerald-450/40 text-white shadow-[0_0_15px_rgba(16,185,129,0.15)] ring-1 ring-emerald-400/20'
+                              : 'bg-[#03070f]/90 border-white/5 text-slate-300 hover:bg-[#070e1b] hover:border-white/15'
+                          }`}
+                        >
+                          <div className="flex items-center min-w-0">
+                            <div className={`p-2.5 rounded-xl mr-3 flex items-center justify-center shrink-0 ${
+                              isActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-sky-500/10 text-sky-400'
+                            }`}>
+                              <Anchor className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-extrabold truncate uppercase leading-tight font-sans">
+                                {port.label.replace('Pelabuhan ', '')}
+                              </div>
+                              <span className="text-[9px] font-bold text-slate-500 font-mono tracking-wide block uppercase mt-0.5">
+                                {port.region === 'Banten' ? 'Banten' : 'DKI Jakarta'}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {isActive ? (
+                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                              <span className="text-[8px] font-black text-emerald-400 font-mono">SELECTED</span>
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                            </div>
+                          ) : (
+                            <span className="text-[8px] font-bold text-slate-500 font-mono shrink-0 ml-2 uppercase">Sync Ready</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* General Forecast Summary Overviews */}
