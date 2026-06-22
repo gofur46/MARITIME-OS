@@ -34,7 +34,8 @@ console.log(`==================================================================\
 
 let client = null;
 let reconnectTimer = null;
-let isConnecting = false;
+let isFetchingConfig = false;
+let isTcpConnecting = false;
 let dataBuffer = ''; // Penyangga aliran byte stream TCP
 
 // Fungsi menguraikan URL secara cerdas agar kompeten di port berapapun (80, 8000, dll)
@@ -57,8 +58,8 @@ function parseUrlConfig(targetUrl) {
 
 // Mengambil pengaturan IP/Port Moxa terbaru yang disimpan user di UI Settings
 function getMoxaConfigAndConnect() {
-    if (isConnecting) return;
-    isConnecting = true;
+    if (isFetchingConfig) return;
+    isFetchingConfig = true;
 
     console.log(`[${new Date().toISOString()}] 🔍 Mengambil konfigurasi IP & Port Moxa dari database via api.php...`);
     
@@ -89,14 +90,14 @@ function getMoxaConfigAndConnect() {
             } catch (err) {
                 console.warn(`[${new Date().toISOString()}] ⚠️ Gagal mengurai respon api.php, menggunakan setingan lokal: IP=${MOXA_IP}, Port=${MOXA_PORT}`);
             }
-            isConnecting = false;
+            isFetchingConfig = false;
             connectToMoxa();
         });
     });
 
     req.on('error', (err) => {
         console.warn(`[${new Date().toISOString()}] ⚠️ Tidak dapat menghubungi api.php (${err.message}). Menggunakan setingan lokal: IP=${MOXA_IP}, Port=${MOXA_PORT}`);
-        isConnecting = false;
+        isFetchingConfig = false;
         connectToMoxa();
     });
 
@@ -141,14 +142,23 @@ function updateStatusOnServer(connected, stateLabel, errorMsg = '') {
 }
 
 function connectToMoxa() {
-    if (isConnecting) return;
-    isConnecting = true;
+    if (isTcpConnecting) return;
+    isTcpConnecting = true;
 
     console.log(`[${new Date().toISOString()}] 🔌 [DIALING] Menghubungkan ke MOXA Server di ${MOXA_IP}:${MOXA_PORT}...`);
     updateStatusOnServer(false, 'DIALING', `Connecting to ${MOXA_IP}:${MOXA_PORT}...`);
 
-    client = net.createConnection({ host: MOXA_IP, port: MOXA_PORT }, () => {
-        isConnecting = false;
+    // Clean up old socket if it exists to avoid leakage
+    if (client) {
+        try {
+            client.destroy();
+        } catch (e) {}
+    }
+
+    client = new net.Socket();
+
+    client.connect(MOXA_PORT, MOXA_IP, () => {
+        isTcpConnecting = false;
         console.log(`[${new Date().toISOString()}] 🟢 [CONNECTED] Sukses tersambung ke Moxa! Mendengarkan data nirkabel...`);
         dataBuffer = '';
         updateStatusOnServer(true, 'CONNECTED', '');
@@ -172,7 +182,7 @@ function connectToMoxa() {
 
     // Koneksi terputus
     client.on('close', () => {
-        isConnecting = false;
+        isTcpConnecting = false;
         console.log(`[${new Date().toISOString()}] 🔴 [DISCONNECTED] Koneksi ke MOXA terputus!`);
         updateStatusOnServer(false, 'DISCONNECTED', 'Connection closed');
         scheduleReconnect();
@@ -180,7 +190,7 @@ function connectToMoxa() {
 
     // Kesalahan jaringan / host tidak terjangkau
     client.on('error', (err) => {
-        isConnecting = false;
+        isTcpConnecting = false;
         console.error(`[${new Date().toISOString()}] ❌ [TCP ERROR]: ${err.message}`);
         updateStatusOnServer(false, 'ERROR', err.message);
         if (client) {
