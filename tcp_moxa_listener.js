@@ -102,16 +102,55 @@ function getMoxaConfigAndConnect() {
     req.end();
 }
 
+function updateStatusOnServer(connected, stateLabel, errorMsg = '') {
+    const statusPayload = {
+        action: 'save_moxa_status',
+        connected: connected,
+        moxa_ip: MOXA_IP,
+        moxa_port: MOXA_PORT,
+        state: stateLabel,
+        error: errorMsg
+    };
+    
+    const dataString = JSON.stringify(statusPayload);
+    const apiParts = parseUrlConfig(API_URL);
+    
+    const options = {
+        hostname: apiParts.hostname,
+        port: apiParts.port,
+        path: apiParts.path,
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(dataString)
+        }
+    };
+
+    const req = http.request(options, (res) => {
+        let responseBody = '';
+        res.on('data', (chunk) => { responseBody += chunk; });
+    });
+
+    req.on('error', (err) => {
+        // Silent block to avoid loop logging when backend is temporarily offline
+    });
+
+    req.write(dataString);
+    req.end();
+}
+
 function connectToMoxa() {
     if (isConnecting) return;
     isConnecting = true;
 
     console.log(`[${new Date().toISOString()}] 🔌 [DIALING] Menghubungkan ke MOXA Server di ${MOXA_IP}:${MOXA_PORT}...`);
+    updateStatusOnServer(false, 'DIALING', `Connecting to ${MOXA_IP}:${MOXA_PORT}...`);
 
     client = net.createConnection({ host: MOXA_IP, port: MOXA_PORT }, () => {
         isConnecting = false;
         console.log(`[${new Date().toISOString()}] 🟢 [CONNECTED] Sukses tersambung ke Moxa! Mendengarkan data nirkabel...`);
         dataBuffer = '';
+        updateStatusOnServer(true, 'CONNECTED', '');
     });
 
     client.on('data', (data) => {
@@ -134,6 +173,7 @@ function connectToMoxa() {
     client.on('close', () => {
         isConnecting = false;
         console.log(`[${new Date().toISOString()}] 🔴 [DISCONNECTED] Koneksi ke MOXA terputus!`);
+        updateStatusOnServer(false, 'DISCONNECTED', 'Connection closed');
         scheduleReconnect();
     });
 
@@ -141,6 +181,7 @@ function connectToMoxa() {
     client.on('error', (err) => {
         isConnecting = false;
         console.error(`[${new Date().toISOString()}] ❌ [TCP ERROR]: ${err.message}`);
+        updateStatusOnServer(false, 'ERROR', err.message);
         if (client) {
             client.destroy();
         }

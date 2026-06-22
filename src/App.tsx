@@ -284,6 +284,60 @@ export default function App() {
     details?: string;
   }>({ status: 'idle', message: '' });
 
+  // MOXA Gateway Connection Status tracking
+  const [moxaStatus, setMoxaStatus] = useState<{
+    connected: boolean;
+    moxa_ip: string;
+    moxa_port: number;
+    state: string;
+    last_seen: string;
+    error: string;
+  } | null>(null);
+
+  // Poll Moxa Connection Status from local api.php
+  useEffect(() => {
+    let intervalId: any = null;
+    
+    const fetchMoxaStatus = async () => {
+      if (config.transport !== 'MOXA_TCP') return;
+      const testUrl = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
+      const moxaStatusUrl = `${testUrl}?get_moxa_status=1`;
+      try {
+        const res = await fetch(moxaStatusUrl);
+        if (res.ok) {
+          const rawText = await res.text();
+          let parsed;
+          try {
+            parsed = JSON.parse(rawText.trim());
+          } catch (err) {
+            const matches = rawText.match(/\{"connected"[^}]*\}/g) || rawText.match(/\{[^}]*\}/g);
+            if (matches && matches.length > 0) {
+              parsed = JSON.parse(matches[matches.length - 1]);
+            } else {
+              throw err;
+            }
+          }
+          if (parsed && typeof parsed.connected === 'boolean') {
+            setMoxaStatus(parsed);
+          }
+        }
+      } catch (err) {
+        console.warn("Inbound Moxa status polling request failed:", err);
+      }
+    };
+
+    if (config.transport === 'MOXA_TCP') {
+      fetchMoxaStatus();
+      intervalId = setInterval(fetchMoxaStatus, 3000);
+    } else {
+      setMoxaStatus(null);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [config.transport, config.localDbApiUrl]);
+
   // Auto-connect and check database on mount (helpful when laptop restarts and dev environment boots)
   useEffect(() => {
     const autoTestConnection = async () => {
@@ -2835,6 +2889,23 @@ if (\$_SERVER['REQUEST_METHOD'] === 'GET' && isset(\$_GET['get_moxa_config'])) {
     exit();
 }
 
+// 1b. GET Request: Check Moxa background daemon connection status
+if (\$_SERVER['REQUEST_METHOD'] === 'GET' && isset(\$_GET['get_moxa_status'])) {
+    if (file_exists("moxa_status.json")) {
+        echo file_get_contents("moxa_status.json");
+    } else {
+        echo json_encode([
+            "connected" => false,
+            "moxa_ip" => "192.168.127.254",
+            "moxa_port" => 10001,
+            "state" => "OFFLINE",
+            "last_seen" => "Never / Waiting for Daemon...",
+            "error" => "No status reported from background daemon yet."
+        ]);
+    }
+    exit();
+}
+
 // PostgreSQL Server Configuration
 \$host = "localhost";
 \$port = "5432"; // Standard PostgreSQL Port
@@ -2902,6 +2973,27 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Exception \$e) {
             http_response_code(500);
             echo json_encode(["status" => "error", "message" => "Failed to write config file: " . \$e->getMessage()]);
+            exit();
+        }
+    }
+
+    // 2b. POST Action: Save dynamic Moxa background daemon live connection status report
+    if (isset(\$data['action']) && \$data['action'] === 'save_moxa_status') {
+        try {
+            \$status_data = [
+                "connected" => isset(\$data['connected']) ? (bool)\$data['connected'] : false,
+                "moxa_ip" => isset(\$data['moxa_ip']) ? \$data['moxa_ip'] : '192.168.127.254',
+                "moxa_port" => isset(\$data['moxa_port']) ? (int)\$data['moxa_port'] : 10001,
+                "state" => isset(\$data['state']) ? \$data['state'] : 'UNKNOWN',
+                "last_seen" => date('d-m-Y H:i:s'),
+                "error" => isset(\$data['error']) ? \$data['error'] : ''
+            ];
+            file_put_contents("moxa_status.json", json_encode(\$status_data, JSON_PRETTY_PRINT));
+            echo json_encode(["status" => "success", "message" => "Daemon status synced."]);
+            exit();
+        } catch (Exception \$e) {
+            http_response_code(500);
+            echo json_encode(["status" => "error", "message" => "Failed to write status file: " . \$e->getMessage()]);
             exit();
         }
     }
@@ -3357,6 +3449,56 @@ header("Content-Type: application/json; charset=UTF-8");
                       />
                     </div>
                   </div>
+
+                  {config.transport === 'MOXA_TCP' && (
+                    <div className="p-3.5 bg-slate-950/90 border border-white/10 rounded-xl space-y-3 font-mono">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs uppercase font-extrabold text-teal-400">📡 MOXA LIVE STATUS:</span>
+                        {moxaStatus && moxaStatus.connected ? (
+                          <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded font-black tracking-wider animate-pulse">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                            CONNECTED
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1.5 bg-red-400/10 text-red-500 border border-red-500/30 text-[10px] px-2 py-0.5 rounded font-black tracking-wider">
+                            <span className="h-1.5 w-1.5 rounded-full bg-red-500"></span>
+                            DISCONNECTED
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-xs space-y-1 bg-black/40 p-2.5 rounded border border-white/5 text-slate-300">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">IP Gateway:</span>
+                          <span className="text-white font-bold">{moxaStatus?.moxa_ip || config.serialcom || '192.168.127.254'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Port Gateway:</span>
+                          <span className="text-white font-bold">{moxaStatus?.moxa_port || config.baudrate || '10001'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Daemon state:</span>
+                          <span className={`font-bold ${moxaStatus && moxaStatus.connected ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {moxaStatus?.state || 'OFFLINE'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Last Synced:</span>
+                          <span className="text-white text-[11px]">{moxaStatus?.last_seen || 'Never / Waiting daemon...'}</span>
+                        </div>
+                        {moxaStatus?.error && (
+                          <div className="mt-1.5 text-[10px] text-red-300 bg-red-500/10 p-1.5 rounded border border-red-500/15">
+                            ⚠️ Msg: {moxaStatus.error}
+                          </div>
+                        )}
+                      </div>
+
+                      <p className="text-[10px] font-sans text-slate-400 leading-normal">
+                        💡 <strong>Saran:</strong> Pastikan Anda menjalankan daemon listener di Komputer Host:<br />
+                        <code className="text-[#00f0ff] bg-white/5 px-1 py-0.5 mt-1 block rounded font-mono text-[9px] text-center select-all">node tcp_moxa_listener.js</code>
+                      </p>
+                    </div>
+                  )}
 
                   <div className="border-t border-white/5 pt-3">
                     <label className="text-xs md:text-xs uppercase font-bold text-emerald-400 font-mono tracking-wider block mb-1.5">🔄 Visual Pier Angle (Degrees 0-360)</label>
