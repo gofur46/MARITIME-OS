@@ -3511,9 +3511,9 @@ header("Content-Type: application/json; charset=UTF-8");
                           </p>
                           <p>
                             🔵 <strong>Metode 2: PM2 Service (Silent & Auto-Restart)</strong><br />
-                            Gunakan Node.js Process Manager agar berjalan 100% senyap di background. Menjalankannya cukup sekali saja lewat CMD:
+                            Gunakan Node.js Process Manager agar berjalan 100% senyap di background. Menjalankannya cukup sekali saja lewat CMD atau PowerShell:
                             <code className="text-[#00f0ff] bg-black px-1.5 py-0.5 mt-1 block rounded font-mono text-[9px] select-all border border-white/5 leading-normal">
-                              {`npm install -g pm2\npm2 start tcp_moxa_listener.js --name "moxa-telemetry" -- "${config.localDbApiUrl || 'http://localhost/aws_marine/api.php'}" "${config.serialcom || '192.168.1.254'}" "${config.baudrate || '4001'}"\npm2 save\npm2 startup`}
+                              {`npm install -g pm2\npm2 start tcp_moxa_listener.js --name "moxa-telemetry" --args "${config.localDbApiUrl || 'http://localhost/aws_marine/api.php'} ${config.serialcom || '192.168.1.254'} ${config.baudrate || '4001'}"\npm2 save\npm2 startup`}
                             </code>
                           </p>
                         </div>
