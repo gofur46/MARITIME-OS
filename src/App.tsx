@@ -3621,68 +3621,6 @@ header("Content-Type: application/json; charset=UTF-8");
                           </div>
                         )}
                       </div>
-
-                      <p className="text-[10px] font-sans text-slate-400 leading-normal">
-                        💡 <strong>Saran:</strong> Jalankan daemon di komputer host menggunakan perintah berikut:<br />
-                        <code className="text-[#00f0ff] bg-white/5 px-1.5 py-1 mt-1 block rounded font-mono text-[9px] text-center select-all border border-teal-500/10 whitespace-pre-wrap breakdown-words">
-                          {`node tcp_moxa_listener.js ${config.localDbApiUrl || 'http://localhost:8000/api.php'} ${config.serialcom || '192.168.1.254'} ${config.baudrate || '4001'}`}
-                        </code>
-                      </p>
-
-                      <div className="border-t border-white/5 pt-2 mt-1 space-y-1">
-                        <strong className="text-[10px] text-teal-400 block tracking-wider font-mono">⚡ METODE OTOMATISASI YANG AMAN & ANTI-TERHAPUS (WINDOWS):</strong>
-                        <div className="text-[10px] text-slate-300 leading-relaxed font-sans bg-black/30 p-2.5 rounded space-y-2.5">
-                          <p className="border-b border-white/5 pb-2">
-                            Jika diletakkan di folder <strong>Startup</strong> (<code className="text-amber-300">shell:startup</code>), file shortcut rentan terhapus tidak sengaja oleh user/pembersihan sistem. Gunakan metode profesional di bawah ini agar daemon berjalan permanen di latar belakang:
-                          </p>
-
-                          <div>
-                            <span className="text-[10px] text-teal-300 font-bold block mb-1">🛡️ METODE A: Menggunakan Windows Task Scheduler (Sangat Aman & Tersembunyi)</span>
-                            <p className="text-slate-400 text-[9px] mb-1 leading-normal">
-                              Metode bawaan Windows ini membuat script berjalan otomatis di latar belakang bahkan <strong>sebelum ada pengguna yang login</strong>, aman dari terhapus oleh user non-admin.
-                            </p>
-                            <ol className="list-decimal list-outside pl-4 space-y-1 text-[9px] text-slate-300 font-sans">
-                              <li>Buka menu Start, cari dan pilih <strong>Task Scheduler</strong> (Penjadwal Tugas).</li>
-                              <li>Di panel kanan, klik <strong>Create Basic Task...</strong> (Buat Tugas Dasar).</li>
-                              <li>Beri nama bebas, contoh: <code className="text-white font-mono bg-white/5 px-1 py-0.2 rounded">AWS-Marine-Daemon</code>, lalu klik Next.</li>
-                              <li>Pada bagian Trigger, pilih <strong>When the computer starts</strong> (Saat komputer dinyalakan), klik Next.</li>
-                              <li>Pada bagian Action, pilih <strong>Start a program</strong>, klik Next.</li>
-                              <li>Di kolom <em>Program/script</em>, ketik <code className="text-white font-mono bg-white/5 px-1 py-0.2 rounded">pm2</code> (atau path lengkapnya seperti <code className="text-slate-300 font-mono bg-black/30 px-1 py-0.2 rounded text-[8px]">C:\Users\NAMA_USER\AppData\Roaming\npm\pm2.cmd</code>), dan di kolom <em>Add arguments</em> isi dengan: <code className="text-teal-300 font-mono bg-black/30 px-1 py-0.2 rounded">resurrect</code>.</li>
-                              <li>Klik Next, lalu centang <strong>"Open the Properties dialog for this task when I click Finish"</strong> dan klik Finish.</li>
-                              <li>Pada jendela Properties yang muncul, centang opsi <strong>"Run whether user is logged on or not"</strong> (agar berjalan tanpa perlu login) dan centang <strong>"Run with highest privileges"</strong> (Mode Administrator). Klik OK dan masukkan password PC jika diminta.</li>
-                            </ol>
-                          </div>
-
-                          <div className="pt-2 border-t border-white/5">
-                            <span className="text-[10px] text-teal-300 font-bold block mb-1">⚙️ METODE B: Registrasi Sebagai Layanan Sistem (Windows Service - Paling Profesional)</span>
-                            <p className="text-slate-400 text-[9px] mb-1 leading-normal">
-                              Mendaftarkan PM2 secara resmi ke Windows Services (<code className="text-amber-300">services.msc</code>) agar sejajar dengan service database Microsoft SQL Server atau IIS. Tidak akan pernah bisa terhapus dari folder biasa.
-                            </p>
-                            <ol className="list-decimal list-outside pl-4 space-y-1 text-[9px] text-slate-300 font-sans">
-                              <li>Buka <strong>PowerShell</strong> atau <strong>CMD</strong> sebagai <strong>Administrator</strong> (Run as Administrator).</li>
-                              <li>Install modul service pembungkus secara global dengan mengetik:
-                                <code className="text-[#00f0ff] bg-black/50 px-1.5 py-0.5 mt-0.5 block rounded font-mono text-[9px] select-all border border-white/5">
-                                  npm install -g pm2-windows-service
-                                </code>
-                              </li>
-                              <li>Kemudian pasang layanannya ke sistem Windows Anda dengan perintah:
-                                <code className="text-[#00f0ff] bg-black/50 px-1.5 py-0.5 mt-0.5 block rounded font-mono text-[9px] select-all border border-white/5">
-                                  pm2-service-install
-                                </code>
-                                <p className="text-slate-400 text-[8px] mt-0.5 leading-tight">
-                                  *(Ketik <code className="text-white">N</code> saat muncul pilihan <em>"Perform in-memory..."</em> agar tetap menyimpan konfigurasi di disk)*
-                                </p>
-                              </li>
-                              <li>Setelah selesai, lakukan penyimpanan aplikasi yang sedang berjalan:
-                                <code className="text-[#00f0ff] bg-black/50 px-1.5 py-0.5 mt-0.5 block rounded font-mono text-[9px] select-all border border-white/5">
-                                  pm2 save
-                                </code>
-                              </li>
-                              <li>Sistem PM2 sekarang akan otomatis hidup terus di latar belakang Windows Service tanpa khawatir terhapus sengaja!</li>
-                            </ol>
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   )}
 
