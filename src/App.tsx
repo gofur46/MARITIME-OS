@@ -896,11 +896,13 @@ export default function App() {
 
   const [systemAlert, setSystemAlert] = useState<string | null>(null);
 
-  const fetchBmkgLive = async (showToast = false) => {
+  const fetchBmkgLive = async (slugToFetch?: string | boolean, showToast = false) => {
     setIsLoadingBmkg(true);
     setBmkgErrorMsg('');
+    const actualShowToast = typeof slugToFetch === 'boolean' ? slugToFetch : showToast;
+    const targetSlug = (slugToFetch && typeof slugToFetch === 'string') ? slugToFetch : (config.bmkgPortSlug || 'pelabuhan-ciwandan');
     try {
-      const portQuery = config.bmkgPortSlug ? `?port=${config.bmkgPortSlug}` : '';
+      const portQuery = `?port=${targetSlug}`;
       const res = await fetch(`/api/bmkg${portQuery}`);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
@@ -911,7 +913,7 @@ export default function App() {
         setBmkgSource(dataJson.source);
         const formatTime = format(new Date(dataJson.lastUpdated), 'dd MMM yy, HH:mm:ss');
         setLastBmkgFetched(formatTime);
-        if (showToast) {
+        if (actualShowToast) {
           showToastNotification(`🟢 BMKG MARITIM BERHASIL DISINKRONKAN (${dataJson.source.toUpperCase()})`);
         }
       } else {
@@ -921,7 +923,7 @@ export default function App() {
       console.error('Failed to fetch live BMKG forecast:', err);
       // Fallback gracefully - bmkgForecast preserves the previous/static data automatically
       setBmkgErrorMsg(err.message || 'Gagal terhubung ke API scraping.');
-      if (showToast) {
+      if (actualShowToast) {
         showToastNotification(`🔴 SYNC BMKG GAGAL: ${err.message || 'Koneksi error'}`);
       }
     } finally {
@@ -930,12 +932,12 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchBmkgLive(false);
+    fetchBmkgLive(config.bmkgPortSlug, false);
 
     // Auto-sync every 1 hour (3600000ms)
     const intervalId = setInterval(() => {
       console.log("[Auto-Refresh] Commencing hourly BMKG marine forecast sync...");
-      fetchBmkgLive(true);
+      fetchBmkgLive(config.bmkgPortSlug, true);
     }, 3600000);
 
     return () => clearInterval(intervalId);
@@ -3544,11 +3546,13 @@ header("Content-Type: application/json; charset=UTF-8");
                         onChange={(e) => {
                           const val = e.target.value;
                           if (val === 'custom') {
-                            setConfig((prev: any) => ({
-                              ...prev,
-                              bmkgPortSlug: prev.bmkgPortSlug || 'pelabuhan-ciwandan',
-                              bmkgPortLabel: prev.stationName || prev.bmkgPortLabel || 'Pelabuhan Ciwandan'
-                            }));
+                            const newCfg = {
+                              ...config,
+                              bmkgPortSlug: config.bmkgPortSlug || 'pelabuhan-ciwandan',
+                              bmkgPortLabel: config.stationName || config.bmkgPortLabel || 'Pelabuhan Ciwandan'
+                            };
+                            setConfig(newCfg);
+                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
                           } else {
                             const selectedObj = [
                               { slug: 'pelabuhan-ciwandan', label: 'Pelabuhan Ciwandan' },
@@ -3560,13 +3564,16 @@ header("Content-Type: application/json; charset=UTF-8");
                               { slug: 'pelabuhan-banten', label: 'Pelabuhan Karangantu' },
                             ].find(item => item.slug === val);
                             if (selectedObj) {
-                              setConfig((prev: any) => ({
-                                ...prev,
+                              const newCfg = {
+                                ...config,
                                 stationName: selectedObj.label,
                                 bmkgPortSlug: selectedObj.slug,
                                 bmkgPortLabel: selectedObj.label
-                              }));
+                              };
+                              setConfig(newCfg);
+                              localStorage.setItem('aws_config', JSON.stringify(newCfg));
                               showToastNotification(`Lokasi diubah: ${selectedObj.label}`);
+                              fetchBmkgLive(selectedObj.slug, true);
                             }
                           }
                         }}
@@ -3613,13 +3620,16 @@ header("Content-Type: application/json; charset=UTF-8");
                                 'pelabuhan-banten': 'Pelabuhan Karangantu'
                               };
                               const fullLabel = fullLabels[item.slug] || item.label;
-                              setConfig((prev: any) => ({
-                                ...prev,
+                              const newCfg = {
+                                ...config,
                                 stationName: fullLabel,
                                 bmkgPortSlug: item.slug,
                                 bmkgPortLabel: fullLabel
-                              }));
+                              };
+                              setConfig(newCfg);
+                              localStorage.setItem('aws_config', JSON.stringify(newCfg));
                               showToastNotification(`Lokasi diubah: ${fullLabel}`);
+                              fetchBmkgLive(item.slug, true);
                             }}
                             className={`px-3 py-1.5 text-[10px] font-mono tracking-tight font-extrabold rounded-lg whitespace-nowrap border shrink-0 transition-all cursor-pointer ${
                               isSelected 
@@ -3645,7 +3655,9 @@ header("Content-Type: application/json; charset=UTF-8");
                           placeholder="pelabuhan-custom"
                           onChange={(e) => {
                             const val = e.target.value.toLowerCase().replace(/[^a-z0-9\-]/g, '');
-                            setConfig((prev: any) => ({ ...prev, bmkgPortSlug: val }));
+                            const newCfg = { ...config, bmkgPortSlug: val };
+                            setConfig(newCfg);
+                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
                           }}
                           className="w-full bg-[#050a12] border border-white/10 font-mono text-[11px] p-2 text-[#00f0ff] rounded outline-none"
                         />
@@ -3657,7 +3669,9 @@ header("Content-Type: application/json; charset=UTF-8");
                           value={config.stationName || ''} 
                           placeholder="Pelabuhan Custom"
                           onChange={(e) => {
-                            setConfig((prev: any) => ({ ...prev, stationName: e.target.value, bmkgPortLabel: e.target.value }));
+                            const newCfg = { ...config, stationName: e.target.value, bmkgPortLabel: e.target.value };
+                            setConfig(newCfg);
+                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
                           }}
                           className="w-full bg-[#050a12] border border-white/10 font-sans text-[11px] p-2 text-white rounded outline-none"
                         />
