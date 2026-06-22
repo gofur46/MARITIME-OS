@@ -4384,7 +4384,7 @@ header("Content-Type: application/json; charset=UTF-8");
               <div className="bg-gradient-to-b from-[#0b1424] to-bg p-5 rounded-3xl border border-white/10">
                 <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-widest flex justify-between items-center pb-2.5 border-b border-white/5 mb-4 font-sans">
                   <span>🌊 Grafik Trend Elevasi Air Laut & Tinggi Gelombang</span>
-                  <span className="text-[10px] font-mono text-emerald-400 font-bold uppercase">PELABUHAN CIWANDAN</span>
+                  <span className="text-[10px] font-mono text-emerald-400 font-bold uppercase">{(config.bmkgPortLabel || 'Pelabuhan Ciwandan').toUpperCase()}</span>
                 </div>
                 <div className="h-64 mt-2">
                   <ResponsiveContainer width="100%" height="100%">
