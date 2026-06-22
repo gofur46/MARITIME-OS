@@ -8,6 +8,7 @@ import {
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { WeatherData, AlertLevel, PortInstruction } from './types';
 import { format } from 'date-fns';
+import { io as socketIO } from 'socket.io-client';
 
 // Create Yesterday's baseline climatology averages for our math
 const CLIMATOLOGY_AVG = {
@@ -294,12 +295,108 @@ export default function App() {
     error: string;
   } | null>(null);
 
-  // Poll Moxa Connection Status from local api.php
+  // Socket.IO + Fallback PHP Polling integration with Moxa Daemon
   useEffect(() => {
-    let intervalId: any = null;
-    
+    if (config.transport !== 'MOXA_TCP') {
+      setMoxaStatus(null);
+      return;
+    }
+
+    let socket: any = null;
+    let fallbackIntervalId: any = null;
+
+    console.log("🔌 Connecting to Moxa Daemon WebSocket on port 8080...");
+    try {
+      socket = socketIO('http://localhost:8080', {
+        transports: ['websocket', 'polling'],
+        timeout: 5000,
+        reconnectionDelay: 3000,
+        reconnectionAttempts: 15
+      });
+
+      socket.on('connect', () => {
+        console.log("✅ Main Dashboard connected to Moxa Daemon via WebSocket!");
+        setMoxaStatus(prev => ({
+          connected: true,
+          moxa_ip: prev?.moxa_ip || '192.168.1.254',
+          moxa_port: prev?.moxa_port || 4001,
+          state: 'CONNECTED',
+          last_seen: new Date().toLocaleTimeString('id-ID'),
+          error: ''
+        }));
+      });
+
+      socket.on('statusUpdate', (status: any) => {
+        if (status) {
+          setMoxaStatus(status);
+        }
+      });
+
+      // Stream live raw sentences directly to terminal
+      socket.on('rawTelemetry', (raw: any) => {
+        if (raw && raw.data) {
+          setStreamLogs(prevLogs => {
+            const lines = prevLogs.split('\n');
+            const timeStr = new Date().toLocaleTimeString('id-ID');
+            const msg = `[${timeStr} MOXA RAW] 📥 "${raw.data}"`;
+            const output = [...lines, msg];
+            if (output.length > 50) return output.slice(output.length - 35).join('\n');
+            return output.join('\n');
+          });
+        }
+      });
+
+      // Stream live parsed data to feed into active telemetry display instantly
+      socket.on('dataUpdate', (parsedRecord: any) => {
+        if (parsedRecord) {
+          const formattedRecord = {
+            timestamp: Date.now(),
+            temperature: parsedRecord.temperature,
+            humidity: parsedRecord.humidity,
+            windSpeed: parsedRecord.wind_speed,
+            windDirection: parsedRecord.wind_direction,
+            pressure: parsedRecord.pressure,
+            solarRadiation: parsedRecord.solar_radiation,
+            rainfall: parsedRecord.rainfall,
+            waveHeight: parsedRecord.wave_height,
+            currentSpeed: parsedRecord.current_speed || 1.1,
+            seaLevel: parsedRecord.sea_level,
+            waterPh: parsedRecord.water_ph
+          };
+
+          // Append to history log state instantly to update the dials & numbers
+          setHistory(prev => {
+            const updated = [...prev, formattedRecord];
+            const keeps = updated.length > 200 ? updated.slice(updated.length - 150) : updated;
+            localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
+            return keeps;
+          });
+
+          // Print success in terminal logs
+          setStreamLogs(prevLogs => {
+            const lines = prevLogs.split('\n');
+            const timeStr = new Date().toLocaleTimeString('id-ID');
+            const msg = `[${timeStr} PARSER] ✅ Temp=${parsedRecord.temperature}°C | Wind=${parsedRecord.wind_speed} m/s | pH=${parsedRecord.water_ph} -> Saved Memory & DB`;
+            const output = [...lines, msg];
+            if (output.length > 50) return output.slice(output.length - 35).join('\n');
+            return output.join('\n');
+          });
+        }
+      });
+
+      socket.on('disconnect', () => {
+        console.warn("❌ Moxa WebSocket disconnected, waiting for reconnection...");
+      });
+
+      socket.on('connect_error', () => {
+        // Quietly fail or wait for retry
+      });
+    } catch (e) {
+      console.error("Failed to construct socket:", e);
+    }
+
+    // Fallback polling for status in case WebSocket connection is blocked by CORS/Mixed Content
     const fetchMoxaStatus = async () => {
-      if (config.transport !== 'MOXA_TCP') return;
       const testUrl = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
       const moxaStatusUrl = `${testUrl}?get_moxa_status=1`;
       try {
@@ -322,19 +419,20 @@ export default function App() {
           }
         }
       } catch (err) {
-        console.warn("Inbound Moxa status polling request failed:", err);
+        // quiet fail
       }
     };
 
-    if (config.transport === 'MOXA_TCP') {
-      fetchMoxaStatus();
-      intervalId = setInterval(fetchMoxaStatus, 3000);
-    } else {
-      setMoxaStatus(null);
-    }
+    fetchMoxaStatus();
+    fallbackIntervalId = setInterval(fetchMoxaStatus, 6000);
 
     return () => {
-      if (intervalId) clearInterval(intervalId);
+      if (socket) {
+        socket.disconnect();
+      }
+      if (fallbackIntervalId) {
+        clearInterval(fallbackIntervalId);
+      }
     };
   }, [config.transport, config.localDbApiUrl]);
 

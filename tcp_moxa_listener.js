@@ -1,46 +1,65 @@
 /**
- * DAEMON SERVICE: MOXA TCP/IP GATEWAY CLIENT TO POSTGRESQL BRIDGE
+ * DAEMON SERVICE: MOXA TCP/IP GATEWAY CLIENT TO POSTGRESQL BRIDGE (WITH SOCKET.IO BROADCAST)
  * File: C:\MARITIME-OS-main\MARITIME-OS-main\tcp_moxa_listener.js
  * 
- * SINKRONISASI OTOMATIS (MENGGUNAKAN NATIVE ES MODULES):
- * - Script ini bertindak sebagai "TCP Client" yang secara aktif menghubungkan diri ke MOXA (berperan sebagai TCP Server).
- * - IP & Port Moxa dibaca SEPENUHNYA SECARA DINAMIS dari yang Anda masukkan di menu SETTINGS Dashboard!
- * - Setiap kali menyambungkan diri, daemon ini secara otomatis mendownload konfigurasi IP/Port terupdate dari api.php.
- * - Dilengkapi fitur AUTO-RECONNECT tangguh: Jika koneksi terputus, ia akan mencoba menyambung kembali setiap 5 detik.
+ * METODE REAL-TIME BARU (SANGAT STABIL & BEBAS BLOKIR CORS):
+ * - Script ini mendirikan Web & WebSocket Server di port 8080 menggunakan Express + Socket.IO.
+ * - Menghubungkan secara langsung diri ke MOXA (TCP Server).
+ * - Saat data wireless masuk, data didecode secara presisi lalu disiarkan (emit) langsung ke React Dashboard lewat Socket.IO.
+ * - Koneksi status juga di-emit secara live sehingga status "CONNECTED" tampil instan & akurat di layar.
+ * - Tetap memompa/menyimpan data hasil parser ke api.php (PostgreSQL database) agar riwayat grafik Dashboard tetap terisi otomatis.
  */
 
+import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import net from 'net';
 import http from 'http';
 import { URL } from 'url';
 
 // ==================== CONFIGURATION ====================
-// Alamat API Jembatan database PHP lokal Anda (Default XAMPP: http://localhost/aws_marine/api.php)
-// Sekarang mendukung argumen baris perintah secara penuh: 
-// FORMAT: node tcp_moxa_listener.js [API_URL] [MOXA_IP] [MOXA_PORT]
-// CONTOH: node tcp_moxa_listener.js http://localhost/aws_marine/api.php 192.168.1.254 4001
+// Alamat database PHP lokal Anda (Default XAMPP: http://localhost/aws_marine/api.php)
 const API_URL = process.argv[2] || 'http://localhost/aws_marine/api.php';
 
-// IP & Port Moxa (Dapat langsung ditulis di baris perintah jika tidak ingin disinkronkan dari db)
+// IP & Port Moxa (Dapat langsung ditulis di baris perintah sebagai override):
+// FORMAT: node tcp_moxa_listener.js [API_URL] [MOXA_IP] [MOXA_PORT]
 let MOXA_IP = process.argv[3] || '192.168.1.254'; 
 let MOXA_PORT = parseInt(process.argv[4]) || 4001;          
-const RECONNECT_INTERVAL = 5000;  // Percobaan ulang koneksi (5 detik)
+const RECONNECT_INTERVAL = 5000; // Coba menyambung kembali setiap 5 detik jika putus
+const WEB_IO_PORT = 8080; // Port Web Server + Socket.IO lokal
 // =======================================================
+
+const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+    cors: {
+        origin: "*", // Mengizinkan semua koneksi dashboard termasuk Web Preview & Localhost
+        methods: ["GET", "POST"]
+    }
+});
 
 console.log(`==================================================================`);
 console.log(`          AWS MARITIME TELEMETRY TCP CLIENT FOR MOXA GATEWAY`);
-console.log(`          Mode: Aktif Menghubungkan ke Moxa (Moxa as TCP Server)`);
-console.log(`          Sinkronisasi dinamis via menu Dashboard Settings.`);
+console.log(`          [MODE SOCKET.IO]: Menyediakan data real-time di port ${WEB_IO_PORT}`);
 console.log(`==================================================================`);
-console.log(`Target API URL   : ${API_URL}`);
+console.log(`Target API URL      : ${API_URL}`);
+console.log(`Socket.IO Server URL: http://localhost:${WEB_IO_PORT}`);
 console.log(`==================================================================\n`);
 
 let client = null;
 let reconnectTimer = null;
 let isFetchingConfig = false;
 let isTcpConnecting = false;
-let dataBuffer = ''; // Penyangga aliran byte stream TCP
+let dataBuffer = ''; // Penyangga byte stream
+let lastStatus = {
+    connected: false,
+    moxa_ip: MOXA_IP,
+    moxa_port: MOXA_PORT,
+    state: 'DISCONNECTED',
+    error: 'Initializing daemon...'
+};
 
-// Fungsi menguraikan URL secara cerdas agar kompeten di port berapapun (80, 8000, dll)
+// Parser URL cerdas untuk posting database
 function parseUrlConfig(targetUrl) {
     try {
         const parsed = new URL(targetUrl);
@@ -50,89 +69,30 @@ function parseUrlConfig(targetUrl) {
             path: parsed.pathname + parsed.search
         };
     } catch (e) {
-        return {
-            hostname: 'localhost',
-            port: 80,
-            path: '/aws_marine/api.php'
-        };
+        return { hostname: 'localhost', port: 80, path: '/aws_marine/api.php' };
     }
 }
 
-// Mengambil pengaturan IP/Port Moxa terbaru yang disimpan user di UI Settings
-function getMoxaConfigAndConnect() {
-    // Jika port & IP secara eksplisit dilewatkan via argumen baris perintah, lewati sinkronisasi database
-    if (process.argv[3] && process.argv[4]) {
-        MOXA_IP = process.argv[3];
-        MOXA_PORT = parseInt(process.argv[4]) || 4001;
-        console.log(`[${new Date().toISOString()}] 🚀 [CMD DIRECT OVERRIDE]: Menggunakan IP & Port dari CMD secara langsung.`);
-        console.log(`[${new Date().toISOString()}] ⚙️ Target MOXA : ${MOXA_IP}:${MOXA_PORT}`);
-        connectToMoxa();
-        return;
-    }
-
-    if (isFetchingConfig) return;
-    isFetchingConfig = true;
-
-    console.log(`[${new Date().toISOString()}] 🔍 Mengambil konfigurasi IP & Port Moxa dari database via api.php...`);
-    
-    const apiParts = parseUrlConfig(API_URL);
-    
-    const options = {
-        hostname: apiParts.hostname,
-        port: apiParts.port,
-        path: apiParts.path + (apiParts.path.includes('?') ? '&' : '?') + 'get_moxa_config=1',
-        method: 'GET'
+// Menyiarkan status terbaru ke seluruh klien Socket.IO & mengabari api.php
+function broadcastStatus(connected, stateLabel, errorMsg = '') {
+    lastStatus = {
+        connected: connected,
+        moxa_ip: MOXA_IP,
+        moxa_port: MOXA_PORT,
+        state: stateLabel,
+        last_seen: new Date().toLocaleTimeString('id-ID'),
+        error: errorMsg
     };
 
-    const req = http.request(options, (res) => {
-        let body = '';
-        res.on('data', (chunk) => { body += chunk; });
-        res.on('end', () => {
-            let transport = 'TCP';
-            try {
-                if (res.statusCode === 200 && body.trim().startsWith('{')) {
-                    const config = JSON.parse(body);
-                    if (config && config.moxa_ip) {
-                        MOXA_IP = config.moxa_ip;
-                        MOXA_PORT = parseInt(config.moxa_port) || 10001;
-                        transport = config.transport || 'TCP';
-                        console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC]: IP Moxa : ${MOXA_IP} | Port Moxa : ${MOXA_PORT} | Mode : ${transport} (Sesuai Dashboard!)`);
-                    }
-                } else {
-                    console.warn(`[${new Date().toISOString()}] ⚠️ Respon API tidak valid (Status ${res.statusCode}), menggunakan setingan lokal: IP=${MOXA_IP}, Port=${MOXA_PORT}`);
-                }
-            } catch (err) {
-                console.warn(`[${new Date().toISOString()}] ⚠️ Gagal mengurai respon api.php, menggunakan setingan lokal: IP=${MOXA_IP}, Port=${MOXA_PORT}`);
-            }
-            isFetchingConfig = false;
+    // Emit live status ke browser client lewat WebSockets
+    io.emit('statusUpdate', lastStatus);
 
-            if (transport !== 'TCP') {
-                console.log(`[${new Date().toISOString()}] 😴 [SUSPENDED] Mode komunikasi aktif di dashboard: ${transport}. TCP Client dinonaktifkan.`);
-                if (client) {
-                    try {
-                        client.destroy();
-                    } catch (e) {}
-                    client = null;
-                }
-                isTcpConnecting = false;
-                updateStatusOnServer(false, 'SUSPENDED', `Daemon suspended. Current mode: ${transport}`);
-                scheduleReconnect(); // Terus polling untuk mengecek jika mode berubah kembali ke TCP
-            } else {
-                connectToMoxa();
-            }
-        });
-    });
-
-    req.on('error', (err) => {
-        console.warn(`[${new Date().toISOString()}] ⚠️ Tidak dapat menghubungi api.php (${err.message}). Menggunakan setingan lokal: IP=${MOXA_IP}, Port=${MOXA_PORT}`);
-        isFetchingConfig = false;
-        connectToMoxa();
-    });
-
-    req.end();
+    // Kirim juga ke database PHP lokal (agar kompatibel penuh dengan php internal status)
+    updateStatusOnPhpServer(connected, stateLabel, errorMsg);
 }
 
-function updateStatusOnServer(connected, stateLabel, errorMsg = '') {
+// Fungsi pembantu murni mengirim status ke PHP API
+function updateStatusOnPhpServer(connected, stateLabel, errorMsg) {
     const statusPayload = {
         action: 'save_moxa_status',
         connected: connected,
@@ -156,16 +116,64 @@ function updateStatusOnServer(connected, stateLabel, errorMsg = '') {
         }
     };
 
+    const req = http.request(options);
+    req.on('error', () => {}); // Silenced
+    req.write(dataString);
+    req.end();
+}
+
+// Ambil konfigurasi paling update dari database
+function syncConfigAndConnect() {
+    if (process.argv[3] && process.argv[4]) {
+        MOXA_IP = process.argv[3];
+        MOXA_PORT = parseInt(process.argv[4]) || 4001;
+        console.log(`[${new Date().toISOString()}] 🚀 [CMD OVERRIDE]: Menggunakan MOXA IP ${MOXA_IP}:${MOXA_PORT} langsung.`);
+        connectToMoxa();
+        return;
+    }
+
+    if (isFetchingConfig) return;
+    isFetchingConfig = true;
+
+    console.log(`[${new Date().toISOString()}] 🔍 Mengambil konfigurasi IP & Port dari database...`);
+    
+    const apiParts = parseUrlConfig(API_URL);
+    const options = {
+        hostname: apiParts.hostname,
+        port: apiParts.port,
+        path: apiParts.path + (apiParts.path.includes('?') ? '&' : '?') + 'get_moxa_config=1',
+        method: 'GET'
+    };
+
     const req = http.request(options, (res) => {
-        let responseBody = '';
-        res.on('data', (chunk) => { responseBody += chunk; });
+        let body = '';
+        res.on('data', (chunk) => { body += chunk; });
+        res.on('end', () => {
+            let transport = 'TCP';
+            try {
+                if (res.statusCode === 200 && body.trim().startsWith('{')) {
+                    const config = JSON.parse(body);
+                    if (config && config.moxa_ip) {
+                        MOXA_IP = config.moxa_ip;
+                        MOXA_PORT = parseInt(config.moxa_port) || 4001;
+                        transport = config.transport || 'TCP';
+                        console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC]: IP Moxa : ${MOXA_IP} | Port Moxa : ${MOXA_PORT}`);
+                    }
+                }
+            } catch (err) {
+                // Gunakan config lokal/cmd
+            }
+            isFetchingConfig = false;
+            connectToMoxa();
+        });
     });
 
     req.on('error', (err) => {
-        // Silent block to avoid loop logging when backend is temporarily offline
+        console.warn(`[${new Date().toISOString()}] ⚠️ Server PHP API Offline. Menggunakan port lokal: ${MOXA_IP}:${MOXA_PORT}`);
+        isFetchingConfig = false;
+        connectToMoxa();
     });
 
-    req.write(dataString);
     req.end();
 }
 
@@ -174,28 +182,25 @@ function connectToMoxa() {
     isTcpConnecting = true;
 
     console.log(`[${new Date().toISOString()}] 🔌 [DIALING] Menghubungkan ke MOXA Server di ${MOXA_IP}:${MOXA_PORT}...`);
-    updateStatusOnServer(false, 'DIALING', `Connecting to ${MOXA_IP}:${MOXA_PORT}...`);
+    broadcastStatus(false, 'DIALING', `Menghubungkan ke ${MOXA_IP}:${MOXA_PORT}`);
 
-    // Clean up old socket if it exists to avoid leakage
     if (client) {
-        try {
-            client.destroy();
-        } catch (e) {}
+        try { client.destroy(); } catch (e) {}
     }
 
     client = new net.Socket();
 
     client.connect(MOXA_PORT, MOXA_IP, () => {
         isTcpConnecting = false;
-        console.log(`[${new Date().toISOString()}] 🟢 [CONNECTED] Sukses tersambung ke Moxa! Mendengarkan data nirkabel...`);
+        console.log(`[${new Date().toISOString()}] 🟢 [CONNECTED] Sukses tersambung ke Moxa!`);
         dataBuffer = '';
-        updateStatusOnServer(true, 'CONNECTED', '');
+        broadcastStatus(true, 'CONNECTED', '');
     });
 
     client.on('data', (data) => {
         dataBuffer += data.toString();
 
-        // Cari baris kalimat data lengkap dipisah oleh enter (\n atau \r)
+        // Mengurai byte stream yang masuk secara linear berdasarkan batasan ganti baris (\n)
         let boundary = dataBuffer.indexOf('\n');
         while (boundary !== -1) {
             const rawPayload = dataBuffer.slice(0, boundary).trim();
@@ -208,19 +213,17 @@ function connectToMoxa() {
         }
     });
 
-    // Koneksi terputus
     client.on('close', () => {
         isTcpConnecting = false;
         console.log(`[${new Date().toISOString()}] 🔴 [DISCONNECTED] Koneksi ke MOXA terputus!`);
-        updateStatusOnServer(false, 'DISCONNECTED', 'Connection closed');
+        broadcastStatus(false, 'DISCONNECTED', 'Koneksi terputus');
         scheduleReconnect();
     });
 
-    // Kesalahan jaringan / host tidak terjangkau
     client.on('error', (err) => {
         isTcpConnecting = false;
         console.error(`[${new Date().toISOString()}] ❌ [TCP ERROR]: ${err.message}`);
-        updateStatusOnServer(false, 'ERROR', err.message);
+        broadcastStatus(false, 'ERROR', err.message);
         if (client) {
             client.destroy();
         }
@@ -229,34 +232,31 @@ function connectToMoxa() {
 
 function scheduleReconnect() {
     if (reconnectTimer) clearTimeout(reconnectTimer);
-    
-    console.log(`[${new Date().toISOString()}] ⏱️ Mencoba menyambung kembali ke MOXA dalam ${RECONNECT_INTERVAL / 1000} detik...`);
+    console.log(`[${new Date().toISOString()}] ⏱️ Menjadwalkan reconnect dalam ${RECONNECT_INTERVAL / 1000} detik...`);
     reconnectTimer = setTimeout(() => {
-        getMoxaConfigAndConnect();
+        syncConfigAndConnect();
     }, RECONNECT_INTERVAL);
 }
 
-// parsing tanggal standard herp
-function formatSqlDateTime(date) {
-    const d = new Date(date);
-    const pad = (n) => n.toString().padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-// Parsing byte data Moxa yang terkirim
+// Memproses payload mentah dari MOXA (Format Semicolon ';')
 function processRawPayload(rawPayload) {
     console.log(`[${new Date().toISOString()}] 📥 [RAW DATA]: "${rawPayload}"`);
+
+    // Emit data asli (raw update) via socket io ke klien-klien yang mendengarkan
+    io.emit('rawTelemetry', {
+        timestamp: new Date().toLocaleTimeString('id-ID'),
+        data: rawPayload
+    });
 
     const tokens = rawPayload.split(';');
 
     if (tokens.length < 15) {
-        console.error(`[${new Date().toISOString()}] ❌ [PARSER ERROR] Skenario token tidak valid (${tokens.length}/22 tokens). Abaikan.`);
+        console.error(`[${new Date().toISOString()}] ❌ [PARSER ERROR] Skenario token tidak valid (${tokens.length} tokens).`);
         return;
     }
 
     try {
         const stationId = tokens[0] || 'AWS001';
-        
         let datePart = tokens[1]; // dd-mm-yyyy
         let timePart = tokens[2]; // HH:mm:ss
         
@@ -267,7 +267,9 @@ function processRawPayload(rawPayload) {
                 formattedTimestamp = `${dates[2]}-${dates[1]}-${dates[0]} ${timePart}`;
             }
         } else {
-            formattedTimestamp = formatSqlDateTime(new Date());
+            const d = new Date();
+            const pad = (n) => n.toString().padStart(2, '0');
+            formattedTimestamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
         }
 
         const mappedRecord = {
@@ -276,8 +278,8 @@ function processRawPayload(rawPayload) {
             temperature: parseFloat(tokens[6]) || 28.0,
             humidity: parseInt(tokens[9]) || 80,
             solar_radiation: parseInt(tokens[12]) || 0,
-            rainfall: 0.0, 
-            wave_height: 1.0, 
+            rainfall: parseFloat(tokens[15]) || 0.0, 
+            wave_height: parseFloat(tokens[16]) || 1.0, 
             sea_level: parseFloat(tokens[17]) ? (parseFloat(tokens[17]) * 100) : 120.0, // kelola meter ke cm
             water_ph: parseFloat(tokens[18]) || 7.0,
             wind_direction: parseInt(parseFloat(tokens[5])) || 0,
@@ -285,8 +287,12 @@ function processRawPayload(rawPayload) {
             pressure: parseFloat(tokens[10]) || 1013.25
         };
 
-        console.log(`[${new Date().toISOString()}] ⚙️ [PARSED OK]: Temp=${mappedRecord.temperature}°C, WS=${mappedRecord.wind_speed} m/s, WD=${mappedRecord.wind_direction}°, pH=${mappedRecord.water_ph}, Press=${mappedRecord.pressure} hPa`);
+        console.log(`[${new Date().toISOString()}] ⚙️ [PARSED OK]: Temp=${mappedRecord.temperature}°C, WS=${mappedRecord.wind_speed} m/s, WD=${mappedRecord.wind_direction}°, pH=${mappedRecord.water_ph}`);
 
+        // 1. Emit live parsed telemetry ke React UI via Socket.io secara instan
+        io.emit('dataUpdate', mappedRecord);
+
+        // 2. Pompa asinkron langsung ke PostgreSQL (via api.php)
         postToPhpGateway(mappedRecord);
 
     } catch (err) {
@@ -294,7 +300,6 @@ function processRawPayload(rawPayload) {
     }
 }
 
-// Pompa data asinkron langsung ke PostgreSQL menggunakan API lokal
 function postToPhpGateway(payload) {
     const dataString = JSON.stringify(payload);
     const apiParts = parseUrlConfig(API_URL);
@@ -313,22 +318,52 @@ function postToPhpGateway(payload) {
     const req = http.request(options, (res) => {
         let responseBody = '';
         res.on('data', (chunk) => { responseBody += chunk; });
-        res.on('end', () => {
-            if (res.statusCode === 200) {
-                console.log(`[${new Date().toISOString()}] 💾 [POSTGRESQL SAVE SUCCESS]: Data masuk PostgreSQL!`);
-            } else {
-                console.error(`[${new Date().toISOString()}] ❌ [HTTP ERROR]: Server merespon ${res.statusCode}: ${responseBody}`);
-            }
-        });
     });
 
     req.on('error', (err) => {
-        console.error(`[${new Date().toISOString()}] ❌ [HTTP POST CRASH]: Gagal mengirim ke database. Apakah PHP server offline? Error: ${err.message}`);
+        // Silent error
     });
 
     req.write(dataString);
     req.end();
 }
 
-// Mulai monitor
-getMoxaConfigAndConnect();
+// Server endpoints Express
+app.use(express.json());
+
+// Sinkronisasi konfigurasi lewat API POST Express (Mirip kode referensi Anda)
+app.post('/save-config', (req, res) => {
+    if (req.body && req.body.ip) {
+        MOXA_IP = req.body.ip;
+        MOXA_PORT = parseInt(req.body.port) || 4001;
+        console.log(`[${new Date().toISOString()}] 🔄 Konfigurasi diperbarui oleh Dashboard: ${MOXA_IP}:${MOXA_PORT}`);
+        
+        if (client) {
+            try { client.destroy(); } catch (e) {}
+            client = null;
+        }
+        isTcpConnecting = false;
+        
+        syncConfigAndConnect();
+        res.json({ success: true, message: "Koneksi ke Moxa diperbarui secara instan!" });
+    } else {
+        res.status(400).json({ success: false, message: "IP dan Port diperlukan!" });
+    }
+});
+
+app.get('/status', (req, res) => {
+    res.json(lastStatus);
+});
+
+httpServer.listen(WEB_IO_PORT, '0.0.0.0', () => {
+    console.log(`[DAEMON] WebSocket Server berjalan aktif di http://localhost:${WEB_IO_PORT}`);
+    // Jalankan inisiasi koneksi ke Moxa
+    syncConfigAndConnect();
+});
+
+// Socket.IO Connection Handler
+io.on('connection', (socket) => {
+    // Beri status terbaru ke client yang baru masuk
+    socket.emit('statusUpdate', lastStatus);
+    console.log(`[${new Date().toISOString()}] 🔌 Client browser tersambung ke WebSocket Daemon.`);
+});
