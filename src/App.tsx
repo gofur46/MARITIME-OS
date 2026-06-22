@@ -8,7 +8,6 @@ import {
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { WeatherData, AlertLevel, PortInstruction } from './types';
 import { format } from 'date-fns';
-import { io as socketIO } from 'socket.io-client';
 
 // Create Yesterday's baseline climatology averages for our math
 const CLIMATOLOGY_AVG = {
@@ -45,7 +44,7 @@ const DEFAULT_CONFIG = {
   maxPhThreshold: '8.5', // Default max safe pH
   dbStorageMode: 'AVG', // 'AVG' (Rata-Rata) | 'RAW' (Instan/Setiap Detik/Sesaat)
   dbStorageInterval: 10, // 1 to 60 Minutes
-  localDbApiUrl: 'http://localhost/aws_marine/api.php',
+  localDbApiUrl: 'http://localhost:8000/api.php',
   uiZoom: '115', // Default font size scale (%) for excellent laptop reading
   isSimulationOn: 'OFF', // ON / OFF simulation mode
   sensors: {
@@ -305,99 +304,129 @@ export default function App() {
     let socket: any = null;
     let fallbackIntervalId: any = null;
 
-    console.log("🔌 Connecting to Moxa Daemon WebSocket on port 8080...");
-    try {
-      socket = socketIO('http://localhost:8080', {
-        transports: ['websocket', 'polling'],
-        timeout: 5000,
-        reconnectionDelay: 3000,
-        reconnectionAttempts: 15
-      });
+    const setupSocket = (ioClient: any) => {
+      console.log("🔌 Connecting to Moxa Daemon WebSocket on port 8080...");
+      try {
+        socket = ioClient('http://localhost:8080', {
+          transports: ['websocket', 'polling'],
+          timeout: 5000,
+          reconnectionDelay: 3000,
+          reconnectionAttempts: 15
+        });
 
-      socket.on('connect', () => {
-        console.log("✅ Main Dashboard connected to Moxa Daemon via WebSocket!");
-        setMoxaStatus(prev => ({
-          connected: true,
-          moxa_ip: prev?.moxa_ip || '192.168.1.254',
-          moxa_port: prev?.moxa_port || 4001,
-          state: 'CONNECTED',
-          last_seen: new Date().toLocaleTimeString('id-ID'),
-          error: ''
-        }));
-      });
+        socket.on('connect', () => {
+          console.log("✅ Main Dashboard connected to Moxa Daemon via WebSocket!");
+          setMoxaStatus(prev => ({
+            connected: true,
+            moxa_ip: prev?.moxa_ip || '192.168.1.254',
+            moxa_port: prev?.moxa_port || 4001,
+            state: 'CONNECTED',
+            last_seen: new Date().toLocaleTimeString('id-ID'),
+            error: ''
+          }));
+        });
 
-      socket.on('statusUpdate', (status: any) => {
-        if (status) {
-          setMoxaStatus(status);
+        socket.on('statusUpdate', (status: any) => {
+          if (status) {
+            setMoxaStatus(status);
+          }
+        });
+
+        // Stream live raw sentences directly to terminal
+        socket.on('rawTelemetry', (raw: any) => {
+          if (raw && raw.data) {
+            setStreamLogs(prevLogs => {
+              const lines = prevLogs.split('\n');
+              const timeStr = new Date().toLocaleTimeString('id-ID');
+              const msg = `[${timeStr} MOXA RAW] 📥 "${raw.data}"`;
+              const output = [...lines, msg];
+              if (output.length > 50) return output.slice(output.length - 35).join('\n');
+              return output.join('\n');
+            });
+          }
+        });
+
+        // Stream live parsed data to feed into active telemetry display instantly
+        socket.on('dataUpdate', (parsedRecord: any) => {
+          if (parsedRecord) {
+            const formattedRecord = {
+              timestamp: Date.now(),
+              temperature: parsedRecord.temperature,
+              humidity: parsedRecord.humidity,
+              windSpeed: parsedRecord.wind_speed,
+              windDirection: parsedRecord.wind_direction,
+              pressure: parsedRecord.pressure,
+              solarRadiation: parsedRecord.solar_radiation,
+              rainfall: parsedRecord.rainfall,
+              waveHeight: parsedRecord.wave_height,
+              currentSpeed: parsedRecord.current_speed || 1.1,
+              seaLevel: parsedRecord.sea_level,
+              waterPh: parsedRecord.water_ph
+            };
+
+            // Append to history log state instantly to update the dials & numbers
+            setHistory(prev => {
+              const updated = [...prev, formattedRecord];
+              const keeps = updated.length > 200 ? updated.slice(updated.length - 150) : updated;
+              localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
+              return keeps;
+            });
+
+            // Print success in terminal logs
+            setStreamLogs(prevLogs => {
+              const lines = prevLogs.split('\n');
+              const timeStr = new Date().toLocaleTimeString('id-ID');
+              const msg = `[${timeStr} PARSER] ✅ Temp=${parsedRecord.temperature}°C | Wind=${parsedRecord.wind_speed} m/s | pH=${parsedRecord.water_ph} -> Saved Memory & DB`;
+              const output = [...lines, msg];
+              if (output.length > 50) return output.slice(output.length - 35).join('\n');
+              return output.join('\n');
+            });
+          }
+        });
+
+        socket.on('disconnect', () => {
+          console.warn("❌ Moxa WebSocket disconnected, waiting for reconnection...");
+        });
+
+        socket.on('connect_error', () => {
+          // Quietly fail or wait for retry
+        });
+      } catch (e) {
+        console.error("Failed to construct socket:", e);
+      }
+    };
+
+    // Load socket.io client dynamically
+    if ((window as any).io) {
+      setupSocket((window as any).io);
+    } else {
+      const script = document.createElement('script');
+      script.src = 'http://localhost:8080/socket.io/socket.io.js';
+      script.async = true;
+      script.onload = () => {
+        if ((window as any).io) {
+          console.log("📦 Socket.IO loaded dynamically from local daemon.");
+          setupSocket((window as any).io);
         }
-      });
-
-      // Stream live raw sentences directly to terminal
-      socket.on('rawTelemetry', (raw: any) => {
-        if (raw && raw.data) {
-          setStreamLogs(prevLogs => {
-            const lines = prevLogs.split('\n');
-            const timeStr = new Date().toLocaleTimeString('id-ID');
-            const msg = `[${timeStr} MOXA RAW] 📥 "${raw.data}"`;
-            const output = [...lines, msg];
-            if (output.length > 50) return output.slice(output.length - 35).join('\n');
-            return output.join('\n');
-          });
-        }
-      });
-
-      // Stream live parsed data to feed into active telemetry display instantly
-      socket.on('dataUpdate', (parsedRecord: any) => {
-        if (parsedRecord) {
-          const formattedRecord = {
-            timestamp: Date.now(),
-            temperature: parsedRecord.temperature,
-            humidity: parsedRecord.humidity,
-            windSpeed: parsedRecord.wind_speed,
-            windDirection: parsedRecord.wind_direction,
-            pressure: parsedRecord.pressure,
-            solarRadiation: parsedRecord.solar_radiation,
-            rainfall: parsedRecord.rainfall,
-            waveHeight: parsedRecord.wave_height,
-            currentSpeed: parsedRecord.current_speed || 1.1,
-            seaLevel: parsedRecord.sea_level,
-            waterPh: parsedRecord.water_ph
-          };
-
-          // Append to history log state instantly to update the dials & numbers
-          setHistory(prev => {
-            const updated = [...prev, formattedRecord];
-            const keeps = updated.length > 200 ? updated.slice(updated.length - 150) : updated;
-            localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
-            return keeps;
-          });
-
-          // Print success in terminal logs
-          setStreamLogs(prevLogs => {
-            const lines = prevLogs.split('\n');
-            const timeStr = new Date().toLocaleTimeString('id-ID');
-            const msg = `[${timeStr} PARSER] ✅ Temp=${parsedRecord.temperature}°C | Wind=${parsedRecord.wind_speed} m/s | pH=${parsedRecord.water_ph} -> Saved Memory & DB`;
-            const output = [...lines, msg];
-            if (output.length > 50) return output.slice(output.length - 35).join('\n');
-            return output.join('\n');
-          });
-        }
-      });
-
-      socket.on('disconnect', () => {
-        console.warn("❌ Moxa WebSocket disconnected, waiting for reconnection...");
-      });
-
-      socket.on('connect_error', () => {
-        // Quietly fail or wait for retry
-      });
-    } catch (e) {
-      console.error("Failed to construct socket:", e);
+      };
+      script.onerror = () => {
+        console.warn("⚠️ Failed to load Socket.IO from daemon, loading CDN fallback...");
+        const cdnScript = document.createElement('script');
+        cdnScript.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+        cdnScript.async = true;
+        cdnScript.onload = () => {
+          if ((window as any).io) {
+            setupSocket((window as any).io);
+          }
+        };
+        document.body.appendChild(cdnScript);
+      };
+      document.body.appendChild(script);
     }
 
     // Fallback polling for status in case WebSocket connection is blocked by CORS/Mixed Content
     const fetchMoxaStatus = async () => {
-      const testUrl = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
+      const testUrl = config.localDbApiUrl || 'http://localhost:8000/api.php';
       const moxaStatusUrl = `${testUrl}?get_moxa_status=1`;
       try {
         const res = await fetch(moxaStatusUrl);
@@ -439,7 +468,7 @@ export default function App() {
   // Auto-connect and check database on mount (helpful when laptop restarts and dev environment boots)
   useEffect(() => {
     const autoTestConnection = async () => {
-      const testUrl = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
+      const testUrl = config.localDbApiUrl || 'http://localhost:8000/api.php';
       try {
         const res = await fetch(testUrl, { method: 'GET' });
         if (res.ok) {
@@ -478,7 +507,7 @@ export default function App() {
 
   // Gracefully post log data to local PostgreSQL database API and synchronize with Cloud endpoints
   const postLogToLocalPostgres = async (record: WeatherData) => {
-    const url = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
+    const url = config.localDbApiUrl || 'http://localhost:8000/api.php';
     const payload = {
       station_id: config.idStation || 'AWS001',
       timestamp: formatSqlDateTime(record.timestamp),
@@ -835,7 +864,7 @@ export default function App() {
     // Post newly configured Moxa IP & Port to host computer's api.php automatically
     const moxaIp = newConfig.serialcom || '192.168.127.254';
     const moxaPort = parseInt(newConfig.baudrate) || 10001;
-    const url = newConfig.localDbApiUrl || 'http://localhost/aws_marine/api.php';
+    const url = newConfig.localDbApiUrl || 'http://localhost:8000/api.php';
 
     try {
       await fetch(url, {
@@ -1114,7 +1143,7 @@ export default function App() {
   // Download real database records from the local api.php
   const fetchRealDatabaseLogs = async (silent = false) => {
     setIsFetchingRealDb(true);
-    const testUrl = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
+    const testUrl = config.localDbApiUrl || 'http://localhost:8000/api.php';
     const fetchUrl = `${testUrl}?get_telemetry_logs=1`;
     
     if (!silent) {
@@ -2958,7 +2987,7 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
                           🔌 Auto-create PHP Code (PostgreSQL via PDO):
                         </span>
                         <div className="text-xs text-slate-500 font-mono">
-                          API URL: <span className="text-white font-bold">{config.localDbApiUrl || 'http://localhost/aws_marine/api.php'}</span>
+                          API URL: <span className="text-white font-bold">{config.localDbApiUrl || 'http://localhost:8000/api.php'}</span>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -3147,7 +3176,7 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
                         </button>
                         <button 
                           onClick={async () => {
-                            const testUrl = config.localDbApiUrl || 'http://localhost/aws_marine/api.php';
+                            const testUrl = config.localDbApiUrl || 'http://localhost:8000/api.php';
                             showToastNotification("🔧 Menguji hubungan ke PostgreSQL...");
                             setDbTestResult({ status: 'loading', message: `Menghubungi endpoint PostgreSQL pada: ${testUrl}...`, details: 'Mengirimkan HTTP GET request ke web server PHP lokal Anda.' });
                             try {
@@ -3596,7 +3625,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       <p className="text-[10px] font-sans text-slate-400 leading-normal">
                         💡 <strong>Saran:</strong> Jalankan daemon di komputer host menggunakan perintah berikut:<br />
                         <code className="text-[#00f0ff] bg-white/5 px-1.5 py-1 mt-1 block rounded font-mono text-[9px] text-center select-all border border-teal-500/10 whitespace-pre-wrap breakdown-words">
-                          {`node tcp_moxa_listener.js ${config.localDbApiUrl || 'http://localhost/aws_marine/api.php'} ${config.serialcom || '192.168.1.254'} ${config.baudrate || '4001'}`}
+                          {`node tcp_moxa_listener.js ${config.localDbApiUrl || 'http://localhost:8000/api.php'} ${config.serialcom || '192.168.1.254'} ${config.baudrate || '4001'}`}
                         </code>
                       </p>
 
@@ -3918,12 +3947,12 @@ header("Content-Type: application/json; charset=UTF-8");
                         <input 
                           type="text" 
                           value={config.localDbApiUrl || ''} 
-                          placeholder="http://localhost/aws_marine/api.php"
+                          placeholder="http://localhost:8000/api.php"
                           onChange={(e) => setConfig({ ...config, localDbApiUrl: e.target.value })}
                           className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-teal-400 rounded outline-none text-left"
                         />
                         <p className="text-xs text-slate-500 font-mono mt-1 leading-tight">
-                          Alamat file <code className="text-slate-400 bg-white/5 px-0.5 rounded">api.php</code> di htdocs / virtual host server Anda. Berguna untuk sinkronisasi otomatis.
+                          Alamat file <code className="text-slate-400 bg-white/5 px-0.5 rounded">api.php</code> di server PHP standalone atau virtual host Anda. Berguna untuk sinkronisasi otomatis.
                         </p>
                       </div>
 

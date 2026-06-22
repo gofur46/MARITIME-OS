@@ -8,7 +8,7 @@ title MOXA Gateway Telemetry Client
 color 0b
 
 :: --- PENGATURAN DEFAULT SINKRONISASI ---
-set API_URL=http://localhost/aws_marine/api.php
+set API_URL=http://localhost:8000/api.php
 set MOXA_IP=192.168.1.254
 set MOXA_PORT=4001
 

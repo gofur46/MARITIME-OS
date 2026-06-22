@@ -18,8 +18,8 @@ import http from 'http';
 import { URL } from 'url';
 
 // ==================== CONFIGURATION ====================
-// Alamat database PHP lokal Anda (Default XAMPP: http://localhost/aws_marine/api.php)
-const API_URL = process.argv[2] || 'http://localhost/aws_marine/api.php';
+// Alamat database PHP lokal Anda (Default Standalone PHP: http://localhost:8000/api.php)
+const API_URL = process.argv[2] || 'http://localhost:8000/api.php';
 
 // IP & Port Moxa (Dapat langsung ditulis di baris perintah sebagai override):
 // FORMAT: node tcp_moxa_listener.js [API_URL] [MOXA_IP] [MOXA_PORT]
@@ -355,10 +355,29 @@ app.get('/status', (req, res) => {
     res.json(lastStatus);
 });
 
+let isStarted = false;
+function startDaemon() {
+    if (isStarted) return;
+    isStarted = true;
+    syncConfigAndConnect();
+}
+
+httpServer.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        console.warn(`\n⚠️  [WARNING] Port ${WEB_IO_PORT} sudah digunakan oleh proses lain (EADDRINUSE).`);
+        console.warn(`ℹ️   Aplikasi web Dashboard atau script Moxa sebelumnya mungkin sudah berjalan di port ini.`);
+        console.warn(`⚡  DAEMON TETAP BERJALAN: Pengumpulan data dari Moxa ke PostgreSQL (${API_URL}) tetap berfungsi secara penuh!`);
+        console.warn(`💡  Untuk mengaktifkan kembali WebSocket real-time, tutup aplikasi lain di port 8080 lalu restart daemon.\n`);
+        startDaemon();
+    } else {
+        console.error(`❌ [ERROR] Gagal menjalankan HTTP Server: ${err.message}`);
+        startDaemon();
+    }
+});
+
 httpServer.listen(WEB_IO_PORT, '0.0.0.0', () => {
     console.log(`[DAEMON] WebSocket Server berjalan aktif di http://localhost:${WEB_IO_PORT}`);
-    // Jalankan inisiasi koneksi ke Moxa
-    syncConfigAndConnect();
+    startDaemon();
 });
 
 // Socket.IO Connection Handler
