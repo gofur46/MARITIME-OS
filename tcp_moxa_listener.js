@@ -88,13 +88,15 @@ function getMoxaConfigAndConnect() {
         let body = '';
         res.on('data', (chunk) => { body += chunk; });
         res.on('end', () => {
+            let transport = 'TCP';
             try {
                 if (res.statusCode === 200 && body.trim().startsWith('{')) {
                     const config = JSON.parse(body);
                     if (config && config.moxa_ip) {
                         MOXA_IP = config.moxa_ip;
                         MOXA_PORT = parseInt(config.moxa_port) || 10001;
-                        console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC]: IP Moxa : ${MOXA_IP} | Port Moxa : ${MOXA_PORT} (Sesuai Dashboard!)`);
+                        transport = config.transport || 'TCP';
+                        console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC]: IP Moxa : ${MOXA_IP} | Port Moxa : ${MOXA_PORT} | Mode : ${transport} (Sesuai Dashboard!)`);
                     }
                 } else {
                     console.warn(`[${new Date().toISOString()}] ⚠️ Respon API tidak valid (Status ${res.statusCode}), menggunakan setingan lokal: IP=${MOXA_IP}, Port=${MOXA_PORT}`);
@@ -103,7 +105,21 @@ function getMoxaConfigAndConnect() {
                 console.warn(`[${new Date().toISOString()}] ⚠️ Gagal mengurai respon api.php, menggunakan setingan lokal: IP=${MOXA_IP}, Port=${MOXA_PORT}`);
             }
             isFetchingConfig = false;
-            connectToMoxa();
+
+            if (transport !== 'TCP') {
+                console.log(`[${new Date().toISOString()}] 😴 [SUSPENDED] Mode komunikasi aktif di dashboard: ${transport}. TCP Client dinonaktifkan.`);
+                if (client) {
+                    try {
+                        client.destroy();
+                    } catch (e) {}
+                    client = null;
+                }
+                isTcpConnecting = false;
+                updateStatusOnServer(false, 'SUSPENDED', `Daemon suspended. Current mode: ${transport}`);
+                scheduleReconnect(); // Terus polling untuk mengecek jika mode berubah kembali ke TCP
+            } else {
+                connectToMoxa();
+            }
         });
     });
 

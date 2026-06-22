@@ -748,7 +748,8 @@ export default function App() {
         body: JSON.stringify({
           action: 'save_moxa_config',
           moxa_ip: moxaIp,
-          moxa_port: moxaPort
+          moxa_port: moxaPort,
+          transport: newConfig.transport
         }),
       });
       console.log('Successfully synchronized Moxa hardware configuration to api.php');
@@ -2965,7 +2966,8 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             \$config_data = [
                 "moxa_ip" => isset(\$data['moxa_ip']) ? \$data['moxa_ip'] : '192.168.127.254',
-                "moxa_port" => isset(\$data['moxa_port']) ? (int)\$data['moxa_port'] : 10001
+                "moxa_port" => isset(\$data['moxa_port']) ? (int)\$data['moxa_port'] : 10001,
+                "transport" => isset(\$data['transport']) ? \$data['transport'] : 'TCP'
             ];
             file_put_contents("moxa_config.json", json_encode(\$config_data, JSON_PRETTY_PRINT));
             echo json_encode(["status" => "success", "message" => "Moxa configuration successfully synced & saved on host machine."]);
@@ -3494,11 +3496,28 @@ header("Content-Type: application/json; charset=UTF-8");
                       </div>
 
                       <p className="text-[10px] font-sans text-slate-400 leading-normal">
-                        💡 <strong>Saran:</strong> Jalankan daemon di komputer host menggunakan perintah berikut agar IP/Port langsung terhubung tanpa kendala mixed-content browser:<br />
+                        💡 <strong>Saran:</strong> Jalankan daemon di komputer host menggunakan perintah berikut:<br />
                         <code className="text-[#00f0ff] bg-white/5 px-1.5 py-1 mt-1 block rounded font-mono text-[9px] text-center select-all border border-teal-500/10 whitespace-pre-wrap breakdown-words">
                           {`node tcp_moxa_listener.js ${config.localDbApiUrl || 'http://localhost/aws_marine/api.php'} ${config.serialcom || '192.168.1.254'} ${config.baudrate || '4001'}`}
                         </code>
                       </p>
+
+                      <div className="border-t border-white/5 pt-2 mt-1 space-y-1">
+                        <strong className="text-[10px] text-teal-400 block tracking-wider font-mono">⚡ CARA OTOMATISASI TANPA CMD MANUAL:</strong>
+                        <div className="text-[10px] text-slate-300 leading-relaxed font-sans bg-black/30 p-2 rounded space-y-1.5">
+                          <p>
+                            🔵 <strong>Metode 1: Auto-Run (Paling Mudah)</strong><br />
+                            Buat atau download file <code className="text-teal-300">start_gateway.bat</code> di komputer host Anda dengan script ini, lalu salin/duplikat file tersebut ke folder Windows Startup (Tekan <kbd className="bg-white/10 px-0.5 rounded text-[9px]">Win+R</kbd>, ketik <code className="text-[10px] text-white">shell:startup</code>). Dengan begitu, program akan otomatis berjalan di latar belakang setiap PC dinyalakan.
+                          </p>
+                          <p>
+                            🔵 <strong>Metode 2: PM2 Service (Silent & Auto-Restart)</strong><br />
+                            Gunakan Node.js Process Manager agar berjalan 100% senyap di background. Menjalankannya cukup sekali saja lewat CMD:
+                            <code className="text-[#00f0ff] bg-black px-1.5 py-0.5 mt-1 block rounded font-mono text-[9px] select-all border border-white/5 leading-normal">
+                              {`npm install -g pm2\npm2 start tcp_moxa_listener.js --name "moxa-telemetry" -- "${config.localDbApiUrl || 'http://localhost/aws_marine/api.php'}" "${config.serialcom || '192.168.1.254'}" "${config.baudrate || '4001'}"\npm2 save\npm2 startup`}
+                            </code>
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   )}
 
