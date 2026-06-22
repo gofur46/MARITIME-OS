@@ -3494,8 +3494,10 @@ header("Content-Type: application/json; charset=UTF-8");
                       </div>
 
                       <p className="text-[10px] font-sans text-slate-400 leading-normal">
-                        💡 <strong>Saran:</strong> Pastikan Anda menjalankan daemon listener di Komputer Host:<br />
-                        <code className="text-[#00f0ff] bg-white/5 px-1 py-0.5 mt-1 block rounded font-mono text-[9px] text-center select-all">node tcp_moxa_listener.js</code>
+                        💡 <strong>Saran:</strong> Jalankan daemon listener di Komputer Host dengan argumen API lokal Anda agar sinkron:<br />
+                        <code className="text-[#00f0ff] bg-white/5 px-1.5 py-1 mt-1 block rounded font-mono text-[9px] text-center select-all border border-teal-500/10">
+                          {`node tcp_moxa_listener.js ${config.localDbApiUrl || 'http://localhost/aws_marine/api.php'}`}
+                        </code>
                       </p>
                     </div>
                   )}

@@ -15,7 +15,8 @@ import { URL } from 'url';
 
 // ==================== CONFIGURATION ====================
 // Alamat API Jembatan database PHP lokal Anda (Default XAMPP: http://localhost/aws_marine/api.php)
-const API_URL = 'http://localhost/aws_marine/api.php';
+// Sekarang mendukung argumen baris perintah, misalnya: node tcp_moxa_listener.js http://localhost:8000/api.php
+const API_URL = process.argv[2] || 'http://localhost/aws_marine/api.php';
 
 // Fallback jika database belum aktif atau konfigurasi kosong
 let MOXA_IP = '192.168.127.254'; 
