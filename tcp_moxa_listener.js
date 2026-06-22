@@ -15,12 +15,14 @@ import { URL } from 'url';
 
 // ==================== CONFIGURATION ====================
 // Alamat API Jembatan database PHP lokal Anda (Default XAMPP: http://localhost/aws_marine/api.php)
-// Sekarang mendukung argumen baris perintah, misalnya: node tcp_moxa_listener.js http://localhost:8000/api.php
+// Sekarang mendukung argumen baris perintah secara penuh: 
+// FORMAT: node tcp_moxa_listener.js [API_URL] [MOXA_IP] [MOXA_PORT]
+// CONTOH: node tcp_moxa_listener.js http://localhost/aws_marine/api.php 192.168.1.254 4001
 const API_URL = process.argv[2] || 'http://localhost/aws_marine/api.php';
 
-// Fallback jika database belum aktif atau konfigurasi kosong
-let MOXA_IP = '192.168.127.254'; 
-let MOXA_PORT = 10001;          
+// IP & Port Moxa (Dapat langsung ditulis di baris perintah jika tidak ingin disinkronkan dari db)
+let MOXA_IP = process.argv[3] || '192.168.1.254'; 
+let MOXA_PORT = parseInt(process.argv[4]) || 4001;          
 const RECONNECT_INTERVAL = 5000;  // Percobaan ulang koneksi (5 detik)
 // =======================================================
 
@@ -58,6 +60,16 @@ function parseUrlConfig(targetUrl) {
 
 // Mengambil pengaturan IP/Port Moxa terbaru yang disimpan user di UI Settings
 function getMoxaConfigAndConnect() {
+    // Jika port & IP secara eksplisit dilewatkan via argumen baris perintah, lewati sinkronisasi database
+    if (process.argv[3] && process.argv[4]) {
+        MOXA_IP = process.argv[3];
+        MOXA_PORT = parseInt(process.argv[4]) || 4001;
+        console.log(`[${new Date().toISOString()}] 🚀 [CMD DIRECT OVERRIDE]: Menggunakan IP & Port dari CMD secara langsung.`);
+        console.log(`[${new Date().toISOString()}] ⚙️ Target MOXA : ${MOXA_IP}:${MOXA_PORT}`);
+        connectToMoxa();
+        return;
+    }
+
     if (isFetchingConfig) return;
     isFetchingConfig = true;
 
