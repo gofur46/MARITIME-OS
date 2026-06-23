@@ -69,27 +69,75 @@ const DEFAULT_CONFIG = {
   }
 };
 
-// Generate highly realistic initial historical database rows (60 rows)
-const generateInitialLogs = (count: number, intervalMinutes: number = 10): WeatherData[] => {
+// PORT PROFILE DATA FOR SENSORS LOGS (MATCHING COHERENCY REQUIREMENTS)
+export const PORT_PROFILES: Record<string, {
+  avgWave: number;
+  waveKet: string;
+  avgWind: number;
+  avgTemp: number;
+  baseCurrentDir: string;
+  windDir: string;
+}> = {
+  // Banten Group (18 Ports)
+  pelabuhan_cituis: { avgWave: 0.3, waveKet: "Tenang", avgWind: 7, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+  pelabuhan_kronjo: { avgWave: 0.3, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+  pelabuhan_tanjung_pasir: { avgWave: 0.25, waveKet: "Tenang", avgWind: 7, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Timur" },
+  pelabuhan_anyer: { avgWave: 0.45, waveKet: "Tenang", avgWind: 9, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Timur" },
+  pelabuhan_kepuh: { avgWave: 0.4, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+  pelabuhan_lontar: { avgWave: 0.35, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+  pelabuhan_pasauran: { avgWave: 0.5, waveKet: "Tenang", avgWind: 10, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Tenggara" },
+  pelabuhan_bojonegara: { avgWave: 0.55, waveKet: "Tenang", avgWind: 8, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Tenggara" },
+  pelabuhan_banten: { avgWave: 0.35, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+  pelabuhan_merak: { avgWave: 0.65, waveKet: "Rendah", avgWind: 11, avgTemp: 29, baseCurrentDir: "Selatan", windDir: "Timur Laut" },
+  pelabuhan_ciwandan: { avgWave: 0.42, waveKet: "Tenang", avgWind: 9, avgTemp: 28, baseCurrentDir: "Barat Daya", windDir: "Timur Laut" },
+  pelabuhan_carita: { avgWave: 0.5, waveKet: "Tenang", avgWind: 9, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Timur" },
+  pelabuhan_labuan: { avgWave: 0.55, waveKet: "Tenang", avgWind: 10, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Tenggara" },
+  pelabuhan_panimbang: { avgWave: 0.45, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Selatan" },
+  pelabuhan_tamanjaya: { avgWave: 0.6, waveKet: "Rendah", avgWind: 10, avgTemp: 28, baseCurrentDir: "Barat Daya", windDir: "Tenggara" },
+  pelabuhan_binuangeun: { avgWave: 0.8, waveKet: "Sedang", avgWind: 12, avgTemp: 28, baseCurrentDir: "Barat Daya", windDir: "Tenggara" },
+  pelabuhan_suralaya: { avgWave: 0.5, waveKet: "Tenang", avgWind: 10, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+  pelabuhan_kbs: { avgWave: 0.42, waveKet: "Tenang", avgWind: 9, avgTemp: 28, baseCurrentDir: "Barat Daya", windDir: "Timur Laut" },
+
+  // Jakarta Group (14 Ports)
+  pelabuhan_tanjung_priok: { avgWave: 0.3, waveKet: "Tenang", avgWind: 7, avgTemp: 31, baseCurrentDir: "Barat", windDir: "Utara" },
+  pelabuhan_sunda_kelapa: { avgWave: 0.2, waveKet: "Tenang", avgWind: 6, avgTemp: 31, baseCurrentDir: "Barat Laut", windDir: "Utara" },
+  pelabuhan_muara_angke: { avgWave: 0.25, waveKet: "Tenang", avgWind: 6, avgTemp: 30, baseCurrentDir: "Barat", windDir: "Utara" },
+  pelabuhan_muara_baru: { avgWave: 0.2, waveKet: "Tenang", avgWind: 6, avgTemp: 30, baseCurrentDir: "Barat", windDir: "Utara" },
+  pelabuhan_kalibaru: { avgWave: 0.25, waveKet: "Tenang", avgWind: 7, avgTemp: 30, baseCurrentDir: "Barat", windDir: "Utara" },
+  pelabuhan_marunda: { avgWave: 0.2, waveKet: "Tenang", avgWind: 6, avgTemp: 30, baseCurrentDir: "Barat", windDir: "Utara" },
+  pelabuhan_p_untung_jawa: { avgWave: 0.2, waveKet: "Tenang", avgWind: 8, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+  pelabuhan_p_lancang: { avgWave: 0.25, waveKet: "Tenang", avgWind: 8, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+  pelabuhan_p_pari: { avgWave: 0.3, waveKet: "Tenang", avgWind: 9, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+  pelabuhan_p_tidung: { avgWave: 0.35, waveKet: "Tenang", avgWind: 9, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+  pelabuhan_p_pramuka: { avgWave: 0.3, waveKet: "Tenang", avgWind: 8, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+  pelabuhan_p_kelapa: { avgWave: 0.35, waveKet: "Tenang", avgWind: 9, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+  pelabuhan_p_babelokan: { avgWave: 0.45, waveKet: "Tenang", avgWind: 10, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Barat" },
+  pelabuhan_p_sabira: { avgWave: 0.5, waveKet: "Tenang", avgWind: 11, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Barat" }
+};
+
+// Generate highly realistic initial historical database rows (60 rows) based on active port weather profiles
+const generateInitialLogs = (count: number, intervalMinutes: number = 10, portSlug: string = 'pelabuhan_ciwandan'): WeatherData[] => {
   const data: WeatherData[] = [];
   const spacingMs = intervalMinutes * 60 * 1000;
   // Align to exact clock boundary (e.g., 00, 10, 20, 30, 40, 50 minutes)
   const nowAligned = Math.floor(Date.now() / spacingMs) * spacingMs;
   let baseTime = nowAligned - count * spacingMs;
+
+  const normalizedSlug = portSlug.toLowerCase().replace(/-/g, '_');
+  const profile = PORT_PROFILES[normalizedSlug] || PORT_PROFILES.pelabuhan_ciwandan;
+
   for (let i = 0; i < count; i++) {
-    const temp = 27 + Math.random() * 4;
+    const temp = profile.avgTemp - 2.0 + Math.random() * 4.0;
     const hum = 75 + Math.random() * 15;
     
     // Simulate 6 samples per interval (10 seconds data logger setup)
     const samples: number[] = [];
-    const hasGustEvent = Math.random() > 0.75; // 25% chance of a gust event in this minute
+    const hasGustEvent = Math.random() > 0.8; // chance of a wind gust
     for (let j = 0; j < 6; j++) {
       if (hasGustEvent && j === 5) {
-        // One spike representing a wind gust
-        samples.push(parseFloat((2 + Math.random() * 2 + 10 + Math.random() * 3).toFixed(1))); // ~13.5 - 17.0 m/s
+        samples.push(parseFloat((profile.avgWind + 3 + Math.random() * 3 + 10).toFixed(1)));
       } else {
-        // Normal wind speed
-        samples.push(parseFloat((2 + Math.random() * 3).toFixed(1))); // ~2.0 - 5.0 m/s
+        samples.push(parseFloat((profile.avgWind - 2 + Math.random() * 4).toFixed(1)));
       }
     }
     const maxSpeed = Math.max(...samples);
@@ -107,7 +155,7 @@ const generateInitialLogs = (count: number, intervalMinutes: number = 10): Weath
       pressure: parseFloat((1008 + Math.random() * 6).toFixed(1)),
       solarRadiation: Math.round(250 + Math.random() * 400),
       rainfall: Math.random() > 0.88 ? parseFloat((Math.random() * 4).toFixed(1)) : 0,
-      waveHeight: parseFloat((0.4 + Math.random() * 1.5).toFixed(2)),
+      waveHeight: parseFloat((profile.avgWave - 0.15 + Math.random() * 0.35).toFixed(2)),
       currentSpeed: parseFloat((0.8 + Math.random() * 2.2).toFixed(2)), // simulated Knots (0.8 - 3.0)
       seaLevel: parseFloat((120 + Math.random() * 50).toFixed(1)), // cm
       waterPh: parseFloat((7.6 + Math.random() * 0.8).toFixed(2)), // pH
@@ -115,6 +163,95 @@ const generateInitialLogs = (count: number, intervalMinutes: number = 10): Weath
     });
   }
   return data;
+};
+
+// Generate fallback custom BMKG prediction dataset locally in the frontend
+const generateMockForecastFrontend = (portSlug: string): BMKGForecastRow[] => {
+  const rows: BMKGForecastRow[] = [];
+  const normalizedSlug = portSlug.toLowerCase().replace(/-/g, '_');
+  const profile = PORT_PROFILES[normalizedSlug] || PORT_PROFILES.pelabuhan_ciwandan;
+  
+  const weathers = ["Berawan", "Cerah Berawan", "Cerah", "Cerah Berawan", "Berawan", "Berawan"];
+  const directions = ["Timur Laut", "Timur", "Tenggara", "Selatan", "Barat Daya", "Barat", "Barat Laut", "Utara"];
+  
+  // Seed-like calculation based on slug name
+  let hash = 0;
+  for (let i = 0; i < normalizedSlug.length; i++) {
+    hash = normalizedSlug.charCodeAt(i) + ((hash << 5) - hash);
+  }
+
+  const baseDate = new Date();
+  baseDate.setMinutes(0);
+  baseDate.setSeconds(0);
+  
+  for (let h = 0; h < 17; h++) {
+    const d = new Date(baseDate.getTime() + h * 3600 * 1000);
+    const day = d.getDate();
+    const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des"];
+    const month = months[d.getMonth()];
+    const yearShort = String(d.getFullYear()).slice(-2);
+    const hourStr = String(d.getHours()).padStart(2, '0');
+    
+    const waktu = `${day} ${month} ${yearShort}, ${hourStr}.00`;
+    
+    let jam = `${h + 1} jam ke depan`;
+    if (h === 0) jam = "Sore ini";
+    else if (h === 1) jam = "Jam berikutnya";
+    else if (h === 2) jam = "2 pm ke depan";
+    else {
+      jam = `${h} jam ke depan`;
+    }
+    
+    const idx = (Math.abs(hash) + h) % weathers.length;
+    const cuaca = weathers[idx];
+    
+    const getClashedEmoji = (c: string) => {
+      if (c.includes("Cerah")) return "☀️";
+      if (c.includes("Hujan")) return "🌧️";
+      return "☁️";
+    };
+    const cuacaIcon = getClashedEmoji(cuaca);
+    
+    const waveOffset = Math.sin(h * 0.5) * 0.15;
+    let gelombangVal = Math.round((profile.avgWave + waveOffset) * 100) / 100;
+    if (gelombangVal < 0.15) gelombangVal = 0.15;
+    
+    let gKet = "Tenang";
+    if (gelombangVal > 1.25) gKet = "Sedang";
+    else if (gelombangVal > 0.5) gKet = "Rendah";
+    
+    const windOffset = Math.sin(h * 0.7) * 3;
+    const anginSpeed = Math.max(3, Math.round(profile.avgWind + windOffset));
+    const anginGust = Math.round(anginSpeed * 1.5);
+    const currentWindDir = directions[(Math.abs(hash) + h + 2) % directions.length];
+    const currentArusDir = directions[(Math.abs(hash) + h + 5) % directions.length];
+    const currentSpeed = Math.round((1.0 + Math.sin(h * 0.4) * 0.6) * 10) / 10;
+    const visibility = Math.round((9.5 + Math.cos(h * 0.3) * 1.5) * 10) / 10;
+    
+    const tempOffset = Math.sin((h - 4) * 0.5) * 2;
+    const suhu = Math.round(profile.avgTemp + tempOffset);
+    const kelembaban = Math.max(50, Math.min(98, Math.round(75 - tempOffset * 6)));
+    const pasutVal = Math.round((0.5 + Math.sin(h * 0.5) * 0.4) * 100) / 100;
+
+    rows.push({
+      waktu,
+      jam,
+      cuaca,
+      cuacaIcon,
+      anginDir: currentWindDir,
+      anginSpeed,
+      anginGust,
+      gelombangVal,
+      gelombangKet: gKet,
+      arusDir: currentArusDir,
+      arusSpeed: currentSpeed,
+      visibility,
+      suhu,
+      kelembaban,
+      pasut: pasutVal
+    });
+  }
+  return rows;
 };
 
 // Calculate statistical WMO compliant average of instant samples
@@ -280,23 +417,23 @@ export const BMKG_PORTS_LIST: BmkgPortOption[] = [
 export default function App() {
   const [activeTab, setActiveTab] = useState<'realtime' | 'analyst' | 'telemetry' | 'database' | 'settings' | 'bmkg'>('realtime');
   
-  // Persisted state setup matching your parameters
-  const [config, setConfig] = useState(() => {
-    const saved = localStorage.getItem('aws_config');
-    const parsed = saved ? JSON.parse(saved) : DEFAULT_CONFIG;
-    if (parsed && (parsed.stationName === 'Pelabuhan Ciwandan' || !parsed.stationName)) {
-      parsed.stationName = 'Automatic Weather Station';
-    }
-    return {
-      ...DEFAULT_CONFIG,
-      ...parsed,
-      isSimulationOn: 'OFF' // Force simulation to OFF as per user request
-    };
-  });
+  // Extract and parse saved config first to avoid dependency chain issues
+  const savedConfigStr = localStorage.getItem('aws_config');
+  const parsedConfig = savedConfigStr ? JSON.parse(savedConfigStr) : DEFAULT_CONFIG;
+  if (parsedConfig && (parsedConfig.stationName === 'Pelabuhan Ciwandan' || !parsedConfig.stationName)) {
+    parsedConfig.stationName = 'Automatic Weather Station';
+  }
+  const initialConfig = {
+    ...DEFAULT_CONFIG,
+    ...parsedConfig,
+    isSimulationOn: 'OFF' // Force simulation to OFF as per user request
+  };
+
+  const [config, setConfig] = useState(initialConfig);
 
   const [history, setHistory] = useState<WeatherData[]>(() => {
     const saved = localStorage.getItem('aws_history_logs');
-    return saved ? JSON.parse(saved) : generateInitialLogs(45, (saved ? DEFAULT_CONFIG : config).dbStorageInterval || 10);
+    return saved ? JSON.parse(saved) : generateInitialLogs(45, initialConfig.dbStorageInterval || 10, initialConfig.bmkgPortSlug || 'pelabuhan_ciwandan');
   });
 
   // Database start/end period filter state for tab 3
@@ -968,10 +1105,16 @@ export default function App() {
       }
     } catch (err: any) {
       console.error('Failed to fetch live BMKG forecast:', err);
-      // Fallback gracefully - bmkgForecast preserves the previous/static data automatically
       setBmkgErrorMsg(err.message || 'Gagal terhubung ke API scraping.');
+      
+      // Fallback: Generate custom mock forecast for the selected port to avoid displaying stale Ciwandan predictions!
+      const mockForecast = generateMockForecastFrontend(targetSlug);
+      setBmkgForecast(mockForecast);
+      setBmkgSource('simulasi maritim');
+      setLastBmkgFetched(format(new Date(), 'dd MMM yy, HH:mm:ss'));
+      
       if (actualShowToast) {
-        showToastNotification(`🔴 SYNC BMKG GAGAL: ${err.message || 'Koneksi error'}`);
+        showToastNotification(`🟡 SINKRON ONLINE DIALIKAN KE SIMULASI MARITIM LOKAL`);
       }
     } finally {
       setIsLoadingBmkg(false);
@@ -1010,14 +1153,17 @@ export default function App() {
         return;
       }
       const pctime = new Date();
-      const nextTemp = 27 + Math.random() * 4;
+      const activeSlug = (config.bmkgPortSlug || 'pelabuhan_ciwandan').toLowerCase().replace(/-/g, '_');
+      const profile = PORT_PROFILES[activeSlug] || PORT_PROFILES.pelabuhan_ciwandan;
+
+      const nextTemp = profile.avgTemp - 2.0 + Math.random() * 4.0;
       const nextHum = 70 + Math.floor(Math.random() * 25);
-      const nextWindSpeed = 6 + Math.random() * 14;
+      const nextWindSpeed = profile.avgWind - 2 + Math.random() * 4;
       const nextWindDir = Math.floor(Math.random() * 360);
       const nextPress = 1008 + Math.random() * 5;
       const nextSolar = Math.floor(100 + Math.random() * 600);
       const nextRainRate = Math.random() > 0.9 ? parseFloat((Math.random() * 6).toFixed(1)) : 0;
-      const nextWave = parseFloat((0.3 + Math.random() * 1.6).toFixed(2));
+      const nextWave = parseFloat((profile.avgWave - 0.15 + Math.random() * 0.35).toFixed(2));
       const nextCurrentSpeed = parseFloat((0.8 + Math.random() * 2.2).toFixed(2)); // simulated Knots
       const nextSeaLvl = parseFloat((110 + Math.random() * 60).toFixed(1));
       const nextPh = parseFloat((7.4 + Math.random() * 0.8).toFixed(2));
@@ -3611,6 +3757,12 @@ header("Content-Type: application/json; charset=UTF-8");
                                   };
                                   setConfig(newCfg);
                                   localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                                  
+                                  // Update the historical database logs to reflect this port profile immediately
+                                  const newHistory = generateInitialLogs(45, newCfg.dbStorageInterval || 10, selectedObj.slug);
+                                  setHistory(newHistory);
+                                  localStorage.setItem('aws_history_logs', JSON.stringify(newHistory));
+
                                   showToastNotification(`Lokasi diubah: ${selectedObj.label}`);
                                   fetchBmkgLive(selectedObj.slug, true);
                                 }
@@ -3675,6 +3827,12 @@ header("Content-Type: application/json; charset=UTF-8");
                               };
                               setConfig(newCfg);
                               localStorage.setItem('aws_config', JSON.stringify(newCfg));
+
+                              // Update the historical database logs to reflect this port profile immediately
+                              const newHistory = generateInitialLogs(45, newCfg.dbStorageInterval || 10, item.slug);
+                              setHistory(newHistory);
+                              localStorage.setItem('aws_history_logs', JSON.stringify(newHistory));
+
                               showToastNotification(`Lokasi diubah: ${fullLabel}`);
                               fetchBmkgLive(item.slug, true);
                             }}
