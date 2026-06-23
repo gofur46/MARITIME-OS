@@ -207,8 +207,8 @@ function connectToMoxa() {
         console.log(`[${new Date().toISOString()}] 🟢 [CONNECTED] Sukses tersambung ke Moxa!`);
         dataBuffer = '';
         
-        // Change timeout to 15 seconds once connected, to allow regular 10-second telemetry packet spacing
-        client.setTimeout(15000);
+        // Disable inactivity timeout once connected, to prevent silence from triggering a disconnect
+        client.setTimeout(0);
         
         broadcastStatus(true, 'CONNECTED', '');
     });
