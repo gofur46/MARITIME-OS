@@ -310,8 +310,17 @@ app.get("/api/bmkg", async (req, res) => {
       }
     }
 
-    if (requiredKeyword && !lowerHtml.includes(requiredKeyword)) {
-      throw new Error(`BMKG server redirected or returned non-${requiredKeyword} page for slug: ${portSlug}`);
+    // Capture the title or page heading to prevent general sidebar link matches from bypassing our redirect guards
+    const titleMatch = html.match(/<title>([\s\S]*?)<\/title>/i);
+    const headingMatch = html.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i) || html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+    const titleText = titleMatch ? titleMatch[1].toLowerCase() : "";
+    const headingText = headingMatch ? headingMatch[1].toLowerCase() : "";
+    
+    // We search the specific titles/headings instead of raw html stream to prevent matching the global sidebar navigation links
+    const verificationText = `${titleText} ${headingText}`;
+
+    if (requiredKeyword && !verificationText.includes(requiredKeyword)) {
+      throw new Error(`BMKG server redirected or returned non-${requiredKeyword} page for slug: ${portSlug} (Title: "${titleText.trim()}", Heading: "${headingText.trim()}")`);
     }
 
     const tableMatches = [...html.matchAll(/<table[^>]*>([\s\S]*?)<\/table>/g)];
