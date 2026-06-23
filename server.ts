@@ -283,7 +283,8 @@ app.get("/api/bmkg", async (req, res) => {
 
   try {
     console.log(`[BMKG API] Cache missed/expired for ${portSlug}. Fetching fresh data from BMKG Maritim Website...`);
-    const bmkgUrl = `https://maritim.bmkg.go.id/cuaca/pelabuhan/${portSlug}`;
+    const urlSlug = portSlug.replace(/_/g, '-');
+    const bmkgUrl = `https://maritim.bmkg.go.id/cuaca/pelabuhan/${urlSlug}`;
     console.log(`[BMKG API] Target URL: ${bmkgUrl}`);
     const bmkgResponse = await fetch(bmkgUrl, {
       headers: {

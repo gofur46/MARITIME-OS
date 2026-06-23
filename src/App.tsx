@@ -4817,7 +4817,7 @@ header("Content-Type: application/json; charset=UTF-8");
                 </p>
               </div>
               <a 
-                href={`https://maritim.bmkg.go.id/cuaca/pelabuhan/${config.bmkgPortSlug || 'pelabuhan-ciwandan'}`}
+                href={`https://maritim.bmkg.go.id/cuaca/pelabuhan/${(config.bmkgPortSlug || 'pelabuhan-ciwandan').replace(/_/g, '-')}`}
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="w-full sm:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-extrabold font-mono tracking-wide rounded-xl flex items-center justify-center gap-2 cursor-pointer uppercase shadow-lg transition-all"
