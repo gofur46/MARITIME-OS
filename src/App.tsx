@@ -501,14 +501,7 @@ export default function App() {
 
         socket.on('connect', () => {
           console.log("✅ Main Dashboard connected to Moxa Daemon via WebSocket!");
-          setMoxaStatus(prev => ({
-            connected: true,
-            moxa_ip: prev?.moxa_ip || '192.168.1.254',
-            moxa_port: prev?.moxa_port || 4001,
-            state: 'CONNECTED',
-            last_seen: new Date().toLocaleTimeString('id-ID'),
-            error: ''
-          }));
+          // Wait for statusUpdate from the daemon to tell us the actual connection state
         });
 
         socket.on('statusUpdate', (status: any) => {
@@ -571,6 +564,14 @@ export default function App() {
 
         socket.on('disconnect', () => {
           console.warn("❌ Moxa WebSocket disconnected, waiting for reconnection...");
+          setMoxaStatus(prev => ({
+            connected: false,
+            moxa_ip: prev?.moxa_ip || '192.168.1.254',
+            moxa_port: prev?.moxa_port || 4001,
+            state: 'OFFLINE',
+            last_seen: new Date().toLocaleTimeString('id-ID'),
+            error: 'Daemon WebSocket Offline (Port 8080)'
+          }));
         });
 
         socket.on('connect_error', () => {

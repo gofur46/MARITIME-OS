@@ -189,11 +189,27 @@ function connectToMoxa() {
     }
 
     client = new net.Socket();
+    
+    // Enable TCP Keep-Alives to detect broken physical connection quickly
+    client.setKeepAlive(true, 5000); // Send TCP probes every 5 seconds
+    
+    // Set 5-second initial connect handshake timeout
+    client.setTimeout(5000);
+
+    client.on('timeout', () => {
+        console.warn(`[${new Date().toISOString()}] ⚠️ [TCP TIMEOUT] Batas waktu koneksi/data Moxa terlampaui (${MOXA_IP}:${MOXA_PORT})!`);
+        broadcastStatus(false, 'TIMEOUT', 'Batas waktu koneksi habis (Moxa Offline)');
+        client.destroy(); // Destroys socket, triggering 'close' event
+    });
 
     client.connect(MOXA_PORT, MOXA_IP, () => {
         isTcpConnecting = false;
         console.log(`[${new Date().toISOString()}] 🟢 [CONNECTED] Sukses tersambung ke Moxa!`);
         dataBuffer = '';
+        
+        // Change timeout to 15 seconds once connected, to allow regular 10-second telemetry packet spacing
+        client.setTimeout(15000);
+        
         broadcastStatus(true, 'CONNECTED', '');
     });
 
