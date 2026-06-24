@@ -479,6 +479,19 @@ export default function App() {
     error: string;
   } | null>(null);
 
+  // Keep refs to avoid closure issues in async socket listeners
+  const configRef = useRef(config);
+  const lastDbSaveTimeRef = useRef(lastDbSaveTime);
+  const processNewSampleRef = useRef<any>(null);
+
+  useEffect(() => {
+    configRef.current = config;
+  }, [config]);
+
+  useEffect(() => {
+    lastDbSaveTimeRef.current = lastDbSaveTime;
+  }, [lastDbSaveTime]);
+
   // Socket.IO + Fallback PHP Polling integration with Moxa Daemon
   useEffect(() => {
     if (config.transport !== 'MOXA_TCP') {
@@ -550,11 +563,16 @@ export default function App() {
               return keeps;
             });
 
+            // Feed raw record into the averaging and interval-based PostgreSQL storage compiler
+            processNewSampleRef.current?.(formattedRecord);
+
             // Print success in terminal logs
             setStreamLogs(prevLogs => {
               const lines = prevLogs.split('\n');
               const timeStr = new Date().toLocaleTimeString('id-ID');
-              const msg = `[${timeStr} PARSER] ✅ Temp=${parsedRecord.temperature}°C | Wind=${parsedRecord.wind_speed} m/s | pH=${parsedRecord.water_ph} -> Saved Memory & DB`;
+              const interval = configRef.current.dbStorageInterval || 10;
+              const mode = configRef.current.dbStorageMode || 'AVG';
+              const msg = `[${timeStr} PARSER] ✅ Temp=${parsedRecord.temperature}°C | Wind=${parsedRecord.wind_speed} m/s | pH=${parsedRecord.water_ph} -> Dials Active (Buffering for DB Save per ${interval}m [${mode}])`;
               const output = [...lines, msg];
               if (output.length > 50) return output.slice(output.length - 35).join('\n');
               return output.join('\n');
@@ -810,6 +828,70 @@ export default function App() {
     }
   };
 
+  const processNewSample = (record: WeatherData) => {
+    // Added support to buffer and save at the custom selected minute logging interval (e.g., 10 minutes) instead of every second
+    setSampleBuffer(prevBuf => {
+      const updated = [...prevBuf, record];
+      const now = Date.now();
+      const intervalMin = configRef.current.dbStorageInterval || 10;
+      const intervalMs = intervalMin * 60 * 1000;
+      const currentBlock = Math.floor(now / intervalMs);
+      const lastSaveBlock = Math.floor(lastDbSaveTimeRef.current / intervalMs);
+
+      // Check if we have entered a new clock-aligned interval block
+      if (currentBlock > lastSaveBlock && updated.length > 0) {
+        // Wrap side-effects in a microtask to keep the state reducer pure
+        setTimeout(() => {
+          let recordToSave: WeatherData;
+          let msgLog = '';
+
+          const spaceMode = configRef.current.dbStorageMode || 'AVG';
+          if (spaceMode === 'AVG') {
+            recordToSave = calculateAverageRecord(updated);
+            msgLog = `⏱️ compiled and saved standard WMO ${configRef.current.dbStorageInterval}-minute average based on ${updated.length} raw samples successfully.`;
+          } else {
+            const rawSpeeds = updated.map(item => item.windSpeed);
+            const maxR = rawSpeeds.length > 0 ? Math.max(...rawSpeeds) : 0;
+            const minR = rawSpeeds.length > 0 ? Math.min(...rawSpeeds) : 0;
+            const hasRGust = (maxR - minR) >= 10;
+            
+            recordToSave = { 
+              ...record,
+              windGust: hasRGust ? parseFloat(maxR.toFixed(1)) : undefined
+            };
+            msgLog = `📦 saved raw instantaneous record for ${configRef.current.dbStorageInterval}-minute interval directly to database successfully.`;
+          }
+
+          // Adjust timestamp of record to reflect the completed logging window boundary precisely (e.g. 19:40:00, 19:50:00)
+          recordToSave.timestamp = currentBlock * intervalMs;
+
+          // Asynchronously post to local PostgreSQL database backend
+          postLogToLocalPostgres(recordToSave);
+
+          // Append SQL success notification to terminal logs
+          setStreamLogs(prevLogs => {
+            const lines = prevLogs.split('\n');
+            const timeStr = format(new Date(), 'HH:mm:ss');
+            const msg = `[${timeStr} SQL SYSTEM] ${msgLog}`;
+            const output = [...lines, msg];
+            if (output.length > 40) return output.slice(output.length - 30).join('\n');
+            return output.join('\n');
+          });
+
+          // Reset the last saved time mark to exactly the saved block timestamp
+          setLastDbSaveTime(currentBlock * intervalMs);
+        }, 0);
+
+        return []; // Clear the buffer
+      }
+
+      return updated; // Keep gathering raw measurements
+    });
+  };
+
+  // Keep processNewSampleRef updated with the latest state bindings on every render
+  processNewSampleRef.current = processNewSample;
+
   // Modern Web Serial API & Manual Inbound Parser Engine
   const parseIncomingSentence = (line: string, source: 'SERIAL' | 'TCP' | 'MOXA_TCP' | 'MANUAL') => {
     const delimiter = config.splitchar || ';';
@@ -888,63 +970,7 @@ export default function App() {
       });
 
       // Added support to buffer and save at the custom selected minute logging interval (e.g., 10 minutes) instead of every second
-      setSampleBuffer(prevBuf => {
-        const updated = [...prevBuf, record];
-        const now = Date.now();
-        const intervalMin = config.dbStorageInterval || 10;
-        const intervalMs = intervalMin * 60 * 1000;
-        const currentBlock = Math.floor(now / intervalMs);
-        const lastSaveBlock = Math.floor(lastDbSaveTime / intervalMs);
-
-        // Check if we have entered a new clock-aligned interval block
-        if (currentBlock > lastSaveBlock && updated.length > 0) {
-          // Wrap side-effects in a microtask to keep the state reducer pure
-          setTimeout(() => {
-            let recordToSave: WeatherData;
-            let msgLog = '';
-
-            const spaceMode = config.dbStorageMode || 'AVG';
-            if (spaceMode === 'AVG') {
-              recordToSave = calculateAverageRecord(updated);
-              msgLog = `⏱️ compiled and saved standard WMO ${config.dbStorageInterval}-minute average based on ${updated.length} raw samples successfully.`;
-            } else {
-              const rawSpeeds = updated.map(item => item.windSpeed);
-              const maxR = rawSpeeds.length > 0 ? Math.max(...rawSpeeds) : 0;
-              const minR = rawSpeeds.length > 0 ? Math.min(...rawSpeeds) : 0;
-              const hasRGust = (maxR - minR) >= 10;
-              
-              recordToSave = { 
-                ...record,
-                windGust: hasRGust ? parseFloat(maxR.toFixed(1)) : undefined
-              };
-              msgLog = `📦 saved raw instantaneous record for ${config.dbStorageInterval}-minute interval directly to database successfully.`;
-            }
-
-            // Adjust timestamp of record to reflect the completed logging window boundary precisely (e.g. 19:40:00, 19:50:00)
-            recordToSave.timestamp = currentBlock * intervalMs;
-
-            // Asynchronously post to local PostgreSQL database backend
-            postLogToLocalPostgres(recordToSave);
-
-            // Append SQL success notification to terminal logs
-            setStreamLogs(prevLogs => {
-              const lines = prevLogs.split('\n');
-              const timeStr = format(new Date(), 'HH:mm:ss');
-              const msg = `[${timeStr} SQL SYSTEM] ${msgLog}`;
-              const output = [...lines, msg];
-              if (output.length > 40) return output.slice(output.length - 30).join('\n');
-              return output.join('\n');
-            });
-
-            // Reset the last saved time mark to exactly the saved block timestamp
-            setLastDbSaveTime(currentBlock * intervalMs);
-          }, 0);
-
-          return []; // Clear the buffer
-        }
-
-        return updated; // Keep gathering raw measurements
-      });
+      processNewSample(record);
 
       // Append clean report to stream logs tab
       setStreamLogs(prev => {

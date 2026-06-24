@@ -308,8 +308,9 @@ function processRawPayload(rawPayload) {
         // 1. Emit live parsed telemetry ke React UI via Socket.io secara instan
         io.emit('dataUpdate', mappedRecord);
 
-        // 2. Pompa asinkron langsung ke PostgreSQL (via api.php)
-        postToPhpGateway(mappedRecord);
+        // 2. Pompa asinkron langsung ke PostgreSQL (via api.php) dinonaktifkan
+        // Penyimpanan database sekarang dihandle oleh aplikasi frontend React agar mematuhi interval penyimpanan & averaging mode di Pengaturan
+        // postToPhpGateway(mappedRecord);
 
     } catch (err) {
         console.error(`[${new Date().toISOString()}] ❌ [PARSER CRASH] Gagal mengolah payload: ${err.message}`);
