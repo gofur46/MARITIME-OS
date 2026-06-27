@@ -5,7 +5,7 @@ import {
   AlertTriangle, Play, RefreshCw, Send, CheckCircle, Database,
   Anchor, ArrowUpRight, Eye, Compass, X, ExternalLink, Maximize2
 } from 'lucide-react';
-import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { WeatherData, AlertLevel, PortInstruction } from './types';
 import { format } from 'date-fns';
 
@@ -66,7 +66,8 @@ const DEFAULT_CONFIG = {
     'ch_13': '12', // Pres QNH
     'ch_18': '13', // Water pH
     'ch_19': '14', // Wind Speed Max
-    'ch_20': '15'  // Wind Speed Min
+    'ch_20': '15', // Wind Speed Min
+    'ch_rain': '5' // Rainfall
   }
 };
 
@@ -906,61 +907,44 @@ export default function App() {
       let record: WeatherData;
       const now = Date.now();
 
-      // Detection of Moxa Schema vs General CSV Schema 
-      if (source === 'MOXA_TCP' || tokens.length >= 20) {
-        // MOXA 22-field scheme:
-        // [0] Kode_Stasiun, [1] Date (DD-MM-YYYY), [2] Time (HH:mm:ss), [3] WS_meas, [5] WD_meas, 
-        // [6] TA_meas, [9] RH_meas, [10] PA_meas, [12] SR_meas, [17] water_level (m), [18] PH_meas
-        const ws_meas = parseFloat(tokens[3]) || 0;
-        const wd_meas = parseInt(tokens[5]) || 0;
-        const ta_meas = parseFloat(tokens[6]) || 28.0;
-        const rh_meas = parseInt(tokens[9]) || 80;
-        const pa_meas = parseFloat(tokens[10]) || 1010.0;
-        const sr_meas = tokens[12] === 'NAN' ? 0 : (parseInt(tokens[12]) || 0);
-        const water_level = tokens[17] === 'NAN' ? 140.0 : parseFloat(tokens[17]) * 100; // convert m to cm
-        const ph_meas = tokens[18] === 'NAN' ? 7.8 : parseFloat(tokens[18]) || 7.8;
+      const getMappedVal = (key: string, fallback: number): number => {
+        if (!config.sensors) return fallback;
+        const indexStr = config.sensors[key as keyof typeof config.sensors];
+        if (!indexStr || indexStr === 'OFF') return fallback;
+        const idx = parseInt(indexStr);
+        if (isNaN(idx) || idx < 0 || idx >= tokens.length) return fallback;
+        if (tokens[idx] === 'NAN') return fallback;
+        const val = parseFloat(tokens[idx]);
+        return isNaN(val) ? fallback : val;
+      };
 
-        record = {
-          timestamp: now,
-          temperature: ta_meas,
-          humidity: rh_meas,
-          windSpeed: ws_meas,
-          windDirection: wd_meas,
-          pressure: pa_meas,
-          solarRadiation: sr_meas,
-          rainfall: 0.0,
-          waveHeight: 1.10, // constant base
-          seaLevel: water_level, 
-          waterPh: ph_meas
-        };
-      } else {
-        // Standard payload scheme (Standard 11 properties):
-        // [0] ID, [1] Date Time, [2] Temp, [3] Hum, [4] Solar, [5] Rain, [6] WaveHr, [7] SeaLvl, [8] pH, [9] WindDir, [10] WindSpd, [11] Press
-        const temp = parseFloat(tokens[2]) || 28.0;
-        const hum = parseInt(tokens[3]) || 80;
-        const solar = parseInt(tokens[4]) || 0;
-        const rain = parseFloat(tokens[5]) || 0.0;
-        const wave = parseFloat(tokens[6]) || 1.10;
-        const sea = parseFloat(tokens[7]) || 140.0;
-        const ph = parseFloat(tokens[8]) || 7.80;
-        const wd = parseInt(tokens[9]) || 0;
-        const ws = parseFloat(tokens[10]) || 0.0;
-        const press = parseFloat(tokens[11]) || 1010.0;
+      // Extract all properties dynamically according to the channel mapping index configuration
+      const temp = getMappedVal('ch_0', 28.0);
+      const hum = Math.round(getMappedVal('ch_8', 80));
+      const wind_spd = getMappedVal('ch_17', 0.0);
+      const wind_dir = Math.round(getMappedVal('ch_16', 0));
+      const press = getMappedVal('ch_7', 1010.0);
+      const solar = Math.round(getMappedVal('ch_5', 0));
+      const rain = getMappedVal('ch_rain', 0.0);
+      const raw_sea = getMappedVal('ch_15', 140.0);
+      const ph = getMappedVal('ch_18', 7.80);
 
-        record = {
-          timestamp: now,
-          temperature: temp,
-          humidity: hum,
-          solarRadiation: solar,
-          rainfall: rain,
-          waveHeight: wave,
-          seaLevel: sea,
-          waterPh: ph,
-          windDirection: wd,
-          windSpeed: ws,
-          pressure: press
-        };
-      }
+      // Smart handling for sea level: convert meters to cm if the values are very small
+      const sea = raw_sea < 20 ? raw_sea * 100 : raw_sea;
+
+      record = {
+        timestamp: now,
+        temperature: temp,
+        humidity: hum,
+        solarRadiation: solar,
+        rainfall: rain,
+        waveHeight: 1.10, // constant base wave height
+        seaLevel: sea,
+        waterPh: ph,
+        windDirection: wind_dir,
+        windSpeed: wind_spd,
+        pressure: press
+      };
 
       // Add mapped record to live memory history immediately
       setHistory(prev => {
@@ -1600,12 +1584,13 @@ export default function App() {
 
   // Export database metrics to CSV format
   const exportLogsToCSV = () => {
-    const headers = ['DateTime', 'Temp (deg C)', 'Humidity (%)', 'Solar (W/m2)', 'Wind Gust (m/s)', 'WaterLvl (cm)', 'Water pH', 'WindDir (deg)', 'WindSpd (m/s)', 'Press (hPa)'];
+    const headers = ['DateTime', 'Temp (deg C)', 'Humidity (%)', 'Solar (W/m2)', 'Rainfall (mm)', 'Wind Gust (m/s)', 'WaterLvl (cm)', 'Water pH', 'WindDir (deg)', 'WindSpd (m/s)', 'Press (hPa)'];
     const rows = filteredLogs.map(row => [
       format(row.timestamp, 'yyyy-MM-dd HH:mm:ss'),
       row.temperature,
       row.humidity,
       row.solarRadiation,
+      row.rainfall,
       row.windGust !== undefined && row.windGust !== null ? row.windGust : "",
       row.seaLevel,
       row.waterPh || 7.8,
@@ -1854,7 +1839,7 @@ export default function App() {
               <span>AWS OS CONNECTION: {config.transport}{config.transport !== 'OFF' && ` (${config.serialcom || '192.168.1.1'}:${config.baudrate || '4001'})`}</span>
             </div>
             <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-white uppercase flex flex-wrap items-baseline gap-x-2">
-              <span>{config.stationName ? `AWS PORT: ${config.stationName}` : "AWS MARINE BOARD"}</span> <span className="text-[#00f0ff] text-xs font-mono lowercase tracking-[0.05em] bg-[#00f0ff]/10 py-0.5 px-3 rounded border border-[#00f0ff]/30 font-bold">Pro RMS v3</span>
+              <span>Automatic weather station</span> <span className="text-[#00f0ff] text-xs font-mono lowercase tracking-[0.05em] bg-[#00f0ff]/10 py-0.5 px-3 rounded border border-[#00f0ff]/30 font-bold">Pro RMS v3</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-bold">
               Kondisi Operasional Port & Log Terminal Cuaca Maritim
@@ -3655,53 +3640,55 @@ header("Content-Type: application/json; charset=UTF-8");
               </div>
             </div>
 
-            {/* Industrial logs Table */}
-            <div className="bg-[#0b1424] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-              <div className="overflow-x-auto">
-                <table className="w-full text-[12px] text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[#050a12] border-b border-[#00f0ff]/20">
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">DateTime</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Temp (°C)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Hum (%)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Rad (W/m²)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-[0.15em] text-amber-500 text-center text-xs">W-Gust (m/s / kt)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-xs">W-Level (m)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-pink-400 text-center text-xs">pH Air</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Dir (°)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Spd (m/s / kt)</th>
-                      <th className="p-3.5 uppercase font-bold tracking-widest text-slate-400 text-center text-xs">Press (hPa)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5 font-mono">
-                    {filteredLogs.length === 0 ? (
-                      <tr>
-                        <td colSpan={10} className="p-8 text-center uppercase tracking-widest text-slate-500 text-xs">
-                          No logged matching rows found. Adjust criteria.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredLogs.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-white/5 transition-colors">
-                          <td className="p-3 text-center border-r border-white/5 text-slate-300 font-sans">{format(item.timestamp, 'dd-MM-yyyy HH:mm:ss')}</td>
-                          <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.temperature.toFixed(1)}</td>
-                          <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.humidity}%</td>
-                          <td className="p-3 text-center border-r border-white/5 text-[#f59e0b]">{item.solarRadiation}</td>
-                          <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">
-                            {item.windGust !== undefined && item.windGust !== null ? `${item.windGust.toFixed(1)} / ${(item.windGust * 1.94384).toFixed(0)}` : "—"}
-                          </td>
-                          <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">{item.seaLevel.toFixed(1)}m</td>
-                          <td className="p-3 text-center border-r border-white/5 text-pink-400 font-bold">{(item.waterPh ?? 7.80).toFixed(2)}</td>
-                          <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.windDirection}°</td>
-                          <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">{item.windSpeed.toFixed(1)} / {(item.windSpeed * 1.94384).toFixed(0)}</td>
-                          <td className="p-3 text-center text-slate-300 pr-4 text-right">{item.pressure.toFixed(1)}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+             {/* Industrial logs Table */}
+             <div className="bg-[#0b1424] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+               <div className="overflow-x-auto">
+                 <table className="w-full text-[12px] text-left border-collapse">
+                   <thead>
+                     <tr className="bg-[#050a12] border-b border-[#00f0ff]/20">
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">DateTime</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Temp (°C)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Hum (%)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Rad (W/m²)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-sky-400 text-center text-xs">Rain (mm)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-[0.15em] text-amber-500 text-center text-xs">W-Gust (m/s / kt)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-xs">W-Level (m)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-pink-400 text-center text-xs">pH Air</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Dir (°)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Spd (m/s / kt)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-slate-400 text-center text-xs">Press (hPa)</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-white/5 font-mono">
+                     {filteredLogs.length === 0 ? (
+                       <tr>
+                         <td colSpan={11} className="p-8 text-center uppercase tracking-widest text-slate-500 text-xs">
+                           No logged matching rows found. Adjust criteria.
+                         </td>
+                       </tr>
+                     ) : (
+                       filteredLogs.map((item, idx) => (
+                         <tr key={idx} className="hover:bg-white/5 transition-colors">
+                           <td className="p-3 text-center border-r border-white/5 text-slate-300 font-sans">{format(item.timestamp, 'dd-MM-yyyy HH:mm:ss')}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.temperature.toFixed(1)}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.humidity}%</td>
+                           <td className="p-3 text-center border-r border-white/5 text-[#f59e0b]">{item.solarRadiation}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-sky-400 font-bold">{(item.rainfall ?? 0.0).toFixed(1)}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">
+                             {item.windGust !== undefined && item.windGust !== null ? `${item.windGust.toFixed(1)} / ${(item.windGust * 1.94384).toFixed(0)}` : "—"}
+                           </td>
+                           <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">{item.seaLevel.toFixed(1)}m</td>
+                           <td className="p-3 text-center border-r border-white/5 text-pink-400 font-bold">{(item.waterPh ?? 7.80).toFixed(2)}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.windDirection}°</td>
+                           <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">{item.windSpeed.toFixed(1)} / {(item.windSpeed * 1.94384).toFixed(0)}</td>
+                           <td className="p-3 text-center text-slate-300 pr-4 text-right">{item.pressure.toFixed(1)}</td>
+                         </tr>
+                       ))
+                     )}
+                   </tbody>
+                 </table>
+               </div>
+             </div>
 
           </div>
         )}
@@ -4390,7 +4377,8 @@ header("Content-Type: application/json; charset=UTF-8");
                     { label: 'Pres QFF', key: 'ch_11', color: '#94a3b8', source: (currentData.pressure + 2.1).toFixed(1) + ' hPa' },
                     { label: 'Pres QNH', key: 'ch_13', color: '#94a3b8', source: (currentData.pressure - 1.2).toFixed(1) + ' hPa' },
                     { label: 'Pres STN', key: 'ch_7', color: '#94a3b8', source: currentData.pressure.toFixed(1) + ' hPa' },
-                    { label: 'Water pH', key: 'ch_18', color: '#f5d0fe', source: (currentData.waterPh ?? 7.80).toFixed(2) }
+                    { label: 'Water pH', key: 'ch_18', color: '#f5d0fe', source: (currentData.waterPh ?? 7.80).toFixed(2) },
+                    { label: 'Rainfall', key: 'ch_rain', color: '#0ea5e9', source: currentData.rainfall.toFixed(1) + ' mm' }
                   ].map((sensor, s_idx) => (
                     <div key={s_idx} className="bg-[#050a12]/70 border border-white/5 p-3 rounded-lg flex flex-col justify-between gap-1">
                       <span className="text-xs uppercase font-mono tracking-wider font-extrabold text-slate-400 block">{sensor.label} ({sensor.key})</span>
@@ -4454,7 +4442,8 @@ header("Content-Type: application/json; charset=UTF-8");
                       'ch_9': '10',  // Pres QFE
                       'ch_11': '10', // Pres QFF
                       'ch_13': '10', // Pres QNH
-                      'ch_18': '18'  // Water pH (PH_meas)
+                      'ch_18': '18',  // Water pH (PH_meas)
+                      'ch_rain': '13' // Rainfall (for example, rain meter)
                     };
                     setConfig({
                       ...config,
@@ -5171,6 +5160,122 @@ header("Content-Type: application/json; charset=UTF-8");
                       <Area type="monotone" dataKey="displayGust" stroke="#f97316" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupGust)" />
                     </AreaChart>
                   </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Chart 5: Rainfall Radar Intensity & Cumulative Track (Full Width across grid) */}
+              <div className="xl:col-span-2 bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
+                <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#0ea5e9]/50 rounded-tl-xl" />
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-white/5 gap-2">
+                  <div className="space-y-0.5">
+                    <span className="text-sm font-black text-[#0ea5e9] tracking-wider font-sans uppercase flex items-center gap-2">
+                      🌧️ 5. Rainfall Radar Intensity & 24H Cumulative Track
+                    </span>
+                    <p className="text-[10px] text-slate-400 font-sans">
+                      Warna tracker menunjukkan intensitas hujan: <span className="text-[#22c55e] font-black">Hijau (Ringan)</span>, <span className="text-[#eab308] font-black">Kuning (Sedang)</span>, <span className="text-[#ef4444] font-black">Merah (Lebat &gt;= {parseFloat(config.rainWarningThreshold || '10.0')} mm)</span>
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-right font-mono text-[9px]">
+                    <span className="text-slate-500 uppercase font-black">LEGENDA INTENSITAS:</span>
+                    <div className="bg-[#1e293b]/50 px-2 py-0.5 rounded text-slate-400 border border-white/5 font-bold">KERING (0 mm)</div>
+                    <div className="bg-[#22c55e]/15 px-2 py-0.5 rounded text-[#22c55e] border border-emerald-500/20 font-bold">RINGAN (&lt; 2.5 mm)</div>
+                    <div className="bg-[#eab308]/15 px-2 py-0.5 rounded text-[#eab308] border border-yellow-500/20 font-bold">SEDANG (2.5 - 10 mm)</div>
+                    <div className="bg-[#ef4444]/15 px-2 py-0.5 rounded text-[#ef4444] border border-red-500/20 font-bold animate-pulse">LEBAT (&gt;= {parseFloat(config.rainWarningThreshold || '10.0')} mm)</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                  {/* Left Side: Radar Intensity Track Matrix Visualizer */}
+                  <div className="lg:col-span-4 bg-[#050a12]/80 border border-white/5 p-4 rounded-2xl flex flex-col justify-between space-y-3">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-mono">Radar Intensity Grid Tracker (24H)</span>
+                      <p className="text-[9px] text-slate-500 font-sans">Setiap kotak mewakili interval pencatatan data log (10 menit). Arahkan kursor untuk melihat jam kejadian hujan.</p>
+                    </div>
+                    <div className="grid grid-cols-12 gap-1.5 flex-1 content-center py-2">
+                      {history.slice(-144).map((item, idx, arr) => {
+                        const currentRain = item.rainfall;
+                        const prevRain = idx > 0 ? arr[idx - 1].rainfall : item.rainfall;
+                        const diff = Math.max(0, currentRain - prevRain);
+                        const displayVal = diff > 0 ? diff : (currentRain > 0 ? currentRain : 0);
+                        
+                        let color = "bg-slate-800/30 hover:bg-slate-700/50";
+                        let ring = "";
+                        let titleText = `Kering (0 mm)`;
+                        if (displayVal > 0) {
+                          if (displayVal < 2.5) {
+                            color = "bg-emerald-500 hover:bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.3)]";
+                            titleText = `Hujan Ringan: ${displayVal.toFixed(1)} mm`;
+                          } else if (displayVal < parseFloat(config.rainWarningThreshold || '10.0')) {
+                            color = "bg-yellow-500 hover:bg-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.4)]";
+                            titleText = `Hujan Sedang: ${displayVal.toFixed(1)} mm`;
+                          } else {
+                            color = "bg-red-500 hover:bg-red-400 shadow-[0_0_12px_rgba(239,68,68,0.6)] animate-pulse";
+                            ring = "ring-1 ring-red-400";
+                            titleText = `HUJAN LEBAT: ${displayVal.toFixed(1)} mm`;
+                          }
+                        }
+
+                        return (
+                          <div 
+                            key={idx} 
+                            title={`${format(item.timestamp, 'HH:mm')} - ${titleText}`}
+                            className={`h-4 rounded cursor-help transition-all hover:scale-125 hover:z-10 ${color} ${ring}`}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="flex justify-between text-[9px] font-mono text-slate-500 uppercase tracking-wider">
+                      <span>24 Jam Lalu</span>
+                      <span>Sekarang (Real-time)</span>
+                    </div>
+                  </div>
+
+                  {/* Right Side: Dynamic Recharts bar chart */}
+                  <div className="lg:col-span-8 h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart 
+                        data={history.slice(-144).map((item, idx, arr) => {
+                          const currentRain = item.rainfall;
+                          const prevRain = idx > 0 ? arr[idx - 1].rainfall : item.rainfall;
+                          const diff = Math.max(0, currentRain - prevRain);
+                          const val = diff > 0 ? diff : (currentRain > 0 ? currentRain : 0);
+                          return {
+                            ...item,
+                            rainVal: parseFloat(val.toFixed(1)),
+                            cumRain: parseFloat(currentRain.toFixed(1))
+                          };
+                        })}
+                        margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                        <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                        <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 'auto']} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#0b1424', borderColor: '#0ea5e9' }} 
+                          labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} 
+                          formatter={(value: any, name: string) => {
+                            return [value + ' mm', 'Intensitas Hujan'];
+                          }} 
+                        />
+                        <Bar dataKey="rainVal" radius={[4, 4, 0, 0]}>
+                          {history.slice(-144).map((item, idx, arr) => {
+                            const currentRain = item.rainfall;
+                            const prevRain = idx > 0 ? arr[idx - 1].rainfall : item.rainfall;
+                            const diff = Math.max(0, currentRain - prevRain);
+                            const val = diff > 0 ? diff : (currentRain > 0 ? currentRain : 0);
+                            
+                            let fill = 'rgba(148, 163, 184, 0.1)'; // Kering
+                            if (val > 0) {
+                              if (val < 2.5) fill = '#22c55e'; // Hijau
+                              else if (val < parseFloat(config.rainWarningThreshold || '10.0')) fill = '#eab308'; // Kuning
+                              else fill = '#ef4444'; // Merah
+                            }
+                            return <Cell key={`cell-${idx}`} fill={fill} />;
+                          })}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               </div>
 
