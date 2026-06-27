@@ -42,6 +42,7 @@ const DEFAULT_CONFIG = {
   ind_id: '0',
   minPhThreshold: '6.5', // Default min safe pH
   maxPhThreshold: '8.5', // Default max safe pH
+  rainWarningThreshold: '10.0', // Default rain warning threshold (mm)
   dbStorageMode: 'AVG', // 'AVG' (Rata-Rata) | 'RAW' (Instan/Setiap Detik/Sesaat)
   dbStorageInterval: 10, // 1 to 60 Minutes
   localDbApiUrl: 'http://localhost:8000/api.php',
@@ -1922,11 +1923,11 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Hygro & Solar Group - Card 2 */}
+              {/* Hygro, Solar & Rain Group - Card 2 */}
               <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between space-y-3 font-sans">
                 <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2 font-sans">
                   <Droplets className="w-3.5 h-3.5 text-[#00ff66]" />
-                  <span>Hygrometry & Solar</span>
+                  <span>Hygro, Solar & Rain</span>
                 </div>
                 
                 <div className="flex-1 flex flex-col justify-between gap-2">
@@ -1955,6 +1956,24 @@ export default function App() {
                       <span className="text-xs text-amber-500 ml-1 font-bold">W/m²</span>
                     </div>
                   </div>
+
+                  {(() => {
+                    const rainVal = currentData.rainfall;
+                    const threshold = parseFloat(config.rainWarningThreshold || '10.0');
+                    const isHeavyRain = rainVal >= threshold;
+                    return (
+                      <div className={`bg-[#0b1424] border rounded-xl p-2.5 flex justify-between items-center transition-colors ${isHeavyRain ? 'border-sky-500/50 bg-sky-950/20 shadow-[0_0_10px_rgba(14,165,233,0.15)] animate-pulse' : 'border-sky-500/10 hover:border-sky-500/25'}`}>
+                        <span className="text-xs uppercase font-semibold tracking-wide text-sky-400 font-sans flex items-center gap-1.5">
+                          <CloudRain className="w-3.5 h-3.5 text-sky-400" />
+                          Rainfall {isHeavyRain && <span className="text-[9px] bg-sky-500/20 text-sky-300 px-1 py-0.2 rounded font-mono font-bold animate-bounce">LEBAT</span>}
+                        </span>
+                        <div className="text-right">
+                          <span className="text-xl font-bold font-mono text-sky-400">{rainVal.toFixed(1)}</span>
+                          <span className="text-xs text-sky-500 ml-1 font-bold">mm</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -4205,6 +4224,24 @@ header("Content-Type: application/json; charset=UTF-8");
                           className="w-full bg-[#050a12] border border-white/10 font-mono text-center text-xs p-2.5 text-pink-400 font-bold rounded" 
                         />
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Rainfall alarm limit configs */}
+                  <div className="border-t border-white/5 pt-3 space-y-2">
+                    <label className="text-xs uppercase font-bold text-sky-400 tracking-wider block font-mono mb-1">
+                      🌧️ Rainfall Alarm Settings
+                    </label>
+                    <div>
+                      <span className="text-xs md:text-xs text-slate-400 uppercase font-mono block mb-1">Heavy Rain Alert Threshold (mm)</span>
+                      <input 
+                        type="number" 
+                        step="0.1"
+                        min="0"
+                        value={config.rainWarningThreshold ?? '10.0'}
+                        onChange={(e) => setConfig({ ...config, rainWarningThreshold: e.target.value })}
+                        className="w-full bg-[#050a12] border border-white/10 font-mono text-center text-xs p-2.5 text-sky-400 font-bold rounded" 
+                      />
                     </div>
                   </div>
 
