@@ -2273,41 +2273,6 @@ export default function App() {
                     <div className={`relative w-80 h-80 rounded-full border-8 transition-all duration-700 flex items-center justify-center bg-radial-gradient from-[#00f0ff]/10 to-[#0284c7]/30 shadow-[inset_0_0_40px_rgba(0,0,0,0.85)] ${ringBorderColor}`}>
                       {/* Water ring container inside - enlarged proportionally */}
                       <div className="absolute w-[200px] h-[200px] rounded-full border border-white/5 bg-transparent pointer-events-none" />
-                      
-                      {/* 2-Minute Wind Track Radar SVG */}
-                      <svg className="absolute w-full h-full top-0 left-0 pointer-events-none z-0" viewBox="0 0 288 288">
-                        {windTrack2Min.map((track, idx) => {
-                          const ageMs = Date.now() - track.timestamp;
-                          const ageRatio = Math.max(0, Math.min(1, ageMs / 120000));
-                          const opacity = 0.5 * (1 - ageRatio);
-                          if (opacity <= 0.05) return null;
-                          return (
-                            <g key={idx}>
-                              {/* Soft glowing green radial trail line */}
-                              <line
-                                x1={144}
-                                y1={144 - 40} // start outwards from ship hull
-                                x2={144}
-                                y2={144 - 105} 
-                                stroke="#22c55e"
-                                strokeWidth={2.5}
-                                strokeLinecap="round"
-                                opacity={opacity}
-                                transform={`rotate(${track.direction}, 144, 144)`}
-                              />
-                              {/* Highlight dots on the bezel showing active/recent track */}
-                              <circle
-                                cx={144}
-                                cy={144 - 110}
-                                r={4.5}
-                                fill="#22c55e"
-                                opacity={opacity * 1.6}
-                                transform={`rotate(${track.direction}, 144, 144)`}
-                              />
-                            </g>
-                          );
-                        })}
-                      </svg>
 
                       {/* Direction characters - slightly repositioned for larger dial size */}
                       <span className="absolute top-2.5 text-slate-200 text-xs font-black tracking-widest font-sans">N</span>
