@@ -27,6 +27,7 @@ const DEFAULT_CONFIG = {
   serialcom: 'COM3',
   baudrate: '9600',
   pierAngle: '15', // Rotating ship inside the compass
+  lockOfflineDashboard: 'ON', // ON = lock/hide dashboard, OFF = show last known data
   cloudMode: 'OFF',
   httpUrl: 'https://api.portmarine.gov/aws/v1',
   ftpHost: 'ftp.portmarine.gov',
@@ -481,6 +482,36 @@ export default function App() {
     error: string;
   } | null>(null);
 
+  // Track timestamp of the last received real-time packet
+  const [lastIncomingTime, setLastIncomingTime] = useState<number | null>(null);
+  const [isLiveActive, setIsLiveActive] = useState<boolean>(true);
+
+  // Keep live connection state updated relative to current system time
+  useEffect(() => {
+    if (config.transport === 'OFF') {
+      setIsLiveActive(true);
+      return;
+    }
+
+    const checkActive = () => {
+      if (lastIncomingTime === null) {
+        setIsLiveActive(false);
+      } else {
+        const elapsed = Date.now() - lastIncomingTime;
+        setIsLiveActive(elapsed < 25000); // 25 seconds timeout
+      }
+    };
+
+    checkActive();
+    const intervalId = setInterval(checkActive, 2000);
+    return () => clearInterval(intervalId);
+  }, [lastIncomingTime, config.transport]);
+
+  // Reset live connection tracking when transport type is changed
+  useEffect(() => {
+    setLastIncomingTime(null);
+  }, [config.transport]);
+
   // Keep refs to avoid closure issues in async socket listeners
   const configRef = useRef(config);
   const lastDbSaveTimeRef = useRef(lastDbSaveTime);
@@ -542,6 +573,7 @@ export default function App() {
         // Stream live parsed data to feed into active telemetry display instantly
         socket.on('dataUpdate', (parsedRecord: any) => {
           if (parsedRecord) {
+            setLastIncomingTime(Date.now());
             const formattedRecord = {
               timestamp: Date.now(),
               temperature: parsedRecord.temperature,
@@ -953,6 +985,8 @@ export default function App() {
         localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
         return keeps;
       });
+
+      setLastIncomingTime(Date.now());
 
       // Added support to buffer and save at the custom selected minute logging interval (e.g., 10 minutes) instead of every second
       processNewSample(record);
@@ -1452,6 +1486,23 @@ export default function App() {
     setFilteredLogs(sorted);
   };
 
+  // Dedicated filtered dataset for the Analyst tab based on selected date range (00:00 to 23:59)
+  const analystLogs = (() => {
+    // If the database is connected and has records, use it as requested. Otherwise use history.
+    const source = (isDbConnected && realDbLogs.length > 0) ? realDbLogs : history;
+    
+    // Filter by selected start and end dates (within 00:00:00 and 23:59:59)
+    const filtered = source.filter(row => {
+      const rowDateStr = format(row.timestamp, 'yyyy-MM-dd');
+      const startMatch = dbStartDate ? rowDateStr >= dbStartDate : true;
+      const endMatch = dbEndDate ? rowDateStr <= dbEndDate : true;
+      return startMatch && endMatch;
+    });
+
+    // Return chronological order (oldest to newest) for chart plotting
+    return [...filtered].sort((a, b) => a.timestamp - b.timestamp);
+  })();
+
   const currentData = history[history.length - 1] || {
     timestamp: Date.now(),
     temperature: 28.2,
@@ -1613,9 +1664,10 @@ export default function App() {
 
   // --- CORE AI FORECAST ENGINE MATH (PORTED FROM YOUR CONCEPT) ---
   const aiForecastResult = (() => {
-    // 1. Live historical momentum (last 6 captured records in history, simulating 1 hour back at 10m cycle)
-    const current_hist = history.slice(-6).map(h => h.currentSpeed ?? parseFloat((h.waveHeight * 1.5).toFixed(2)));
-    const wind_hist = history.slice(-6).map(h => h.windSpeed);
+    // Use analystLogs as the primary dataset to reflect actual filtered database/history logs
+    const dataset = (analystLogs && analystLogs.length > 0) ? analystLogs : history;
+    const current_hist = dataset.slice(-6).map(h => h.currentSpeed ?? parseFloat((h.waveHeight * 1.5).toFixed(2)));
+    const wind_hist = dataset.slice(-6).map(h => h.windSpeed);
     
     // Ensure historical array has elements
     if (current_hist.length === 0) {
@@ -1832,11 +1884,23 @@ export default function App() {
 
           <div>
             <div className="text-xs uppercase tracking-[0.3em] font-mono text-[#00f0ff]/80 font-extrabold flex items-center gap-2 mb-1.5">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-              </span>
-              <span>AWS OS CONNECTION: {config.transport}{config.transport !== 'OFF' && ` (${config.serialcom || '192.168.1.1'}:${config.baudrate || '4001'})`}</span>
+              {config.transport !== 'OFF' && !isLiveActive ? (
+                <>
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-90"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                  </span>
+                  <span className="text-rose-400 font-black animate-pulse">AWS CONNECTION: OFFLINE (ALAT MATI / SENSOR ERROR)</span>
+                </>
+              ) : (
+                <>
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                  </span>
+                  <span>AWS OS CONNECTION: {config.transport}{config.transport !== 'OFF' && ` (${config.serialcom || '192.168.1.1'}:${config.baudrate || '4001'})`}</span>
+                </>
+              )}
             </div>
             <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-white uppercase flex flex-wrap items-baseline gap-x-2">
               <span>Automatic weather station</span> <span className="text-[#00f0ff] text-xs font-mono lowercase tracking-[0.05em] bg-[#00f0ff]/10 py-0.5 px-3 rounded border border-[#00f0ff]/30 font-bold">Pro RMS v3</span>
@@ -1850,7 +1914,11 @@ export default function App() {
             <div className="hidden xl:flex gap-6 text-right">
               <div>
                 <div className="text-xs uppercase font-bold opacity-40 tracking-wider text-[#00f0ff]">DB STATUS</div>
-                <div className="text-xs font-mono font-bold text-emerald-400">CONNECT_SECURE</div>
+                {config.transport !== 'OFF' && !isLiveActive ? (
+                  <div className="text-xs font-mono font-bold text-rose-500 animate-pulse">DATA_STALE_WARNING</div>
+                ) : (
+                  <div className="text-xs font-mono font-bold text-emerald-400">CONNECT_SECURE</div>
+                )}
               </div>
               <div>
                 <div className="text-xs uppercase font-bold opacity-40 tracking-wider text-[#00f0ff]">PIER ALIGNMENT</div>
@@ -1867,8 +1935,42 @@ export default function App() {
 
         {/* PAGE tab 1: REALTIME DASH */}
         {activeTab === 'realtime' && (
-          <>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          <div className="relative min-h-[600px]">
+            
+            {/* Blinking alert banner if the AWS connection is offline */}
+            {config.transport !== 'OFF' && !isLiveActive && (
+              <div className="mb-6 bg-gradient-to-r from-red-950/40 via-rose-950/30 to-red-950/40 border-2 border-red-500/40 rounded-2xl p-4.5 flex flex-col md:flex-row items-center justify-between gap-4 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.15)]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-red-500/20 border border-red-500/40 rounded-xl">
+                    <AlertTriangle className="w-6 h-6 text-red-500" />
+                  </div>
+                  <div className="text-left space-y-0.5">
+                    <span className="text-sm font-black text-red-400 tracking-wider font-mono block">🔴 WARNING: ALAT OFFLINE / JALUR DATA MASUK TERPUTUS</span>
+                    <p className="text-xs text-slate-300 leading-normal">
+                      Koneksi ke data logger aktif terputus. Dashboard saat ini menampilkan data rekaman terakhir yang tersimpan di sistem (<span className="text-amber-400 font-bold">stale data buffer</span>) untuk keamanan navigasi.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto">
+                  <button 
+                    onClick={() => {
+                      const newCfg = { ...config, transport: 'OFF' };
+                      setConfig(newCfg);
+                      localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                      showToastNotification("Simulation mode turned ON automatically!");
+                    }}
+                    className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-mono text-[10px] font-black tracking-widest px-4 py-2.5 rounded-lg uppercase transition-all whitespace-nowrap shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer"
+                  >
+                    🔧 Jalankan Simulasi (OFF)
+                  </button>
+                  <div className="text-center font-mono text-[9px] text-red-400 border border-red-500/20 bg-red-500/5 px-2.5 py-1.5 rounded-lg flex items-center justify-center">
+                    Timeout: 25s tanpa data
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
             
             {/* COLUMN 1: KONDISI ATMOSFER (width 3/12 on large screens) */}
             <div className="lg:col-span-3 flex flex-col space-y-4 h-full">
@@ -2626,12 +2728,34 @@ export default function App() {
             </div>
 
           </div>
-          </>
+          </div>
         )}
 
         {/* PAGE tab 2: CHART ANALYST */}
         {activeTab === 'analyst' && (
           <div className="space-y-6">
+            
+            {/* Sourced database info banner */}
+            <div className="bg-[#050d1a] border border-[#00f0ff]/20 px-5 py-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-[#00f0ff]/10 border border-[#00f0ff]/20 rounded-xl text-[#00f0ff]">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <span className="text-xs font-black text-[#00f0ff] uppercase tracking-wider font-mono block">📊 ANALISIS HISTORIS DATA DATABASE</span>
+                  <p className="text-[11px] text-slate-300 leading-normal">
+                    Menampilkan data historis murni dari database lokal (PostgreSQL <code>tbl_sensor_logs</code>) dalam rentang penuh 24 jam sehari mulai dari pukul <strong>00:00</strong> sampai dengan <strong>23:59</strong>.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 font-mono text-[11px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-xl">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                </span>
+                <span>LOAD: {analystLogs.length} Paket</span>
+              </div>
+            </div>
             
             {/* Calendar filters & action panels with top-right shrunken threat badge */}
             <div className="bg-gradient-to-b from-[#0b1424] to-bg p-5 rounded-2xl border border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5">
@@ -2742,9 +2866,9 @@ export default function App() {
                     
                     // Bin windrose directions
                     const matrix = Array.from({ length: 16 }, () => Array(7).fill(0));
-                    const totalLogs = history.length;
+                    const totalLogs = analystLogs.length;
                     
-                    history.forEach(row => {
+                    analystLogs.forEach(row => {
                       const deg = row.windDirection;
                       const norm = ((deg % 360) + 360) % 360;
                       const idx = Math.floor(((norm + 11.25) % 360) / 22.5);
@@ -2875,7 +2999,7 @@ export default function App() {
                 </div>
                 <div className="h-[210px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={history.slice(-25)}>
+                    <AreaChart data={analystLogs}>
                       <defs>
                         <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.4}/>
@@ -2900,7 +3024,7 @@ export default function App() {
                 </div>
                 <div className="h-[210px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={history.slice(-25)}>
+                    <AreaChart data={analystLogs}>
                       <defs>
                         <linearGradient id="colorHum" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="#22c55e" stopOpacity={0.4}/>
@@ -2925,7 +3049,7 @@ export default function App() {
                 </div>
                 <div className="h-[210px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={history.slice(-25)}>
+                    <AreaChart data={analystLogs}>
                       <defs>
                         <linearGradient id="colorSolar" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.4}/>
@@ -4015,6 +4139,27 @@ header("Content-Type: application/json; charset=UTF-8");
                       onChange={(e) => setConfig({ ...config, pierAngle: e.target.value })}
                       className="w-full bg-[#050a12] border border-white/15 font-mono text-sm text-center p-3 text-emerald-400 font-black rounded-lg outline-none cursor-pointer focus:border-emerald-400" 
                     />
+                  </div>
+
+                  <div className="border-t border-white/5 pt-3">
+                    <label className="text-xs uppercase font-bold text-rose-400 tracking-wider block mb-1.5 flex items-center gap-1.5">
+                      🔒 Kunci Dashboard Saat Offline (Tampilkan Warning)
+                    </label>
+                    <select 
+                      value={config.lockOfflineDashboard || 'ON'} 
+                      onChange={(e) => {
+                        const newCfg = { ...config, lockOfflineDashboard: e.target.value };
+                        setConfig(newCfg);
+                        localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                      }}
+                      className="w-full bg-[#050a12] border border-white/15 font-mono text-xs md:text-sm p-3 text-rose-300 font-bold rounded-lg outline-none cursor-pointer focus:border-rose-400"
+                    >
+                      <option value="ON">ON (Kunci &amp; Blokir Dashboard)</option>
+                      <option value="OFF">OFF (Tampilkan Data Terakhir Tanpa Blokir)</option>
+                    </select>
+                    <p className="text-[10px] text-slate-400 font-sans mt-1 leading-normal">
+                      Saat sensor/Moxa mati atau terputus, opsi <strong>ON</strong> akan menampilkan layar warning peringatan merah agar petugas tahu ada kerusakan data stream. Opsi <strong>OFF</strong> akan membiarkan dashboard menampilkan data terakhir.
+                    </p>
                   </div>
 
                   <div className="border-t border-white/5 pt-3">
