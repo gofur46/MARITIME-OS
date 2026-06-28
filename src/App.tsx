@@ -1937,8 +1937,69 @@ export default function App() {
         {activeTab === 'realtime' && (
           <div className="relative min-h-[600px]">
             
-            {/* Blinking alert banner if the AWS connection is offline */}
-            {config.transport !== 'OFF' && !isLiveActive && (
+            {/* 1. FULL SCREEN LOCK OVERLAY: Shown if offline AND lock is enabled (ON) */}
+            {config.transport !== 'OFF' && !isLiveActive && config.lockOfflineDashboard !== 'OFF' && (
+              <div className="absolute inset-0 bg-[#020408]/92 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center rounded-3xl border border-red-500/20">
+                <div className="max-w-xl space-y-6">
+                  <div className="w-20 h-20 bg-red-500/10 border border-red-500/30 rounded-full flex items-center justify-center mx-auto animate-pulse">
+                    <AlertTriangle className="w-10 h-10 text-red-500" />
+                  </div>
+                  <div className="space-y-2">
+                    <h2 className="text-2xl font-black text-red-500 tracking-tight uppercase">
+                      🔴 STATUS AWS: OFFLINE (TIDAK ADA DATA MASUK)
+                    </h2>
+                    <p className="text-sm text-slate-200 font-medium">
+                      Sensor data stream terputus! Tidak ada paket data baru yang diterima dari Data Logger.
+                    </p>
+                    <p className="text-xs text-slate-400 font-sans max-w-md mx-auto leading-relaxed">
+                      Sistem mengamankan dashboard dan menyembunyikan data buffer usang untuk menghindari kesalahan analisis oleh petugas di lapangan. Anda dapat mematikan pengunci ini di menu Setting jika ingin tetap menampilkan data terakhir.
+                    </p>
+                  </div>
+                  
+                  <div className="bg-[#050a12]/90 border border-red-500/15 p-4 rounded-xl font-mono text-[11px] text-left text-slate-300 space-y-2 max-w-md mx-auto shadow-inner">
+                    <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Logger Transport Mode:</span> <span className="font-extrabold text-red-400">{config.transport}</span></div>
+                    {config.transport === 'MOXA_TCP' ? (
+                      <>
+                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">IP Gateway Moxa:</span> <span className="font-bold text-slate-200">{config.serialcom || '192.168.1.1'}</span></div>
+                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Port Gateway Moxa:</span> <span className="font-bold text-slate-200">{config.baudrate || '4001'}</span></div>
+                      </>
+                    ) : (
+                      <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Serial Port / Endpoint:</span> <span className="font-bold text-slate-200">{config.serialcom || 'COM1'}</span></div>
+                    )}
+                    <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Waktu Timeout Sistem:</span> <span className="font-bold text-amber-500">25 Detik Tanpa Data</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Status Jalur Data:</span> <span className="font-extrabold text-red-500 animate-pulse">🔴 TERMINATED / NO CONNECTION</span></div>
+                  </div>
+
+                  <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center items-center">
+                    <button 
+                      onClick={() => {
+                        const newCfg = { ...config, transport: 'OFF' };
+                        setConfig(newCfg);
+                        localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                        showToastNotification("Simulation mode turned ON automatically!");
+                      }}
+                      className="w-full sm:w-auto bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-mono text-xs font-black px-6 py-3 rounded-xl uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] hover:scale-105 active:scale-95 cursor-pointer"
+                    >
+                      🔧 Aktifkan Mode Simulasi (OFF)
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const newCfg = { ...config, lockOfflineDashboard: 'OFF' };
+                        setConfig(newCfg);
+                        localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                        showToastNotification("Dashboard lock disabled. Showing last known data.");
+                      }}
+                      className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold px-6 py-3 rounded-xl uppercase tracking-wider transition-all border border-white/10 cursor-pointer"
+                    >
+                      🔓 Tetap Tampilkan Data Terakhir
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* 2. WARNING BANNER AT TOP: Shown if offline AND lock is disabled (OFF) */}
+            {config.transport !== 'OFF' && !isLiveActive && config.lockOfflineDashboard === 'OFF' && (
               <div className="mb-6 bg-gradient-to-r from-red-950/40 via-rose-950/30 to-red-950/40 border-2 border-red-500/40 rounded-2xl p-4.5 flex flex-col md:flex-row items-center justify-between gap-4 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.15)]">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-red-500/20 border border-red-500/40 rounded-xl">
@@ -1954,6 +2015,16 @@ export default function App() {
                 <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto">
                   <button 
                     onClick={() => {
+                      const newCfg = { ...config, lockOfflineDashboard: 'ON' };
+                      setConfig(newCfg);
+                      localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                    }}
+                    className="bg-rose-500 hover:bg-rose-600 text-white font-mono text-[10px] font-black tracking-widest px-4 py-2.5 rounded-lg uppercase transition-all whitespace-nowrap cursor-pointer"
+                  >
+                    🔒 Aktifkan Kunci Layar
+                  </button>
+                  <button 
+                    onClick={() => {
                       const newCfg = { ...config, transport: 'OFF' };
                       setConfig(newCfg);
                       localStorage.setItem('aws_config', JSON.stringify(newCfg));
@@ -1963,14 +2034,12 @@ export default function App() {
                   >
                     🔧 Jalankan Simulasi (OFF)
                   </button>
-                  <div className="text-center font-mono text-[9px] text-red-400 border border-red-500/20 bg-red-500/5 px-2.5 py-1.5 rounded-lg flex items-center justify-center">
-                    Timeout: 25s tanpa data
-                  </div>
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+            {/* Apply blur and pointer events lock ONLY if offline AND lock is enabled */}
+            <div className={`grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch ${config.transport !== 'OFF' && !isLiveActive && config.lockOfflineDashboard !== 'OFF' ? 'pointer-events-none opacity-30 filter blur-[2px]' : ''}`}>
             
             {/* COLUMN 1: KONDISI ATMOSFER (width 3/12 on large screens) */}
             <div className="lg:col-span-3 flex flex-col space-y-4 h-full">
