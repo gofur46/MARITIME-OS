@@ -516,6 +516,7 @@ export default function App() {
   const configRef = useRef(config);
   const lastDbSaveTimeRef = useRef(lastDbSaveTime);
   const processNewSampleRef = useRef<any>(null);
+  const parseIncomingSentenceRef = useRef<any>(null);
 
   useEffect(() => {
     configRef.current = config;
@@ -567,51 +568,15 @@ export default function App() {
               if (output.length > 50) return output.slice(output.length - 35).join('\n');
               return output.join('\n');
             });
+
+            // Parse incoming raw string dynamically inside client browser using user's active channel mapping config!
+            parseIncomingSentenceRef.current?.(raw.data, 'MOXA_TCP');
           }
         });
 
-        // Stream live parsed data to feed into active telemetry display instantly
+        // Stream live parsed data (made redundant since we parse rawTelemetry directly with active settings mapping indexes)
         socket.on('dataUpdate', (parsedRecord: any) => {
-          if (parsedRecord) {
-            setLastIncomingTime(Date.now());
-            const formattedRecord = {
-              timestamp: Date.now(),
-              temperature: parsedRecord.temperature,
-              humidity: parsedRecord.humidity,
-              windSpeed: parsedRecord.wind_speed,
-              windDirection: parsedRecord.wind_direction,
-              pressure: parsedRecord.pressure,
-              solarRadiation: parsedRecord.solar_radiation,
-              rainfall: parsedRecord.rainfall,
-              waveHeight: parsedRecord.wave_height,
-              currentSpeed: parsedRecord.current_speed || 1.1,
-              seaLevel: parsedRecord.sea_level,
-              waterPh: parsedRecord.water_ph
-            };
-
-            // Append to history log state instantly to update the dials & numbers
-            setHistory(prev => {
-              const updated = [...prev, formattedRecord];
-              const keeps = updated.length > 200 ? updated.slice(updated.length - 150) : updated;
-              localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
-              return keeps;
-            });
-
-            // Feed raw record into the averaging and interval-based PostgreSQL storage compiler
-            processNewSampleRef.current?.(formattedRecord);
-
-            // Print success in terminal logs
-            setStreamLogs(prevLogs => {
-              const lines = prevLogs.split('\n');
-              const timeStr = new Date().toLocaleTimeString('id-ID');
-              const interval = configRef.current.dbStorageInterval || 10;
-              const mode = configRef.current.dbStorageMode || 'AVG';
-              const msg = `[${timeStr} PARSER] ✅ Temp=${parsedRecord.temperature}°C | Wind=${parsedRecord.wind_speed} m/s | pH=${parsedRecord.water_ph} -> Dials Active (Buffering for DB Save per ${interval}m [${mode}])`;
-              const output = [...lines, msg];
-              if (output.length > 50) return output.slice(output.length - 35).join('\n');
-              return output.join('\n');
-            });
-          }
+          // Bypassed: We now parse rawTelemetry directly in the frontend so that index mappings set by the user in settings are 100% active and respected in real-time!
         });
 
         socket.on('disconnect', () => {
@@ -1010,6 +975,8 @@ export default function App() {
     }
   };
 
+  parseIncomingSentenceRef.current = parseIncomingSentence;
+
   // Handler to open Web Serial API from client browser
   const connectSerial = async () => {
     if (!('serial' in navigator)) {
@@ -1234,67 +1201,69 @@ export default function App() {
         waterPh: nextPh
       };
 
-      // Handle Storage Rules dynamically
-      const spaceMode = config.dbStorageMode || 'AVG';
-      
-      setSampleBuffer(prevBuf => {
-        const updated = [...prevBuf, newRecord];
-        // After 5 samples are compiled (simulating full period cycle for high usability live visual), we write the record according to the chosen mode (AVG vs RAW)
-        if (updated.length >= 5) {
-          let recordToSave: WeatherData;
-          let msgLog = '';
+      // Handle Storage Rules dynamically (only if transport is OFF, otherwise we let parseIncomingSentence drive it via config-aware indices!)
+      if (config.transport === 'OFF') {
+        const spaceMode = config.dbStorageMode || 'AVG';
+        
+        setSampleBuffer(prevBuf => {
+          const updated = [...prevBuf, newRecord];
+          // After 5 samples are compiled (simulating full period cycle for high usability live visual), we write the record according to the chosen mode (AVG vs RAW)
+          if (updated.length >= 5) {
+            let recordToSave: WeatherData;
+            let msgLog = '';
 
-          if (spaceMode === 'AVG') {
-            recordToSave = calculateAverageRecord(updated);
-            msgLog = `⏱️ compiled and saved standard WMO ${config.dbStorageInterval}-minute average based on 5 raw samples successfully.`;
-          } else {
-            // RAW mode: Save the latest instantaneous sample at the exact interval
-            const rawSpeeds = updated.map(item => item.windSpeed);
-            const maxR = rawSpeeds.length > 0 ? Math.max(...rawSpeeds) : 0;
-            const minR = rawSpeeds.length > 0 ? Math.min(...rawSpeeds) : 0;
-            const hasRGust = (maxR - minR) >= 10;
-            
-            recordToSave = { 
-              ...newRecord,
-              windGust: hasRGust ? parseFloat(maxR.toFixed(1)) : undefined
-            };
-            msgLog = `📦 saved raw instantaneous record for ${config.dbStorageInterval}-minute interval directly to database successfully.`;
-          }
-          
-          // Adjust simulated timestamp to reflect precise clock block boundary (e.g. 10, 20, 30...)
-          const intervalMin = config.dbStorageInterval || 10;
-          const intervalMs = intervalMin * 60 * 1000;
-          const alignedTimestamp = Math.floor(Date.now() / intervalMs) * intervalMs;
-          recordToSave.timestamp = alignedTimestamp;
-
-          // Asynchronously post to local PostgreSQL database script
-          postLogToLocalPostgres(recordToSave);
-
-          setHistory(prevHist => {
-            const keeps = [...prevHist, recordToSave];
-            if (keeps.length > 200) {
-              return keeps.slice(keeps.length - 150);
+            if (spaceMode === 'AVG') {
+              recordToSave = calculateAverageRecord(updated);
+              msgLog = `⏱️ compiled and saved standard WMO ${config.dbStorageInterval}-minute average based on 5 raw samples successfully.`;
+            } else {
+              // RAW mode: Save the latest instantaneous sample at the exact interval
+              const rawSpeeds = updated.map(item => item.windSpeed);
+              const maxR = rawSpeeds.length > 0 ? Math.max(...rawSpeeds) : 0;
+              const minR = rawSpeeds.length > 0 ? Math.min(...rawSpeeds) : 0;
+              const hasRGust = (maxR - minR) >= 10;
+              
+              recordToSave = { 
+                ...newRecord,
+                windGust: hasRGust ? parseFloat(maxR.toFixed(1)) : undefined
+              };
+              msgLog = `📦 saved raw instantaneous record for ${config.dbStorageInterval}-minute interval directly to database successfully.`;
             }
-            localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
-            return keeps;
-          });
+            
+            // Adjust simulated timestamp to reflect precise clock block boundary (e.g. 10, 20, 30...)
+            const intervalMin = config.dbStorageInterval || 10;
+            const intervalMs = intervalMin * 60 * 1000;
+            const alignedTimestamp = Math.floor(Date.now() / intervalMs) * intervalMs;
+            recordToSave.timestamp = alignedTimestamp;
 
-          // Write notification in terminal
-          setStreamLogs(prevLogs => {
-            const lines = prevLogs.split('\n');
-            const timeStr = format(new Date(), 'HH:mm:ss');
-            const msg = `[${timeStr} SQL SYSTEM] ${msgLog}`;
-            const output = [...lines, msg];
-            if (output.length > 40) return output.slice(output.length - 30).join('\n');
-            return output.join('\n');
-          });
+            // Asynchronously post to local PostgreSQL database script
+            postLogToLocalPostgres(recordToSave);
 
-          return []; // clear buffer
-        }
-        return updated;
-      });
+            setHistory(prevHist => {
+              const keeps = [...prevHist, recordToSave];
+              if (keeps.length > 200) {
+                return keeps.slice(keeps.length - 150);
+              }
+              localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
+              return keeps;
+            });
 
-      // Update terminal stream simulator
+            // Write notification in terminal
+            setStreamLogs(prevLogs => {
+              const lines = prevLogs.split('\n');
+              const timeStr = format(new Date(), 'HH:mm:ss');
+              const msg = `[${timeStr} SQL SYSTEM] ${msgLog}`;
+              const output = [...lines, msg];
+              if (output.length > 40) return output.slice(output.length - 30).join('\n');
+              return output.join('\n');
+            });
+
+            return []; // clear buffer
+          }
+          return updated;
+        });
+      }
+
+      // Update terminal stream simulator and feed rawString directly through parser
       if (config.transport !== 'OFF') {
         const dateStr = format(pctime, 'dd-MM-yyyy HH:mm:ss');
         let rawString = '';
@@ -1345,6 +1314,9 @@ export default function App() {
           if (output_lines.length > 40) return output_lines.slice(output_lines.length - 30).join('\n');
           return output_lines.join('\n');
         });
+
+        // Parse simulated rawString directly using dynamic index mappings!
+        parseIncomingSentence(rawString, config.transport as any);
       }
     }, 4500);
 
