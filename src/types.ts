@@ -12,6 +12,10 @@ export interface WeatherData {
   waterPh: number; // pH scale 0-14
   windGust?: number; // optional wind gust (m/s) if exists/detected
   currentSpeed?: number; // Knots (ocean current speed)
+  tempMin?: number;
+  tempMax?: number;
+  windSpeedMin?: number;
+  windSpeedMax?: number;
 }
 
 export type AlertLevel = 'Normal' | 'Caution' | 'Warning' | 'Critical';

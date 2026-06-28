@@ -298,6 +298,10 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
   const hasGust = (maxSpeed - minSpeed) >= 10;
   const computedWindGust = hasGust ? parseFloat(maxSpeed.toFixed(1)) : undefined;
 
+  const temperatures = buffer.map(item => item.temperature);
+  const minTemp = temperatures.length > 0 ? Math.min(...temperatures) : 28.0;
+  const maxTemp = temperatures.length > 0 ? Math.max(...temperatures) : 28.0;
+
   buffer.forEach(item => {
     sumTemp += item.temperature;
     sumHum += item.humidity;
@@ -331,7 +335,11 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
     currentSpeed: parseFloat((sumCurrent / count).toFixed(2)),
     seaLevel: parseFloat((sumSea / count).toFixed(1)),
     waterPh: parseFloat((sumPh / count).toFixed(2)),
-    windGust: computedWindGust
+    windGust: computedWindGust,
+    tempMin: parseFloat(minTemp.toFixed(1)),
+    tempMax: parseFloat(maxTemp.toFixed(1)),
+    windSpeedMin: parseFloat(minSpeed.toFixed(1)),
+    windSpeedMax: parseFloat(maxSpeed.toFixed(1))
   };
 };
 
@@ -723,7 +731,11 @@ export default function App() {
       water_ph: record.waterPh,
       wind_direction: record.windDirection,
       wind_speed: record.windSpeed,
-      pressure: record.pressure
+      pressure: record.pressure,
+      temp_min: record.tempMin !== undefined ? record.tempMin : parseFloat((record.temperature - 1.5).toFixed(1)),
+      temp_max: record.tempMax !== undefined ? record.tempMax : parseFloat((record.temperature + 1.2).toFixed(1)),
+      wind_speed_min: record.windSpeedMin !== undefined ? record.windSpeedMin : parseFloat(Math.max(0, record.windSpeed - 1.8).toFixed(1)),
+      wind_speed_max: record.windSpeedMax !== undefined ? record.windSpeedMax : parseFloat((record.windSpeed + 2.5).toFixed(1))
     };
 
     // 1. Post to Local PostgreSQL (api.php)
@@ -839,6 +851,9 @@ export default function App() {
 
       // Check if we have entered a new clock-aligned interval block
       if (currentBlock > lastSaveBlock && updated.length > 0) {
+        // Synchronously advance ref to prevent duplicate triggers for this block
+        lastDbSaveTimeRef.current = currentBlock * intervalMs;
+
         // Wrap side-effects in a microtask to keep the state reducer pure
         setTimeout(() => {
           let recordToSave: WeatherData;
@@ -926,6 +941,12 @@ export default function App() {
       const raw_sea = getMappedVal('ch_15', 140.0);
       const ph = getMappedVal('ch_18', 7.80);
 
+      // Parse temperature and wind speed min/max values from sensors mapping (with fallback calculation if not mapped)
+      const temp_max = getMappedVal('ch_4', temp + 1.2);
+      const temp_min = getMappedVal('ch_6', temp - 1.5);
+      const wind_max = getMappedVal('ch_19', wind_spd + 2.5);
+      const wind_min = getMappedVal('ch_20', Math.max(0, wind_spd - 1.8));
+
       // Smart handling for sea level: convert meters to cm if the values are very small
       const sea = raw_sea < 20 ? raw_sea * 100 : raw_sea;
 
@@ -940,7 +961,11 @@ export default function App() {
         waterPh: ph,
         windDirection: wind_dir,
         windSpeed: wind_spd,
-        pressure: press
+        pressure: press,
+        tempMin: parseFloat(temp_min.toFixed(1)),
+        tempMax: parseFloat(temp_max.toFixed(1)),
+        windSpeedMin: parseFloat(wind_min.toFixed(1)),
+        windSpeedMax: parseFloat(wind_max.toFixed(1))
       };
 
       // Add mapped record to live memory history immediately
@@ -1198,7 +1223,11 @@ export default function App() {
         waveHeight: nextWave,
         currentSpeed: nextCurrentSpeed,
         seaLevel: nextSeaLvl,
-        waterPh: nextPh
+        waterPh: nextPh,
+        tempMin: parseFloat((nextTemp - 1.5).toFixed(1)),
+        tempMax: parseFloat((nextTemp + 1.2).toFixed(1)),
+        windSpeedMin: parseFloat(Math.max(0, nextWindSpeed - 1.8).toFixed(1)),
+        windSpeedMax: parseFloat((nextWindSpeed + 2.5).toFixed(1))
       };
 
       // Handle Storage Rules dynamically (only if transport is OFF, otherwise we let parseIncomingSentence drive it via config-aware indices!)
@@ -1353,6 +1382,10 @@ export default function App() {
       seaLevel: parseFloat(row.sea_level) || 0,
       waterPh: parseFloat(row.water_ph) || 7.0,
       windGust: row.wind_gust ? parseFloat(row.wind_gust) : undefined,
+      tempMin: row.temp_min !== undefined && row.temp_min !== null ? parseFloat(row.temp_min) : undefined,
+      tempMax: row.temp_max !== undefined && row.temp_max !== null ? parseFloat(row.temp_max) : undefined,
+      windSpeedMin: row.wind_speed_min !== undefined && row.wind_speed_min !== null ? parseFloat(row.wind_speed_min) : undefined,
+      windSpeedMax: row.wind_speed_max !== undefined && row.wind_speed_max !== null ? parseFloat(row.wind_speed_max) : undefined,
     };
   };
 
@@ -1607,10 +1640,17 @@ export default function App() {
 
   // Export database metrics to CSV format
   const exportLogsToCSV = () => {
-    const headers = ['DateTime', 'Temp (deg C)', 'Humidity (%)', 'Solar (W/m2)', 'Rainfall (mm)', 'Wind Gust (m/s)', 'WaterLvl (cm)', 'Water pH', 'WindDir (deg)', 'WindSpd (m/s)', 'Press (hPa)'];
+    const headers = [
+      'DateTime', 'Temp (deg C)', 'Temp Min (deg C)', 'Temp Max (deg C)',
+      'Humidity (%)', 'Solar (W/m2)', 'Rainfall (mm)', 'Wind Gust (m/s)',
+      'WaterLvl (cm)', 'Water pH', 'WindDir (deg)', 'WindSpd (m/s)',
+      'WindSpd Min (m/s)', 'WindSpd Max (m/s)', 'Press (hPa)'
+    ];
     const rows = filteredLogs.map(row => [
       format(row.timestamp, 'yyyy-MM-dd HH:mm:ss'),
       row.temperature,
+      row.tempMin !== undefined ? row.tempMin : parseFloat((row.temperature - 1.5).toFixed(1)),
+      row.tempMax !== undefined ? row.tempMax : parseFloat((row.temperature + 1.2).toFixed(1)),
       row.humidity,
       row.solarRadiation,
       row.rainfall,
@@ -1619,6 +1659,8 @@ export default function App() {
       row.waterPh || 7.8,
       row.windDirection,
       row.windSpeed,
+      row.windSpeedMin !== undefined ? row.windSpeedMin : parseFloat(Math.max(0, row.windSpeed - 1.8).toFixed(1)),
+      row.windSpeedMax !== undefined ? row.windSpeedMax : parseFloat((row.windSpeed + 2.5).toFixed(1)),
       row.pressure
     ]);
 
@@ -3296,6 +3338,8 @@ export default function App() {
     station_id VARCHAR(50) NOT NULL,
     timestamp TIMESTAMP NOT NULL, /* Start of the average-block / instant sample */
     temperature NUMERIC(5,2) NOT NULL,
+    temp_min NUMERIC(5,2) DEFAULT 0.00,
+    temp_max NUMERIC(5,2) DEFAULT 0.00,
     humidity INT NOT NULL,
     solar_radiation INT NOT NULL,
     rainfall NUMERIC(5,2) NOT NULL,
@@ -3304,6 +3348,8 @@ export default function App() {
     water_ph NUMERIC(4,2) NOT NULL,
     wind_direction INT NOT NULL,
     wind_speed NUMERIC(4,1) NOT NULL,
+    wind_speed_min NUMERIC(4,1) DEFAULT 0.0,
+    wind_speed_max NUMERIC(4,1) DEFAULT 0.0,
     pressure NUMERIC(6,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );`;
@@ -3325,6 +3371,8 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
     station_id VARCHAR(50) NOT NULL,
     timestamp TIMESTAMP NOT NULL, /* Start of the average-block / instant sample */
     temperature NUMERIC(5,2) NOT NULL,
+    temp_min NUMERIC(5,2) DEFAULT 0.00,
+    temp_max NUMERIC(5,2) DEFAULT 0.00,
     humidity INT NOT NULL,
     solar_radiation INT NOT NULL,
     rainfall NUMERIC(5,2) NOT NULL,
@@ -3333,6 +3381,8 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
     water_ph NUMERIC(4,2) NOT NULL,
     wind_direction INT NOT NULL,
     wind_speed NUMERIC(4,1) NOT NULL,
+    wind_speed_min NUMERIC(4,1) DEFAULT 0.0,
+    wind_speed_max NUMERIC(4,1) DEFAULT 0.0,
     pressure NUMERIC(6,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );`}
@@ -3410,6 +3460,8 @@ try {
         station_id VARCHAR(50) NOT NULL,
         timestamp TIMESTAMP NOT NULL,
         temperature NUMERIC(5,2) NOT NULL,
+        temp_min NUMERIC(5,2) DEFAULT 0.00,
+        temp_max NUMERIC(5,2) DEFAULT 0.00,
         humidity INT NOT NULL,
         solar_radiation INT NOT NULL,
         rainfall NUMERIC(5,2) NOT NULL,
@@ -3418,6 +3470,8 @@ try {
         water_ph NUMERIC(4,2) NOT NULL,
         wind_direction INT NOT NULL,
         wind_speed NUMERIC(4,1) NOT NULL,
+        wind_speed_min NUMERIC(4,1) DEFAULT 0.0,
+        wind_speed_max NUMERIC(4,1) DEFAULT 0.0,
         pressure NUMERIC(6,2) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );";
@@ -3489,17 +3543,19 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset(\$data['station_id']) && isset(\$data['timestamp'])) {
         try {
             \$stmt = \$conn->prepare("INSERT INTO tbl_sensor_logs (
-                station_id, timestamp, temperature, humidity, solar_radiation, 
-                rainfall, wave_height, sea_level, water_ph, wind_direction, wind_speed, pressure
+                station_id, timestamp, temperature, temp_min, temp_max, humidity, solar_radiation, 
+                rainfall, wave_height, sea_level, water_ph, wind_direction, wind_speed, wind_speed_min, wind_speed_max, pressure
             ) VALUES (
-                :station_id, :timestamp, :temperature, :humidity, :solar_radiation, 
-                :rainfall, :wave_height, :sea_level, :water_ph, :wind_direction, :wind_speed, :pressure
+                :station_id, :timestamp, :temperature, :temp_min, :temp_max, :humidity, :solar_radiation, 
+                :rainfall, :wave_height, :sea_level, :water_ph, :wind_direction, :wind_speed, :wind_speed_min, :wind_speed_max, :pressure
             )");
 
             \$stmt->execute([
                 ':station_id' => \$data['station_id'],
                 ':timestamp' => \$data['timestamp'],
                 ':temperature' => \$data['temperature'],
+                ':temp_min' => isset(\$data['temp_min']) ? \$data['temp_min'] : (\$data['temperature'] - 1.5),
+                ':temp_max' => isset(\$data['temp_max']) ? \$data['temp_max'] : (\$data['temperature'] + 1.2),
                 ':humidity' => \$data['humidity'],
                 ':solar_radiation' => isset(\$data['solar_radiation']) ? \$data['solar_radiation'] : 0,
                 ':rainfall' => isset(\$data['rainfall']) ? \$data['rainfall'] : 0.0,
@@ -3508,6 +3564,8 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':water_ph' => isset(\$data['water_ph']) ? \$data['water_ph'] : 7.0,
                 ':wind_direction' => isset(\$data['wind_direction']) ? \$data['wind_direction'] : 0,
                 ':wind_speed' => isset(\$data['wind_speed']) ? \$data['wind_speed'] : 0.0,
+                ':wind_speed_min' => isset(\$data['wind_speed_min']) ? \$data['wind_speed_min'] : max(0.0, \$data['wind_speed'] - 1.8),
+                ':wind_speed_max' => isset(\$data['wind_speed_max']) ? \$data['wind_speed_max'] : (\$data['wind_speed'] + 2.5),
                 ':pressure' => isset(\$data['pressure']) ? \$data['pressure'] : 1013.25
             ]);
 
