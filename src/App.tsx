@@ -3,11 +3,12 @@ import {
   Thermometer, Droplets, Droplet, Wind, Navigation, Gauge, Sun, CloudRain, 
   Waves, MoveDown, LayoutDashboard, History, Settings, FileText,
   AlertTriangle, Play, RefreshCw, Send, CheckCircle, Database,
-  Anchor, ArrowUpRight, Eye, Compass, X, ExternalLink, Maximize2
+  Anchor, ArrowUpRight, Eye, Compass, X, ExternalLink, Maximize2, BookOpen
 } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { WeatherData, AlertLevel, PortInstruction } from './types';
 import { format } from 'date-fns';
+import UserManual from './components/UserManual';
 
 // Create Yesterday's baseline climatology averages for our math
 const CLIMATOLOGY_AVG = {
@@ -426,7 +427,7 @@ export const BMKG_PORTS_LIST: BmkgPortOption[] = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'realtime' | 'analyst' | 'telemetry' | 'database' | 'settings' | 'bmkg'>('realtime');
+  const [activeTab, setActiveTab] = useState<'realtime' | 'analyst' | 'telemetry' | 'database' | 'settings' | 'bmkg' | 'manual'>('realtime');
   
   // Extract and parse saved config first to avoid dependency chain issues
   const savedConfigStr = localStorage.getItem('aws_config');
@@ -1836,7 +1837,7 @@ export default function App() {
         {/* RMS Yacht Logo */}
         <div className="w-16 h-16 bg-gradient-to-br from-[#00f0ff] to-[#3b82f6]/40 rounded-2xl flex flex-col items-center justify-center shadow-[0_0_35px_rgba(0,240,255,0.3)] border border-[#00f0ff]/30 cursor-pointer" onClick={() => setActiveTab('realtime')}>
           <span className="text-bg text-black font-black text-2xl tracking-tighter leading-none">RMS</span>
-          <span className="text-xs text-white tracking-[0.2em] font-extrabold uppercase mt-1">PRO v3</span>
+          <span className="text-xs text-white tracking-[0.2em] pl-[0.2em] font-extrabold uppercase mt-1">PRO v3</span>
         </div>
 
         <nav className="flex flex-col gap-5 w-full px-3">
@@ -1878,6 +1879,14 @@ export default function App() {
           >
             <Anchor className="w-4.5 h-4.5" />
             <span className="text-xs">BMKG PORT</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('manual')}
+            className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border ${activeTab === 'manual' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
+          >
+            <BookOpen className="w-4.5 h-4.5" />
+            <span className="text-xs">MANUAL</span>
           </button>
         </nav>
 
@@ -5501,6 +5510,15 @@ header("Content-Type: application/json; charset=UTF-8");
             </div>
 
           </div>
+        )}
+
+        {/* PAGE tab 7: INTERACTIVE USER MANUAL */}
+        {activeTab === 'manual' && (
+          <UserManual 
+            stationId={config.idStation}
+            stationName={config.stationName}
+            localDbApiUrl={config.localDbApiUrl}
+          />
         )}
 
       </main>
