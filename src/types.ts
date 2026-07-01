@@ -19,6 +19,7 @@ export interface WeatherData {
   waterTemp?: number;
   waterTempMin?: number;
   waterTempMax?: number;
+  solarRadiationMax?: number;
 }
 
 export type AlertLevel = 'Normal' | 'Caution' | 'Warning' | 'Critical';

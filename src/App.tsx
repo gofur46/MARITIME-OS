@@ -58,6 +58,7 @@ const DEFAULT_CONFIG = {
     'ch_6': '2',   // Temp Min
     'ch_8': '3',   // Humidity
     'ch_5': '4',   // Solar Rad
+    'ch_solar_max': 'OFF', // Solar Rad Max
     'ch_15': '7',  // Water Level
     'ch_16': '9',  // Wind Direction
     'ch_17': '10', // Wind Speed
@@ -160,6 +161,7 @@ const generateInitialLogs = (count: number, intervalMinutes: number = 10, portSl
       windDirection: Math.round(Math.random() * 360),
       pressure: parseFloat((1008 + Math.random() * 6).toFixed(1)),
       solarRadiation: Math.round(250 + Math.random() * 400),
+      solarRadiationMax: Math.round((250 + Math.random() * 400) * 1.15),
       rainfall: Math.random() > 0.88 ? parseFloat((Math.random() * 4).toFixed(1)) : 0,
       waveHeight: parseFloat((profile.avgWave - 0.15 + Math.random() * 0.35).toFixed(2)),
       currentSpeed: parseFloat((0.8 + Math.random() * 2.2).toFixed(2)), // simulated Knots (0.8 - 3.0)
@@ -274,6 +276,7 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
       windDirection: 180,
       pressure: 1010.0,
       solarRadiation: 300,
+      solarRadiationMax: 350,
       rainfall: 0,
       waveHeight: 1.0,
       currentSpeed: 1.5,
@@ -311,6 +314,9 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
   const minTemp = temperatures.length > 0 ? Math.min(...temperatures) : 28.0;
   const maxTemp = temperatures.length > 0 ? Math.max(...temperatures) : 28.0;
 
+  const solarRads = buffer.map(item => item.solarRadiationMax ?? item.solarRadiation).filter(s => s !== undefined && !isNaN(s)) as number[];
+  const maxSolarRad = solarRads.length > 0 ? Math.max(...solarRads) : 350;
+
   const waterTemps = buffer.map(item => item.waterTemp ?? (item.temperature - 1.2)).filter(t => t !== undefined && !isNaN(t)) as number[];
   const minWaterTemp = waterTemps.length > 0 ? Math.min(...waterTemps) : 26.8;
   const maxWaterTemp = waterTemps.length > 0 ? Math.max(...waterTemps) : 28.8;
@@ -345,6 +351,7 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
     windDirection: avgDirection,
     pressure: parseFloat((sumPress / count).toFixed(1)),
     solarRadiation: Math.round(sumSolar / count),
+    solarRadiationMax: Math.round(maxSolarRad),
     rainfall: parseFloat(sumRain.toFixed(1)), // Sum accumulated rainfall
     waveHeight: parseFloat((sumWave / count).toFixed(2)),
     currentSpeed: parseFloat((sumCurrent / count).toFixed(2)),
@@ -1058,6 +1065,7 @@ export default function App() {
       const wind_dir = Math.round(getMappedVal('ch_16', 0));
       const press = getMappedVal('ch_7', 1010.0);
       const solar = Math.round(getMappedVal('ch_5', 0));
+      const solar_max = Math.round(getMappedVal('ch_solar_max', solar > 10 ? solar * 1.15 : 0));
       const rain = getMappedVal('ch_rain', 0.0);
       const raw_sea = getMappedVal('ch_15', 140.0);
       const ph = getMappedVal('ch_18', 7.80);
@@ -1079,6 +1087,7 @@ export default function App() {
         temperature: temp,
         humidity: hum,
         solarRadiation: solar,
+        solarRadiationMax: solar_max,
         rainfall: rain,
         waveHeight: 1.10, // constant base wave height
         seaLevel: sea,
@@ -2272,9 +2281,14 @@ export default function App() {
 
                   <div className="bg-[#0b1424] border border-amber-500/10 rounded-xl p-2.5 flex justify-between items-center transition-colors hover:border-amber-500/25">
                     <span className="text-xs uppercase font-semibold tracking-wide text-amber-400 font-sans">Irradiance</span>
-                    <div className="text-right">
-                      <span className="text-xl font-bold font-mono text-amber-400">{currentData.solarRadiation}</span>
-                      <span className="text-xs text-amber-500 ml-1 font-bold">W/m²</span>
+                    <div className="text-right flex flex-col items-end">
+                      <div>
+                        <span className="text-xl font-bold font-mono text-amber-400">{currentData.solarRadiation}</span>
+                        <span className="text-xs text-amber-500 ml-1 font-bold">W/m²</span>
+                      </div>
+                      <span className="text-[10px] text-amber-500/70 font-mono">
+                        Max: {currentData.solarRadiationMax ?? Math.round(currentData.solarRadiation * 1.15)} W/m²
+                      </span>
                     </div>
                   </div>
 
@@ -4013,7 +4027,7 @@ header("Content-Type: application/json; charset=UTF-8");
                        <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">DateTime</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Temp (°C)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Hum (%)</th>
-                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Rad (W/m²)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Rad Avg / Max (W/m²)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-sky-400 text-center text-xs">Rain (mm)</th>
                        <th className="p-3.5 uppercase font-bold tracking-[0.15em] text-amber-500 text-center text-xs">W-Gust (m/s / kt)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-xs">W-Level (m)</th>
@@ -4036,7 +4050,7 @@ header("Content-Type: application/json; charset=UTF-8");
                            <td className="p-3 text-center border-r border-white/5 text-slate-300 font-sans">{format(item.timestamp, 'dd-MM-yyyy HH:mm:ss')}</td>
                            <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.temperature.toFixed(1)}</td>
                            <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.humidity}%</td>
-                           <td className="p-3 text-center border-r border-white/5 text-[#f59e0b]">{item.solarRadiation}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-[#f59e0b]">{item.solarRadiation} / {item.solarRadiationMax ?? Math.round(item.solarRadiation * 1.15)}</td>
                            <td className="p-3 text-center border-r border-white/5 text-sky-400 font-bold">{(item.rainfall ?? 0.0).toFixed(1)}</td>
                            <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">
                              {item.windGust !== undefined && item.windGust !== null ? `${item.windGust.toFixed(1)} / ${(item.windGust * 1.94384).toFixed(0)}` : "—"}
@@ -4593,6 +4607,7 @@ header("Content-Type: application/json; charset=UTF-8");
                     { label: 'Temp Min', key: 'ch_6', color: '#22d3ee', source: tempStats.min + ' °C' },
                     { label: 'Humidity', key: 'ch_8', color: '#00f0ff', source: currentData.humidity + ' %' },
                     { label: 'Solar Rad.', key: 'ch_5', color: '#f59e0b', source: currentData.solarRadiation + ' W/m²' },
+                    { label: 'Solar Max', key: 'ch_solar_max', color: '#f59e0b', source: (currentData.solarRadiationMax ?? Math.round(currentData.solarRadiation * 1.15)) + ' W/m²' },
                     { label: 'Water Lvl', key: 'ch_15', color: '#3b82f6', source: (currentData.seaLevel / 100).toFixed(3) + ' m' },
                     { label: 'Wind Dir', key: 'ch_16', color: '#fbbf24', source: currentData.windDirection + ' °' },
                     { label: 'Wind Spd', key: 'ch_17', color: '#fbbf24', source: `${currentData.windSpeed.toFixed(1)} m/s (${(currentData.windSpeed * 1.94384).toFixed(1)} kt)` },
@@ -4661,6 +4676,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       'ch_6': '8',   // Temp Min (TA_Min)
                       'ch_8': '9',   // Humidity (RH_meas)
                       'ch_5': '12',  // Solar Rad
+                      'ch_solar_max': 'OFF', // Solar Rad Max
                       'ch_15': '17', // Water Level (m)
                       'ch_16': '5',  // Wind Dir (WD_meas)
                       'ch_17': '3',  // Wind Spd (WS_meas)
