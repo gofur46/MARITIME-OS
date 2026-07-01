@@ -125,6 +125,16 @@ function updateStatusOnPhpServer(connected, stateLabel, errorMsg) {
 
 // Ambil konfigurasi paling update dari database
 function syncConfigAndConnect() {
+    // Jika user menentukan IP & Port lewat parameter baris perintah (Command Line / BAT file),
+    // kita kunci nilai tersebut agar tidak pernah tertimpa oleh database api.php.
+    if (process.argv[3] && process.argv[4]) {
+        MOXA_IP = process.argv[3];
+        MOXA_PORT = parseInt(process.argv[4]) || 4001;
+        console.log(`[${new Date().toISOString()}] 🚀 [STATIC OVERRIDE]: Mengunci IP Moxa: ${MOXA_IP} | Port Moxa: ${MOXA_PORT} (Sesuai Parameter BAT!)`);
+        connectToMoxa();
+        return;
+    }
+
     if (isFetchingConfig) return;
     isFetchingConfig = true;
 
@@ -151,18 +161,9 @@ function syncConfigAndConnect() {
                         console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC]: IP Moxa : ${MOXA_IP} | Port Moxa : ${MOXA_PORT} (Sesuai Database!)`);
                     }
                 } else {
-                    // Fallback to command line overrides if available
-                    if (process.argv[3] && process.argv[4]) {
-                        MOXA_IP = process.argv[3];
-                        MOXA_PORT = parseInt(process.argv[4]) || 4001;
-                    }
                     console.log(`[${new Date().toISOString()}] ⚠️ Respon API tidak valid, menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
                 }
             } catch (err) {
-                if (process.argv[3] && process.argv[4]) {
-                    MOXA_IP = process.argv[3];
-                    MOXA_PORT = parseInt(process.argv[4]) || 4001;
-                }
                 console.log(`[${new Date().toISOString()}] ⚠️ Gagal mengurai respon api.php, menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
             }
             isFetchingConfig = false;
@@ -171,10 +172,6 @@ function syncConfigAndConnect() {
     });
 
     req.on('error', (err) => {
-        if (process.argv[3] && process.argv[4]) {
-            MOXA_IP = process.argv[3];
-            MOXA_PORT = parseInt(process.argv[4]) || 4001;
-        }
         console.warn(`[${new Date().toISOString()}] ⚠️ Server PHP API Offline. Menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
         isFetchingConfig = false;
         connectToMoxa();
