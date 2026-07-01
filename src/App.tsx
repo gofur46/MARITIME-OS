@@ -2608,7 +2608,7 @@ export default function App() {
                   </div>
                   <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center">
                     <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Water Lvl</span>
-                    <span className="text-base font-black font-mono text-[#3b82f6]">{currentData.seaLevel.toFixed(1)}m</span>
+                    <span className="text-base font-black font-mono text-[#3b82f6]">{(currentData.seaLevel / 100).toFixed(3)}m</span>
                   </div>
                 </div>
               </div>
@@ -4041,7 +4041,7 @@ header("Content-Type: application/json; charset=UTF-8");
                            <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">
                              {item.windGust !== undefined && item.windGust !== null ? `${item.windGust.toFixed(1)} / ${(item.windGust * 1.94384).toFixed(0)}` : "—"}
                            </td>
-                           <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">{item.seaLevel.toFixed(1)}m</td>
+                           <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">{(item.seaLevel / 100).toFixed(3)}m</td>
                            <td className="p-3 text-center border-r border-white/5 text-pink-400 font-bold">{(item.waterPh ?? 7.80).toFixed(2)}</td>
                            <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.windDirection}°</td>
                            <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">{item.windSpeed.toFixed(1)} / {(item.windSpeed * 1.94384).toFixed(0)}</td>
@@ -4593,7 +4593,7 @@ header("Content-Type: application/json; charset=UTF-8");
                     { label: 'Temp Min', key: 'ch_6', color: '#22d3ee', source: tempStats.min + ' °C' },
                     { label: 'Humidity', key: 'ch_8', color: '#00f0ff', source: currentData.humidity + ' %' },
                     { label: 'Solar Rad.', key: 'ch_5', color: '#f59e0b', source: currentData.solarRadiation + ' W/m²' },
-                    { label: 'Water Lvl', key: 'ch_15', color: '#3b82f6', source: currentData.seaLevel.toFixed(1) + ' m' },
+                    { label: 'Water Lvl', key: 'ch_15', color: '#3b82f6', source: (currentData.seaLevel / 100).toFixed(3) + ' m' },
                     { label: 'Wind Dir', key: 'ch_16', color: '#fbbf24', source: currentData.windDirection + ' °' },
                     { label: 'Wind Spd', key: 'ch_17', color: '#fbbf24', source: `${currentData.windSpeed.toFixed(1)} m/s (${(currentData.windSpeed * 1.94384).toFixed(1)} kt)` },
                     { label: 'Wind Spd Max', key: 'ch_19', color: '#fbbf24', source: `${windStats.max.toFixed(1)} m/s (${(windStats.max * 1.94384).toFixed(1)} kt)` },
@@ -5449,8 +5449,8 @@ header("Content-Type: application/json; charset=UTF-8");
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
                       <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} tickFormatter={(v) => (v / 100).toFixed(1) + 'm'} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#0ea5e9' }} labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} formatter={(value: any) => [(value / 100).toFixed(2) + ' m', 'Water Level']} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} tickFormatter={(v) => (v / 100).toFixed(3) + 'm'} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#0ea5e9' }} labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} formatter={(value: any) => [(value / 100).toFixed(3) + ' m', 'Water Level']} />
                       <Area type="monotone" dataKey="seaLevel" stroke="#0ea5e9" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupWaterLevel)" />
                     </AreaChart>
                   </ResponsiveContainer>
