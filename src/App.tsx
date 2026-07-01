@@ -2239,27 +2239,32 @@ export default function App() {
 
                 <div className="flex-1 flex flex-col justify-center space-y-2.5">
                   {/* Primary Air temp StatCard */}
-                  <div className="bg-[#0b1424] border border-white/5 rounded-xl p-3 text-center">
-                    <div className="text-xs uppercase font-semibold text-slate-300 tracking-wide mb-1 font-sans">Air Temperature</div>
-                    <div className="flex justify-center items-baseline">
-                      <span className="text-2xl md:text-3xl font-bold font-mono tracking-tight text-white">{currentData.temperature.toFixed(1)}</span>
-                      <span className="text-sm font-bold text-[#22c55e] ml-1">°C</span>
+                  <div className="bg-[#0b1424] border border-[#22c55e]/10 p-3 rounded-xl text-center transition-colors hover:border-[#22c55e]/20">
+                    <div className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Saat Ini</div>
+                    <div className="text-2xl md:text-3xl font-bold font-mono text-[#22c55e]">
+                      {currentData.temperature.toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">°C</span>
                     </div>
                   </div>
 
                   {/* Avg, Max, Min grid row inside column 1 */}
                   <div className="grid grid-cols-3 gap-1.5">
-                    <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-1.5 text-center">
-                      <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-sans">Avg</div>
-                      <div className="text-xs font-bold text-[#e0f2fe] font-mono mt-0.5">{tempStats.avg}</div>
+                    <div className="bg-[#0b1424] border border-white/5 py-1.5 px-1 rounded-lg transition-colors hover:border-white/10 text-center">
+                      <div className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Avg</div>
+                      <div className="text-base font-bold font-mono text-[#e0f2fe]">
+                        {tempStats.avg} <span className="text-xs font-semibold text-slate-400 ml-0.5">°C</span>
+                      </div>
                     </div>
-                    <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-1.5 text-center">
-                      <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider text-rose-400 font-sans">Max</div>
-                      <div className="text-xs font-bold text-rose-400 font-mono mt-0.5">{tempStats.max}</div>
+                    <div className="bg-[#0b1424] border border-rose-500/10 py-1.5 px-1 rounded-lg transition-colors hover:border-rose-500/20 text-center">
+                      <div className="text-xs uppercase text-rose-400 font-semibold tracking-wide block mb-1 font-sans">Max</div>
+                      <div className="text-base font-bold font-mono text-rose-400">
+                        {tempStats.max} <span className="text-xs font-semibold text-slate-400 ml-0.5">°C</span>
+                      </div>
                     </div>
-                    <div className="bg-[#0b1424]/80 border border-white/5 rounded-lg p-1.5 text-center">
-                      <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider text-teal-400 font-sans">Min</div>
-                      <div className="text-xs font-bold text-teal-400 font-mono mt-0.5">{tempStats.min}</div>
+                    <div className="bg-[#0b1424] border border-teal-500/10 py-1.5 px-1 rounded-lg transition-colors hover:border-teal-500/20 text-center">
+                      <div className="text-xs uppercase text-teal-400 font-semibold tracking-wide block mb-1 font-sans">Min</div>
+                      <div className="text-base font-bold font-mono text-teal-400">
+                        {tempStats.min} <span className="text-xs font-semibold text-slate-400 ml-0.5">°C</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2652,15 +2657,15 @@ export default function App() {
                 </div>
                 <div className="grid grid-cols-3 gap-2 font-sans flex-1 flex items-center">
                   <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center w-full">
-                    <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mb-0.5 truncate" title="Barometric">Barometric</span>
+                    <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mb-0.5 truncate" title="Barometer">Barometer</span>
                     <span className="text-xs font-black font-mono text-[#00f0ff] block">{currentData.pressure.toFixed(1)} <span className="text-[8px] font-sans text-slate-400 font-normal w-full">hPa</span></span>
                   </div>
                   <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center w-full">
-                    <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mb-0.5 truncate" title="QFF (Sea Lvl)">QFF (Sea)</span>
+                    <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mb-0.5 truncate" title="QFF">QFF</span>
                     <span className="text-xs font-black font-mono text-emerald-400 block">{(currentData.pressure + 2.1).toFixed(1)} <span className="text-[8px] font-sans text-slate-400 font-normal w-full">hPa</span></span>
                   </div>
                   <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center w-full">
-                    <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mb-0.5 truncate" title="QFE (Elevation)">QFE (Elev)</span>
+                    <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mb-0.5 truncate" title="QFE">QFE</span>
                     <span className="text-xs font-black font-mono text-[#00f0ff] block">{currentData.pressure.toFixed(1)} <span className="text-[8px] font-sans text-slate-400 font-normal w-full">hPa</span></span>
                   </div>
                 </div>
@@ -4809,7 +4814,7 @@ header("Content-Type: application/json; charset=UTF-8");
                   <textarea 
                     readOnly 
                     value={streamLogs}
-                    className="w-full h-44 bg-[#010306] border-none text-xs font-mono leading-relaxed p-4 text-emerald-400 outline-none resize-none"
+                    className="w-full h-[480px] bg-[#010306] border-none text-sm font-mono leading-relaxed p-4 text-emerald-400 outline-none resize-none"
                     placeholder="Menunggu stream data dari sensor..."
                   />
                 </div>
