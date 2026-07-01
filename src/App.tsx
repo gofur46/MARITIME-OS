@@ -3,7 +3,8 @@ import {
   Thermometer, Droplets, Droplet, Wind, Navigation, Gauge, Sun, CloudRain, 
   Waves, MoveDown, LayoutDashboard, History, Settings, FileText,
   AlertTriangle, Play, RefreshCw, Send, CheckCircle, Database,
-  Anchor, ArrowUpRight, Eye, Compass, X, ExternalLink, Maximize2, BookOpen
+  Anchor, ArrowUpRight, Eye, Compass, X, ExternalLink, Maximize2, BookOpen,
+  Battery, BatteryCharging
 } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { WeatherData, AlertLevel, PortInstruction } from './types';
@@ -72,7 +73,8 @@ const DEFAULT_CONFIG = {
     'ch_water_temp_min': '16', // Water Temp Min
     'ch_19': 'OFF', // Wind Speed Max
     'ch_20': 'OFF', // Wind Speed Min
-    'ch_rain': '5' // Rainfall
+    'ch_rain': '5', // Rainfall
+    'ch_batt': 'OFF' // Battery Voltage
   }
 };
 
@@ -170,7 +172,8 @@ const generateInitialLogs = (count: number, intervalMinutes: number = 10, portSl
       waterTemp: parseFloat((temp - 1.2 + Math.random() * 0.4).toFixed(1)),
       waterTempMin: parseFloat((temp - 2.0 + Math.random() * 0.3).toFixed(1)),
       waterTempMax: parseFloat((temp - 0.7 + Math.random() * 0.3).toFixed(1)),
-      windGust: windGustValue
+      windGust: windGustValue,
+      battery: parseFloat((11.9 + Math.random() * 0.6).toFixed(2))
     });
   }
   return data;
@@ -284,7 +287,8 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
       waterPh: 7.8,
       waterTemp: 27.8,
       waterTempMin: 26.5,
-      waterTempMax: 29.2
+      waterTempMax: 29.2,
+      battery: 12.2
     };
   }
 
@@ -322,6 +326,9 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
   const maxWaterTemp = waterTemps.length > 0 ? Math.max(...waterTemps) : 28.8;
   const sumWaterTemp = waterTemps.reduce((sum, t) => sum + t, 0);
   const avgWaterTemp = waterTemps.length > 0 ? (sumWaterTemp / waterTemps.length) : 27.8;
+
+  const batts = buffer.map(item => item.battery).filter(b => b !== undefined && !isNaN(b)) as number[];
+  const avgBattery = batts.length > 0 ? batts.reduce((sum, b) => sum + b, 0) / batts.length : 12.2;
 
   buffer.forEach(item => {
     sumTemp += item.temperature;
@@ -364,7 +371,8 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
     windSpeedMax: parseFloat(maxSpeed.toFixed(1)),
     waterTemp: parseFloat(avgWaterTemp.toFixed(1)),
     waterTempMin: parseFloat(minWaterTemp.toFixed(1)),
-    waterTempMax: parseFloat(maxWaterTemp.toFixed(1))
+    waterTempMax: parseFloat(maxWaterTemp.toFixed(1)),
+    battery: parseFloat(avgBattery.toFixed(2))
   };
 };
 
@@ -1078,6 +1086,7 @@ export default function App() {
       const wind_min = getMappedVal('ch_20', Math.max(0, wind_spd - 1.8));
       const water_temp_max = getMappedVal('ch_water_temp_max', water_temp + 0.5);
       const water_temp_min = getMappedVal('ch_water_temp_min', water_temp - 0.8);
+      const battery_volt = getMappedVal('ch_batt', 12.2);
 
       // Smart handling for sea level: convert meters to cm if the values are very small
       const sea = raw_sea < 20 ? raw_sea * 100 : raw_sea;
@@ -1101,7 +1110,8 @@ export default function App() {
         tempMin: parseFloat(temp_min.toFixed(1)),
         tempMax: parseFloat(temp_max.toFixed(1)),
         windSpeedMin: parseFloat(wind_min.toFixed(1)),
-        windSpeedMax: parseFloat(wind_max.toFixed(1))
+        windSpeedMax: parseFloat(wind_max.toFixed(1)),
+        battery: parseFloat(battery_volt.toFixed(2))
       };
 
       // Add mapped record to live memory history immediately
@@ -1522,6 +1532,7 @@ export default function App() {
       tempMax: row.temp_max !== undefined && row.temp_max !== null ? parseFloat(row.temp_max) : undefined,
       windSpeedMin: row.wind_speed_min !== undefined && row.wind_speed_min !== null ? parseFloat(row.wind_speed_min) : undefined,
       windSpeedMax: row.wind_speed_max !== undefined && row.wind_speed_max !== null ? parseFloat(row.wind_speed_max) : undefined,
+      battery: row.battery !== undefined && row.battery !== null ? parseFloat(row.battery) : undefined
     };
   };
 
@@ -1803,7 +1814,7 @@ export default function App() {
     const headers = [
       'DateTime', 'Temp (deg C)', 'Temp Min (deg C)', 'Temp Max (deg C)',
       'Humidity (%)', 'Solar (W/m2)', 'Rainfall (mm)', 'Wind Gust (m/s)',
-      'WaterLvl (cm)', 'Water pH', 'WindDir (deg)', 'WindSpd (m/s)',
+      'WaterLvl (cm)', 'Water pH', 'Battery (V)', 'WindDir (deg)', 'WindSpd (m/s)',
       'WindSpd Min (m/s)', 'WindSpd Max (m/s)', 'Press (hPa)'
     ];
     const rows = filteredLogs.map(row => [
@@ -1817,6 +1828,7 @@ export default function App() {
       row.windGust !== undefined && row.windGust !== null ? row.windGust : "",
       row.seaLevel,
       row.waterPh || 7.8,
+      row.battery !== undefined ? row.battery : 12.2,
       row.windDirection,
       row.windSpeed,
       row.windSpeedMin !== undefined ? row.windSpeedMin : parseFloat(Math.max(0, row.windSpeed - 1.8).toFixed(1)),
@@ -2652,6 +2664,72 @@ export default function App() {
                     <span className="text-xs font-black font-mono text-[#00f0ff] block">{currentData.pressure.toFixed(1)} <span className="text-[8px] font-sans text-slate-400 font-normal w-full">hPa</span></span>
                   </div>
                 </div>
+              </div>
+
+              {/* System Power & Battery Status Card */}
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-3.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between space-y-2">
+                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center justify-between border-b border-white/5 pb-2">
+                  <div className="flex items-center gap-2">
+                    {currentData.solarRadiation > 50 ? (
+                      <BatteryCharging className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                    ) : (
+                      <Battery className="w-3.5 h-3.5 text-teal-400" />
+                    )}
+                    <span>Status Baterai & Daya</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-500">POWER MODULE</span>
+                </div>
+                
+                {(() => {
+                  const volt = currentData.battery ?? 12.2;
+                  const pct = Math.max(0, Math.min(100, Math.round(((volt - 11.5) / 1.1) * 100)));
+                  const isCharging = currentData.solarRadiation > 50;
+                  
+                  let statusText = "Optimal";
+                  let statusColor = "text-emerald-400 border-emerald-500/20";
+                  let barColor = "bg-emerald-500";
+                  
+                  if (volt < 11.8) {
+                    statusText = "⚠️ Low Volt";
+                    statusColor = "text-rose-400 border-rose-500/20";
+                    barColor = "bg-rose-500";
+                  } else if (volt < 12.1) {
+                    statusText = "Sufficient";
+                    statusColor = "text-amber-400 border-amber-500/20";
+                    barColor = "bg-amber-500";
+                  }
+                  
+                  return (
+                    <div className="grid grid-cols-12 gap-3 items-center font-sans">
+                      {/* Left: Progress bar & Volt */}
+                      <div className="col-span-8 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-lg font-black font-mono text-white tracking-tight">
+                            {volt.toFixed(2)} <span className="text-xs font-normal text-slate-400">V</span>
+                          </span>
+                          <span className="text-xs font-bold text-slate-300 font-mono">
+                            {pct}% {isCharging && <span className="text-[10px] text-emerald-400 font-bold ml-1">▲ Solar Charge</span>}
+                          </span>
+                        </div>
+                        {/* Custom progress bar */}
+                        <div className="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-white/5 p-[1px]">
+                          <div 
+                            className={`h-full rounded-full ${barColor} transition-all duration-1000`} 
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Right: Status badge */}
+                      <div className="col-span-4 text-center">
+                        <div className={`border p-1.5 rounded-lg font-mono text-[10px] font-bold uppercase ${statusColor} bg-[#0b1424]`}>
+                          {statusText}
+                        </div>
+                        <span className="text-[8px] uppercase tracking-wider text-slate-500 mt-1 block">Telemetry</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Wind Rose Visual Card (High Polished Polar Chart) */}
@@ -4032,6 +4110,7 @@ header("Content-Type: application/json; charset=UTF-8");
                        <th className="p-3.5 uppercase font-bold tracking-[0.15em] text-amber-500 text-center text-xs">W-Gust (m/s / kt)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-xs">W-Level (m)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-pink-400 text-center text-xs">pH Air</th>
+                        <th className="p-3.5 uppercase font-bold tracking-widest text-emerald-400 text-center text-xs">Battery (V)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Dir (°)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Spd (m/s / kt)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-slate-400 text-center text-xs">Press (hPa)</th>
@@ -4040,7 +4119,7 @@ header("Content-Type: application/json; charset=UTF-8");
                    <tbody className="divide-y divide-white/5 font-mono">
                      {filteredLogs.length === 0 ? (
                        <tr>
-                         <td colSpan={11} className="p-8 text-center uppercase tracking-widest text-slate-500 text-xs">
+                         <td colSpan={12} className="p-8 text-center uppercase tracking-widest text-slate-500 text-xs">
                            No logged matching rows found. Adjust criteria.
                          </td>
                        </tr>
@@ -4057,6 +4136,7 @@ header("Content-Type: application/json; charset=UTF-8");
                            </td>
                            <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">{(item.seaLevel / 100).toFixed(3)}m</td>
                            <td className="p-3 text-center border-r border-white/5 text-pink-400 font-bold">{(item.waterPh ?? 7.80).toFixed(2)}</td>
+                            <td className="p-3 text-center border-r border-white/5 text-emerald-400 font-bold">{item.battery !== undefined ? item.battery.toFixed(2) : "12.2"}</td>
                            <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.windDirection}°</td>
                            <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">{item.windSpeed.toFixed(1)} / {(item.windSpeed * 1.94384).toFixed(0)}</td>
                            <td className="p-3 text-center text-slate-300 pr-4 text-right">{item.pressure.toFixed(1)}</td>
@@ -4621,7 +4701,8 @@ header("Content-Type: application/json; charset=UTF-8");
                     { label: 'Water Temp', key: 'ch_water_temp', color: '#38bdf8', source: waterTempStats.avg + ' °C' },
                     { label: 'Water T. Max', key: 'ch_water_temp_max', color: '#f87171', source: waterTempStats.max + ' °C' },
                     { label: 'Water T. Min', key: 'ch_water_temp_min', color: '#38bdf8', source: waterTempStats.min + ' °C' },
-                    { label: 'Rainfall', key: 'ch_rain', color: '#0ea5e9', source: currentData.rainfall.toFixed(1) + ' mm' }
+                    { label: 'Rainfall', key: 'ch_rain', color: '#0ea5e9', source: currentData.rainfall.toFixed(1) + ' mm' },
+                    { label: 'Battery Volt', key: 'ch_batt', color: '#10b981', source: (currentData.battery !== undefined ? currentData.battery.toFixed(2) : '12.2') + ' V' }
                   ].map((sensor, s_idx) => (
                     <div key={s_idx} className="bg-[#050a12]/70 border border-white/5 p-3 rounded-lg flex flex-col justify-between gap-1">
                       <span className="text-xs uppercase font-mono tracking-wider font-extrabold text-slate-400 block">{sensor.label} ({sensor.key})</span>
@@ -4690,7 +4771,8 @@ header("Content-Type: application/json; charset=UTF-8");
                       'ch_water_temp': '14', // Water Temp
                       'ch_water_temp_max': '15', // Water Temp Max
                       'ch_water_temp_min': '16', // Water Temp Min
-                      'ch_rain': '13' // Rainfall (for example, rain meter)
+                      'ch_rain': '13', // Rainfall (for example, rain meter)
+                      'ch_batt': '20' // Battery Voltage
                     };
                     setConfig({
                       ...config,

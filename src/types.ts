@@ -20,6 +20,7 @@ export interface WeatherData {
   waterTempMin?: number;
   waterTempMax?: number;
   solarRadiationMax?: number;
+  battery?: number; // battery voltage (V)
 }
 
 export type AlertLevel = 'Normal' | 'Caution' | 'Warning' | 'Critical';
