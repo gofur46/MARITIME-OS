@@ -680,10 +680,39 @@ export default function App() {
     let socket: any = null;
     let fallbackIntervalId: any = null;
 
-    const setupSocket = (ioClient: any) => {
-      console.log("🔌 Connecting to Moxa Daemon WebSocket on port 8080...");
+    // Dynamically resolve daemon address depending on the client hostname or API configuration
+    const getDaemonUrl = () => {
+      const currentHost = window.location.hostname;
+      
+      // If we are in AI Studio / Cloud preview container
+      if (currentHost.includes('run.app') || currentHost.includes('google.com') || currentHost.includes('aistudio')) {
+        return 'http://localhost:8080';
+      }
+      
+      // If accessed via a remote local network IP (e.g. http://192.168.1.50:3000)
+      if (currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
+        return `http://${currentHost}:8080`;
+      }
+      
+      // Fallback: check config.localDbApiUrl host
       try {
-        socket = ioClient('http://localhost:8080', {
+        const apiParts = new URL(config.localDbApiUrl || 'http://localhost:8000/api.php');
+        if (apiParts.hostname && apiParts.hostname !== 'localhost' && apiParts.hostname !== '127.0.0.1') {
+          return `http://${apiParts.hostname}:8080`;
+        }
+      } catch (e) {
+        // ignore
+      }
+      
+      return 'http://localhost:8080';
+    };
+
+    const daemonUrl = getDaemonUrl();
+
+    const setupSocket = (ioClient: any) => {
+      console.log(`🔌 Connecting to Moxa Daemon WebSocket on ${daemonUrl}...`);
+      try {
+        socket = ioClient(daemonUrl, {
           transports: ['websocket', 'polling'],
           timeout: 5000,
           reconnectionDelay: 3000,
@@ -748,7 +777,7 @@ export default function App() {
       setupSocket((window as any).io);
     } else {
       const script = document.createElement('script');
-      script.src = 'http://localhost:8080/socket.io/socket.io.js';
+      script.src = `${daemonUrl}/socket.io/socket.io.js`;
       script.async = true;
       script.onload = () => {
         if ((window as any).io) {
