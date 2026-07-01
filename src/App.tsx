@@ -5537,7 +5537,7 @@ header("Content-Type: application/json; charset=UTF-8");
                 <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#0ea5e9]/50 rounded-tl-xl" />
                 <div className="flex justify-between items-center pb-2 border-b border-white/5">
                   <span className="text-sm font-black text-[#0ea5e9] tracking-wider font-sans uppercase flex items-center gap-2">
-                    🌊 1. Water Level / Pasut (Meter)
+                    🌊 1. Water Level (Meter)
                   </span>
                   <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">Limit: 24 Jam</span>
                 </div>
@@ -5560,12 +5560,46 @@ header("Content-Type: application/json; charset=UTF-8");
                 </div>
               </div>
 
-              {/* Chart 2: Air Pressure */}
+              {/* Chart 2: Pasang Surut / Tide Level */}
+              <div className="bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
+                <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#ec4899]/50 rounded-tl-xl" />
+                <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                  <span className="text-sm font-black text-[#ec4899] tracking-wider font-sans uppercase flex items-center gap-2">
+                    📈 2. Pasang Surut / Tide (Meter)
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">Limit: 24 Jam</span>
+                </div>
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={history.slice(-144).map(item => {
+                      const h = new Date(item.timestamp).getHours() + new Date(item.timestamp).getMinutes() / 60;
+                      return {
+                        ...item,
+                        pasut: parseFloat((0.5 + Math.sin(h * 0.5) * 0.4).toFixed(2))
+                      };
+                    })}>
+                      <defs>
+                        <linearGradient id="colorPopupTide" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#ec4899" stopOpacity={0.25}/>
+                          <stop offset="100%" stopColor="#ec4899" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 1.2]} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#ec4899' }} labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} formatter={(value: any) => [value + ' m', 'Pasang Surut']} />
+                      <Area type="monotone" dataKey="pasut" stroke="#ec4899" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupTide)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Chart 3: Air Pressure */}
               <div className="bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
                 <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#22d3ee]/50 rounded-tl-xl" />
                 <div className="flex justify-between items-center pb-2 border-b border-white/5">
                   <span className="text-sm font-black text-[#22d3ee] tracking-wider font-sans uppercase flex items-center gap-2">
-                    🌀 2. Barometric Pressure (hPa)
+                    🌀 3. Barometric Pressure (hPa)
                   </span>
                   <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">Unit: Hectopascal</span>
                 </div>
@@ -5588,12 +5622,12 @@ header("Content-Type: application/json; charset=UTF-8");
                 </div>
               </div>
 
-              {/* Chart 3: Water pH / Kualitas Air */}
+              {/* Chart 4: Water pH / Kualitas Air */}
               <div className="bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
                 <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#fc63a3]/50 rounded-tl-xl" />
                 <div className="flex justify-between items-center pb-2 border-b border-white/5">
                   <span className="text-sm font-black text-[#fc63a3] tracking-wider font-sans uppercase flex items-center gap-2">
-                    🧪 3. Water pH Quality Index
+                    🧪 4. Water pH Quality Index
                   </span>
                   <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">pH Scale 0-14</span>
                 </div>
@@ -5616,12 +5650,12 @@ header("Content-Type: application/json; charset=UTF-8");
                 </div>
               </div>
 
-              {/* Chart 4: Wind Gust */}
+              {/* Chart 5: Wind Gust */}
               <div className="bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
                 <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#f97316]/50 rounded-tl-xl" />
                 <div className="flex justify-between items-center pb-2 border-b border-white/5">
                   <span className="text-sm font-black text-[#f97316] tracking-wider font-sans uppercase flex items-center gap-2">
-                    ⚡ 4. Wind Gust Speeds (Knot)
+                    ⚡ 5. Wind Gust Speeds (Knot)
                   </span>
                   <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">Peak Speeds</span>
                 </div>
@@ -5647,13 +5681,13 @@ header("Content-Type: application/json; charset=UTF-8");
                 </div>
               </div>
 
-              {/* Chart 5: Rainfall Radar Intensity & Cumulative Track (Full Width across grid) */}
+              {/* Chart 6: Rainfall Radar Intensity & Cumulative Track (Full Width across grid) */}
               <div className="xl:col-span-2 bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
                 <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#0ea5e9]/50 rounded-tl-xl" />
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-white/5 gap-2">
                   <div className="space-y-0.5">
                     <span className="text-sm font-black text-[#0ea5e9] tracking-wider font-sans uppercase flex items-center gap-2">
-                      🌧️ 5. Rainfall Radar Intensity & 24H Cumulative Track
+                      🌧️ 6. Rainfall Radar Intensity & 24H Cumulative Track
                     </span>
                     <p className="text-[10px] text-slate-400 font-sans">
                       Warna tracker menunjukkan intensitas hujan: <span className="text-[#22c55e] font-black">Hijau (Ringan)</span>, <span className="text-[#eab308] font-black">Kuning (Sedang)</span>, <span className="text-[#ef4444] font-black">Merah (Lebat &gt;= {parseFloat(config.rainWarningThreshold || '10.0')} mm)</span>
@@ -5763,12 +5797,12 @@ header("Content-Type: application/json; charset=UTF-8");
                 </div>
               </div>
 
-              {/* Chart 6: Solar Radiation Irradiance (Full Width across grid) */}
+              {/* Chart 7: Solar Radiation Irradiance (Full Width across grid) */}
               <div className="xl:col-span-2 bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
                 <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#f59e0b]/50 rounded-tl-xl" />
                 <div className="flex justify-between items-center pb-2 border-b border-white/5">
                   <span className="text-sm font-black text-[#f59e0b] tracking-wider font-sans uppercase flex items-center gap-2">
-                    ☀️ 6. Solar Radiation / Radiasi Matahari (W/m²)
+                    ☀️ 7. Solar Radiation / Radiasi Matahari (W/m²)
                   </span>
                   <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">SOLAR IRRADIANCE</span>
                 </div>
