@@ -57,17 +57,20 @@ const DEFAULT_CONFIG = {
     'ch_4': '2',   // Temp Max (computed in code or mapped)
     'ch_6': '2',   // Temp Min
     'ch_8': '3',   // Humidity
-    'ch_5': '7',   // Solar Rad
-    'ch_15': '9',  // Water Level
-    'ch_16': '10', // Wind Direction
-    'ch_17': '11',  // Wind Speed
-    'ch_7': '12',  // Pressure STN
-    'ch_9': '12',  // Pres QFE
-    'ch_11': '12', // Pres QFF
-    'ch_13': '12', // Pres QNH
-    'ch_18': '13', // Water pH
-    'ch_19': '14', // Wind Speed Max
-    'ch_20': '15', // Wind Speed Min
+    'ch_5': '4',   // Solar Rad
+    'ch_15': '7',  // Water Level
+    'ch_16': '9',  // Wind Direction
+    'ch_17': '10', // Wind Speed
+    'ch_7': '11',  // Pressure STN
+    'ch_9': '11',  // Pres QFE
+    'ch_11': '11', // Pres QFF
+    'ch_13': '11', // Pres QNH
+    'ch_18': '8',  // Water pH
+    'ch_water_temp': '14', // Water Temp
+    'ch_water_temp_max': '15', // Water Temp Max
+    'ch_water_temp_min': '16', // Water Temp Min
+    'ch_19': 'OFF', // Wind Speed Max
+    'ch_20': 'OFF', // Wind Speed Min
     'ch_rain': '5' // Rainfall
   }
 };
@@ -162,6 +165,9 @@ const generateInitialLogs = (count: number, intervalMinutes: number = 10, portSl
       currentSpeed: parseFloat((0.8 + Math.random() * 2.2).toFixed(2)), // simulated Knots (0.8 - 3.0)
       seaLevel: parseFloat((120 + Math.random() * 50).toFixed(1)), // cm
       waterPh: parseFloat((7.6 + Math.random() * 0.8).toFixed(2)), // pH
+      waterTemp: parseFloat((temp - 1.2 + Math.random() * 0.4).toFixed(1)),
+      waterTempMin: parseFloat((temp - 2.0 + Math.random() * 0.3).toFixed(1)),
+      waterTempMax: parseFloat((temp - 0.7 + Math.random() * 0.3).toFixed(1)),
       windGust: windGustValue
     });
   }
@@ -272,7 +278,10 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
       waveHeight: 1.0,
       currentSpeed: 1.5,
       seaLevel: 150.0,
-      waterPh: 7.8
+      waterPh: 7.8,
+      waterTemp: 27.8,
+      waterTempMin: 26.5,
+      waterTempMax: 29.2
     };
   }
 
@@ -301,6 +310,12 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
   const temperatures = buffer.map(item => item.temperature);
   const minTemp = temperatures.length > 0 ? Math.min(...temperatures) : 28.0;
   const maxTemp = temperatures.length > 0 ? Math.max(...temperatures) : 28.0;
+
+  const waterTemps = buffer.map(item => item.waterTemp ?? (item.temperature - 1.2)).filter(t => t !== undefined && !isNaN(t)) as number[];
+  const minWaterTemp = waterTemps.length > 0 ? Math.min(...waterTemps) : 26.8;
+  const maxWaterTemp = waterTemps.length > 0 ? Math.max(...waterTemps) : 28.8;
+  const sumWaterTemp = waterTemps.reduce((sum, t) => sum + t, 0);
+  const avgWaterTemp = waterTemps.length > 0 ? (sumWaterTemp / waterTemps.length) : 27.8;
 
   buffer.forEach(item => {
     sumTemp += item.temperature;
@@ -339,7 +354,10 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
     tempMin: parseFloat(minTemp.toFixed(1)),
     tempMax: parseFloat(maxTemp.toFixed(1)),
     windSpeedMin: parseFloat(minSpeed.toFixed(1)),
-    windSpeedMax: parseFloat(maxSpeed.toFixed(1))
+    windSpeedMax: parseFloat(maxSpeed.toFixed(1)),
+    waterTemp: parseFloat(avgWaterTemp.toFixed(1)),
+    waterTempMin: parseFloat(minWaterTemp.toFixed(1)),
+    waterTempMax: parseFloat(maxWaterTemp.toFixed(1))
   };
 };
 
@@ -1043,12 +1061,15 @@ export default function App() {
       const rain = getMappedVal('ch_rain', 0.0);
       const raw_sea = getMappedVal('ch_15', 140.0);
       const ph = getMappedVal('ch_18', 7.80);
+      const water_temp = getMappedVal('ch_water_temp', temp - 1.2);
 
       // Parse temperature and wind speed min/max values from sensors mapping (with fallback calculation if not mapped)
       const temp_max = getMappedVal('ch_4', temp + 1.2);
       const temp_min = getMappedVal('ch_6', temp - 1.5);
       const wind_max = getMappedVal('ch_19', wind_spd + 2.5);
       const wind_min = getMappedVal('ch_20', Math.max(0, wind_spd - 1.8));
+      const water_temp_max = getMappedVal('ch_water_temp_max', water_temp + 0.5);
+      const water_temp_min = getMappedVal('ch_water_temp_min', water_temp - 0.8);
 
       // Smart handling for sea level: convert meters to cm if the values are very small
       const sea = raw_sea < 20 ? raw_sea * 100 : raw_sea;
@@ -1062,6 +1083,9 @@ export default function App() {
         waveHeight: 1.10, // constant base wave height
         seaLevel: sea,
         waterPh: ph,
+        waterTemp: parseFloat(water_temp.toFixed(1)),
+        waterTempMin: parseFloat(water_temp_min.toFixed(1)),
+        waterTempMax: parseFloat(water_temp_max.toFixed(1)),
         windDirection: wind_dir,
         windSpeed: wind_spd,
         pressure: press,
@@ -1648,6 +1672,30 @@ export default function App() {
     const avg = (sum / temps.length).toFixed(1);
     const max = Math.max(...temps).toFixed(1);
     const min = Math.min(...temps).toFixed(1);
+    return { avg, max, min };
+  })();
+
+  // Water temperature statistics computed from the history queue
+  const waterTempStats = (() => {
+    const lastSix = history.slice(-12); // approx last couple hours
+    if (lastSix.length === 0) {
+      const curWaterTemp = currentData.waterTemp ?? (currentData.temperature - 1.2);
+      const curWaterTempMax = currentData.waterTempMax ?? (currentData.temperature - 0.7);
+      const curWaterTempMin = currentData.waterTempMin ?? (currentData.temperature - 2.0);
+      return {
+        avg: curWaterTemp.toFixed(1),
+        max: curWaterTempMax.toFixed(1),
+        min: curWaterTempMin.toFixed(1)
+      };
+    }
+    const temps = lastSix.map(h => h.waterTemp ?? (h.temperature - 1.2));
+    const maxTemps = lastSix.map(h => h.waterTempMax ?? (h.waterTemp ?? (h.temperature - 0.7)));
+    const minTemps = lastSix.map(h => h.waterTempMin ?? (h.waterTemp ?? (h.temperature - 2.0)));
+    
+    const sum = temps.reduce((a, b) => a + b, 0);
+    const avg = (sum / temps.length).toFixed(1);
+    const max = Math.max(...maxTemps).toFixed(1);
+    const min = Math.min(...minTemps).toFixed(1);
     return { avg, max, min };
   })();
 
@@ -2283,6 +2331,31 @@ export default function App() {
                             <span className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Status</span>
                             <span className={`text-xs md:text-sm font-bold font-mono uppercase ${isPhUnsafe ? 'text-amber-400' : phValue < 7.0 ? 'text-rose-400' : phValue > 8.5 ? 'text-pink-400' : 'text-emerald-400'}`}>
                               {isPhUnsafe ? "⚠️ BAHAYA" : phValue < 7.0 ? "Asam" : phValue > 8.5 ? "Basa" : "Ideal"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Suhu Air / Water Temp Panel */}
+                      <div className="bg-[#050a12]/80 border border-white/5 p-3 rounded-xl space-y-2 mt-3">
+                        <span className="text-xs uppercase font-semibold tracking-wider text-slate-300 block border-b border-white/10 pb-1 font-sans">🌡️ Temperatur Air / Water Temp</span>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="bg-[#0b1424] border border-[#38bdf8]/10 py-1 px-2 rounded-lg transition-colors hover:border-[#38bdf8]/20 col-span-3 sm:col-span-1 flex flex-col justify-center items-center">
+                            <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wide block mb-0.5 font-sans">Saat Ini</span>
+                            <span className="text-sm font-extrabold font-mono text-[#38bdf8]">
+                              {(currentData.waterTemp ?? (currentData.temperature - 1.2)).toFixed(1)} <span className="text-[10px] font-bold text-slate-400">°C</span>
+                            </span>
+                          </div>
+                          <div className="bg-[#0b1424] border border-white/5 py-1 px-2 rounded-lg flex flex-col justify-center items-center transition-colors hover:border-white/10">
+                            <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wide block mb-0.5 font-sans">Min</span>
+                            <span className="text-xs font-bold font-mono text-cyan-400">
+                              {waterTempStats.min} <span className="text-[10px] text-slate-500">°C</span>
+                            </span>
+                          </div>
+                          <div className="bg-[#0b1424] border border-white/5 py-1 px-2 rounded-lg flex flex-col justify-center items-center transition-colors hover:border-white/10">
+                            <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wide block mb-0.5 font-sans">Max</span>
+                            <span className="text-xs font-bold font-mono text-rose-400">
+                              {waterTempStats.max} <span className="text-[10px] text-slate-500">°C</span>
                             </span>
                           </div>
                         </div>
@@ -4461,142 +4534,7 @@ header("Content-Type: application/json; charset=UTF-8");
 
               </div>
 
-              {/* CARD: GITHUB AUTO-UPDATE MANAGER (Skenario 1 - Professional Pipeline) */}
-              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-4 shadow-xl">
-                <div className="text-xs md:text-sm uppercase font-bold text-teal-400 tracking-[0.2em] border-b border-white/5 pb-2 flex items-center justify-between">
-                  <span>🔄 GitHub Automatic System Update</span>
-                  <span className="text-[10px] bg-teal-500/10 text-teal-300 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider font-mono border border-teal-500/25">Skenario 1</span>
-                </div>
 
-                <div className="space-y-4 font-sans">
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Sistem pembaruan asinkron profesional RMS PRO v3. Jika ada perubahan visual atau kode di repositori, cukup masukkan URL & Cabang, lalu komit pembaruan instan.
-                  </p>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-xs uppercase font-bold text-slate-400 block font-mono mb-1">GitHub Repositori URL</label>
-                      <input 
-                        type="text" 
-                        value={updaterInputUrl}
-                        onChange={(e) => setUpdaterInputUrl(e.target.value)}
-                        placeholder="https://github.com/username/repo-name"
-                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2.5 text-teal-300 rounded-lg outline-none focus:border-[#00f0ff]" 
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs uppercase font-bold text-slate-400 block font-mono mb-1">Nama Cabang (Branch)</label>
-                      <input 
-                        type="text" 
-                        value={updaterInputBranch}
-                        onChange={(e) => setUpdaterInputBranch(e.target.value)}
-                        placeholder="main"
-                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2.5 text-teal-300 rounded-lg outline-none focus:border-[#00f0ff]" 
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleSaveUpdaterConfig}
-                      className="w-full py-2 px-4 bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/30 rounded-lg text-xs font-bold uppercase font-mono tracking-wider transition cursor-pointer"
-                    >
-                      💾 Simpan Konfigurasi Git
-                    </button>
-                  </div>
-
-                  <div className="border-t border-white/5 pt-3 space-y-2.5">
-                    <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                      <div className="bg-[#050a12] p-2.5 rounded border border-white/5 flex flex-col">
-                        <span className="text-slate-500 uppercase text-[9px] font-bold">Versi Terpasang:</span>
-                        <span className="text-white font-extrabold text-sm">{updaterState.localVersion}</span>
-                      </div>
-                      <div className="bg-[#050a12] p-2.5 rounded border border-white/5 flex flex-col">
-                        <span className="text-slate-500 uppercase text-[9px] font-bold">Versi GitHub:</span>
-                        <span className="text-[#00f0ff] font-extrabold text-sm">{updaterState.latestVersion}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-between items-center bg-[#050a12] p-2 rounded border border-white/5 text-[10px] font-mono">
-                      <span className="text-slate-500 uppercase">Terakhir Diperiksa:</span>
-                      <span className="text-slate-300 font-bold">{updaterState.lastChecked}</span>
-                    </div>
-
-                    {updaterState.updateAvailable && (
-                      <div className="p-3 bg-teal-500/10 border border-teal-500/20 rounded-xl space-y-1.5 animate-pulse">
-                        <span className="text-xs font-extrabold text-teal-400 uppercase font-mono block">✔️ Pembaruan Kode Tersedia!</span>
-                        <p className="text-[11px] text-slate-300 leading-normal">
-                          Deteksi versi baru {updaterState.latestVersion} ditemukan di server GitHub. Anda dapat menginstal pembaruan secara asinkron.
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        disabled={updaterState.status === 'checking' || updaterState.status === 'updating'}
-                        onClick={handleCheckUpdates}
-                        className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-bold uppercase font-mono tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                          updaterState.status === 'checking'
-                            ? 'bg-white/5 text-slate-500 border border-white/5 cursor-not-allowed'
-                            : 'bg-slate-800 hover:bg-slate-700 text-white border border-white/10'
-                        }`}
-                      >
-                        {updaterState.status === 'checking' ? '🔄 Memeriksa...' : '🔍 Periksa Pembaruan'}
-                      </button>
-
-                      {updaterState.updateAvailable ? (
-                        <button
-                          type="button"
-                          disabled={updaterState.status === 'updating'}
-                          onClick={handleInstallUpdate}
-                          className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-black uppercase font-mono tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                            updaterState.status === 'updating'
-                              ? 'bg-teal-500/10 text-teal-400 border border-teal-500/25 cursor-not-allowed'
-                              : 'bg-teal-500 text-slate-950 font-black hover:bg-teal-400 shadow-[0_0_15px_rgba(20,184,166,0.3)]'
-                          }`}
-                        >
-                          {updaterState.status === 'updating' ? '⚡ Menginstal...' : '⚡ INSTAL SEKARANG'}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled
-                          className="flex-1 py-2.5 px-3 bg-white/5 text-slate-500 border border-white/5 rounded-lg text-xs font-bold uppercase font-mono tracking-wider text-center cursor-not-allowed"
-                        >
-                          System Up to Date
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {updaterState.changelog && updaterState.changelog.length > 0 && (
-                    <div className="border-t border-white/5 pt-3 space-y-1.5">
-                      <span className="text-[10px] text-slate-500 font-mono uppercase font-bold tracking-wider block">📋 Riwayat Komit Terakhir (Changelog):</span>
-                      <div className="bg-[#03060d] p-3 rounded-lg border border-white/5 space-y-1 max-h-24 overflow-y-auto scrollbar-thin scrollbar-thumb-teal-500/20 scrollbar-track-transparent">
-                        {updaterState.changelog.map((log, idx) => (
-                          <div key={idx} className="text-[10px] font-mono text-slate-300 leading-normal border-b border-white/5 last:border-0 pb-1 last:pb-0">
-                            {log}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {updaterState.logs && updaterState.logs.length > 0 && (
-                    <div className="border-t border-white/5 pt-3 space-y-1.5">
-                      <span className="text-[10px] text-slate-500 font-mono uppercase font-bold tracking-wider block">📟 LOG TERMINAL PEMBARUAN:</span>
-                      <div className="bg-[#020408] border border-teal-500/30 rounded-xl overflow-hidden">
-                        <div className="w-full h-28 bg-[#010306] text-[10px] font-mono leading-relaxed p-3.5 text-teal-400 outline-none overflow-y-auto select-all max-h-32">
-                          {updaterState.logs.map((log, idx) => (
-                            <div key={idx} className="mb-0.5">{log}</div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
 
             </div>
 
@@ -4665,6 +4603,9 @@ header("Content-Type: application/json; charset=UTF-8");
                     { label: 'Pres QNH', key: 'ch_13', color: '#94a3b8', source: (currentData.pressure - 1.2).toFixed(1) + ' hPa' },
                     { label: 'Pres STN', key: 'ch_7', color: '#94a3b8', source: currentData.pressure.toFixed(1) + ' hPa' },
                     { label: 'Water pH', key: 'ch_18', color: '#f5d0fe', source: (currentData.waterPh ?? 7.80).toFixed(2) },
+                    { label: 'Water Temp', key: 'ch_water_temp', color: '#38bdf8', source: waterTempStats.avg + ' °C' },
+                    { label: 'Water T. Max', key: 'ch_water_temp_max', color: '#f87171', source: waterTempStats.max + ' °C' },
+                    { label: 'Water T. Min', key: 'ch_water_temp_min', color: '#38bdf8', source: waterTempStats.min + ' °C' },
                     { label: 'Rainfall', key: 'ch_rain', color: '#0ea5e9', source: currentData.rainfall.toFixed(1) + ' mm' }
                   ].map((sensor, s_idx) => (
                     <div key={s_idx} className="bg-[#050a12]/70 border border-white/5 p-3 rounded-lg flex flex-col justify-between gap-1">
@@ -4730,6 +4671,9 @@ header("Content-Type: application/json; charset=UTF-8");
                       'ch_11': '10', // Pres QFF
                       'ch_13': '10', // Pres QNH
                       'ch_18': '18',  // Water pH (PH_meas)
+                      'ch_water_temp': '14', // Water Temp
+                      'ch_water_temp_max': '15', // Water Temp Max
+                      'ch_water_temp_min': '16', // Water Temp Min
                       'ch_rain': '13' // Rainfall (for example, rain meter)
                     };
                     setConfig({
@@ -5475,28 +5419,6 @@ header("Content-Type: application/json; charset=UTF-8");
               </div>
 
             </div>
-
-            {/* Official Link Reference Action Blocks */}
-            <div className="bg-[#040a12] border border-white/5 p-5 rounded-3xl flex flex-col sm:flex-row gap-4 justify-between items-center bg-gradient-to-r from-emerald-950/15 to-transparent">
-              <div className="text-left">
-                <span className="text-xs text-emerald-400 font-extrabold uppercase font-mono tracking-widest block">
-                  Reference Website
-                </span>
-                <p className="text-xs text-slate-400 mt-1">
-                  Seluruh data di atas disinkronkan secara presisi dengan laporan resmi BMKG Maritim. Anda dapat membuka pranala web resminya melalui tombol di samping.
-                </p>
-              </div>
-              <a 
-                href={`https://maritim.bmkg.go.id/cuaca/pelabuhan/${(config.bmkgPortSlug || 'pelabuhan-ciwandan').replace(/_/g, '-')}`}
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="w-full sm:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-extrabold font-mono tracking-wide rounded-xl flex items-center justify-center gap-2 cursor-pointer uppercase shadow-lg transition-all"
-              >
-                <span>Buka BMKG Maritim</span>
-                <ArrowUpRight className="w-4 h-4" />
-              </a>
-            </div>
-
           </div>
         )}
 
