@@ -51,6 +51,7 @@ let reconnectTimer = null;
 let isFetchingConfig = false;
 let isTcpConnecting = false;
 let dataBuffer = ''; // Penyangga byte stream
+let currentReconnectInterval = RECONNECT_INTERVAL;
 let lastStatus = {
     connected: false,
     moxa_ip: MOXA_IP,
@@ -124,18 +125,10 @@ function updateStatusOnPhpServer(connected, stateLabel, errorMsg) {
 
 // Ambil konfigurasi paling update dari database
 function syncConfigAndConnect() {
-    if (process.argv[3] && process.argv[4]) {
-        MOXA_IP = process.argv[3];
-        MOXA_PORT = parseInt(process.argv[4]) || 4001;
-        console.log(`[${new Date().toISOString()}] 🚀 [CMD OVERRIDE]: Menggunakan MOXA IP ${MOXA_IP}:${MOXA_PORT} langsung.`);
-        connectToMoxa();
-        return;
-    }
-
     if (isFetchingConfig) return;
     isFetchingConfig = true;
 
-    console.log(`[${new Date().toISOString()}] 🔍 Mengambil konfigurasi IP & Port dari database...`);
+    console.log(`[${new Date().toISOString()}] 🔍 Mengambil konfigurasi IP & Port dari database via api.php...`);
     
     const apiParts = parseUrlConfig(API_URL);
     const options = {
@@ -149,19 +142,28 @@ function syncConfigAndConnect() {
         let body = '';
         res.on('data', (chunk) => { body += chunk; });
         res.on('end', () => {
-            let transport = 'TCP';
             try {
                 if (res.statusCode === 200 && body.trim().startsWith('{')) {
                     const config = JSON.parse(body);
                     if (config && config.moxa_ip) {
                         MOXA_IP = config.moxa_ip;
                         MOXA_PORT = parseInt(config.moxa_port) || 4001;
-                        transport = config.transport || 'TCP';
-                        console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC]: IP Moxa : ${MOXA_IP} | Port Moxa : ${MOXA_PORT}`);
+                        console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC]: IP Moxa : ${MOXA_IP} | Port Moxa : ${MOXA_PORT} (Sesuai Database!)`);
                     }
+                } else {
+                    // Fallback to command line overrides if available
+                    if (process.argv[3] && process.argv[4]) {
+                        MOXA_IP = process.argv[3];
+                        MOXA_PORT = parseInt(process.argv[4]) || 4001;
+                    }
+                    console.log(`[${new Date().toISOString()}] ⚠️ Respon API tidak valid, menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
                 }
             } catch (err) {
-                // Gunakan config lokal/cmd
+                if (process.argv[3] && process.argv[4]) {
+                    MOXA_IP = process.argv[3];
+                    MOXA_PORT = parseInt(process.argv[4]) || 4001;
+                }
+                console.log(`[${new Date().toISOString()}] ⚠️ Gagal mengurai respon api.php, menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
             }
             isFetchingConfig = false;
             connectToMoxa();
@@ -169,7 +171,11 @@ function syncConfigAndConnect() {
     });
 
     req.on('error', (err) => {
-        console.warn(`[${new Date().toISOString()}] ⚠️ Server PHP API Offline. Menggunakan port lokal: ${MOXA_IP}:${MOXA_PORT}`);
+        if (process.argv[3] && process.argv[4]) {
+            MOXA_IP = process.argv[3];
+            MOXA_PORT = parseInt(process.argv[4]) || 4001;
+        }
+        console.warn(`[${new Date().toISOString()}] ⚠️ Server PHP API Offline. Menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
         isFetchingConfig = false;
         connectToMoxa();
     });
@@ -206,6 +212,7 @@ function connectToMoxa() {
         isTcpConnecting = false;
         console.log(`[${new Date().toISOString()}] 🟢 [CONNECTED] Sukses tersambung ke Moxa!`);
         dataBuffer = '';
+        currentReconnectInterval = RECONNECT_INTERVAL; // Reset jeda reconnect ke default (5 detik)
         
         // Disable inactivity timeout once connected, to prevent silence from triggering a disconnect
         client.setTimeout(0);
@@ -248,10 +255,14 @@ function connectToMoxa() {
 
 function scheduleReconnect() {
     if (reconnectTimer) clearTimeout(reconnectTimer);
-    console.log(`[${new Date().toISOString()}] ⏱️ Menjadwalkan reconnect dalam ${RECONNECT_INTERVAL / 1000} detik...`);
+    console.log(`[${new Date().toISOString()}] ⏱️ Menjadwalkan reconnect dalam ${currentReconnectInterval / 1000} detik...`);
     reconnectTimer = setTimeout(() => {
         syncConfigAndConnect();
-    }, RECONNECT_INTERVAL);
+    }, currentReconnectInterval);
+
+    // Tingkatkan jeda reconnect (exponential backoff) secara bertahap hingga maks 30 detik
+    // Ini memberi waktu bagi MOXA untuk membersihkan koneksi zombie lama yang menggantung (half-open)
+    currentReconnectInterval = Math.min(currentReconnectInterval * 1.5, 30000);
 }
 
 // Memproses payload mentah dari MOXA (Format Semicolon ';')

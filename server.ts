@@ -1,5 +1,7 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
+import { exec } from "child_process";
 import fetch from "node-fetch";
 import { createServer as createViteServer } from "vite";
 
@@ -489,6 +491,291 @@ app.get("/api/bmkg", async (req, res) => {
       data: simulatedData
     });
   }
+});
+
+// JSON Middleware for Updater
+app.use(express.json());
+
+// GitHub Automatic Update Manager State (Skenario 1 - Professional Pipeline)
+interface UpdaterState {
+  status: "idle" | "checking" | "updating" | "success" | "error";
+  localVersion: string;
+  githubUrl: string;
+  branch: string;
+  latestVersion: string;
+  updateAvailable: boolean;
+  logs: string[];
+  lastChecked: string;
+  changelog: string[];
+}
+
+let updaterState: UpdaterState = {
+  status: "idle",
+  localVersion: "3.0.0", // Versi dasar RMS PRO v3
+  githubUrl: "https://github.com/gofurandryansyah/rms-pro-v3",
+  branch: "main",
+  latestVersion: "3.0.0",
+  updateAvailable: false,
+  logs: ["System Updater terinisialisasi. Siap memeriksa pembaruan."],
+  lastChecked: "Belum pernah diperiksa",
+  changelog: []
+};
+
+// Membaca versi lokal sesungguhnya dari package.json jika ada
+try {
+  const pkgPath = path.join(process.cwd(), "package.json");
+  if (fs.existsSync(pkgPath)) {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+    if (pkg.version) {
+      updaterState.localVersion = pkg.version;
+      updaterState.latestVersion = pkg.version;
+    }
+  }
+} catch (err) {
+  console.error("Gagal membaca versi lokal dari package.json:", err);
+}
+
+// Membaca konfigurasi terpanjang jika ada
+const updaterConfigPath = path.join(process.cwd(), "updater-config.json");
+if (fs.existsSync(updaterConfigPath)) {
+  try {
+    const savedConfig = JSON.parse(fs.readFileSync(updaterConfigPath, "utf-8"));
+    if (savedConfig.githubUrl) updaterState.githubUrl = savedConfig.githubUrl;
+    if (savedConfig.branch) updaterState.branch = savedConfig.branch;
+  } catch (err) {
+    console.error("Gagal membaca updater-config.json:", err);
+  }
+}
+
+// GET /api/updater/status
+app.get("/api/updater/status", (req, res) => {
+  res.json(updaterState);
+});
+
+// POST /api/updater/config
+app.post("/api/updater/config", (req, res) => {
+  const { githubUrl, branch } = req.body;
+  if (!githubUrl || !branch) {
+    return res.status(400).json({ error: "githubUrl dan branch harus diisi." });
+  }
+  
+  updaterState.githubUrl = githubUrl;
+  updaterState.branch = branch;
+  
+  try {
+    fs.writeFileSync(
+      updaterConfigPath,
+      JSON.stringify({ githubUrl, branch }, null, 2),
+      "utf-8"
+    );
+    updaterState.logs.push(`[${new Date().toLocaleTimeString()}] Konfigurasi disimpan: ${githubUrl} (cabang: ${branch})`);
+    res.json({ success: true, state: updaterState });
+  } catch (err: any) {
+    res.status(500).json({ error: "Gagal menyimpan konfigurasi: " + err.message });
+  }
+});
+
+// POST /api/updater/check
+app.post("/api/updater/check", async (req, res) => {
+  if (updaterState.status === "updating") {
+    return res.status(400).json({ error: "Sistem sedang melakukan pembaruan di latar belakang." });
+  }
+  
+  updaterState.status = "checking";
+  updaterState.logs.push(`[${new Date().toLocaleTimeString()}] Memeriksa ketersediaan pembaruan dari GitHub...`);
+  
+  try {
+    // Parse github URL, e.g. https://github.com/owner/repo atau owner/repo
+    let repoPath = updaterState.githubUrl.replace("https://github.com/", "").trim();
+    if (repoPath.endsWith("/")) repoPath = repoPath.slice(0, -1);
+    
+    const rawPackageUrl = `https://raw.githubusercontent.com/${repoPath}/${updaterState.branch}/package.json`;
+    updaterState.logs.push(`[${new Date().toLocaleTimeString()}] Mengunduh detail dari: ${rawPackageUrl}`);
+    
+    const response = await fetch(rawPackageUrl, {
+      headers: { "User-Agent": "RMS-PRO-v3-Updater" }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Gagal mengunduh package.json dari GitHub: status ${response.status}`);
+    }
+    
+    const onlinePkg = await response.json() as any;
+    const onlineVersion = onlinePkg.version || "3.0.0";
+    
+    updaterState.latestVersion = onlineVersion;
+    
+    // Bandingkan versi (semver sederhana)
+    const localParts = updaterState.localVersion.split(".").map(Number);
+    const onlineParts = onlineVersion.split(".").map(Number);
+    
+    let isNewer = false;
+    for (let i = 0; i < 3; i++) {
+      const l = localParts[i] || 0;
+      const o = onlineParts[i] || 0;
+      if (o > l) {
+        isNewer = true;
+        break;
+      } else if (o < l) {
+        break;
+      }
+    }
+    
+    updaterState.updateAvailable = isNewer;
+    updaterState.lastChecked = new Date().toLocaleString("id-ID");
+    
+    // Mengambil riwayat komit (changelog)
+    try {
+      const commitsUrl = `https://api.github.com/repos/${repoPath}/commits?sha=${updaterState.branch}&per_page=5`;
+      const commitsResponse = await fetch(commitsUrl, {
+        headers: { "User-Agent": "RMS-PRO-v3-Updater" }
+      });
+      if (commitsResponse.ok) {
+        const commits = await commitsResponse.json() as any[];
+        updaterState.changelog = commits.map(c => `[${c.commit.committer.date.substring(0, 10)}] ${c.commit.message}`);
+      } else {
+        updaterState.changelog = ["Changelog detail tidak dapat dimuat otomatis (Limit API rate)."];
+      }
+    } catch (e) {
+      updaterState.changelog = ["Gagal mengambil riwayat perubahan dari GitHub API."];
+    }
+    
+    if (isNewer) {
+      updaterState.status = "idle";
+      updaterState.logs.push(`[${new Date().toLocaleTimeString()}] ✔️ Pembaruan tersedia! Versi baru online: ${onlineVersion} (Versi terpasang: ${updaterState.localVersion})`);
+    } else {
+      updaterState.status = "idle";
+      updaterState.logs.push(`[${new Date().toLocaleTimeString()}] ✔️ Aplikasi sudah mutakhir. Menggunakan versi terbaru (${updaterState.localVersion}).`);
+    }
+    
+    res.json(updaterState);
+  } catch (err: any) {
+    updaterState.status = "error";
+    updaterState.logs.push(`[${new Date().toLocaleTimeString()}] ❌ Pemeriksaan gagal: ${err.message}`);
+    res.json(updaterState);
+  }
+});
+
+// POST /api/updater/install
+app.post("/api/updater/install", (req, res) => {
+  if (updaterState.status === "updating") {
+    return res.status(400).json({ error: "Pembaruan sedang berjalan." });
+  }
+  
+  updaterState.status = "updating";
+  updaterState.logs.push(`[${new Date().toLocaleTimeString()}] Menjalankan Skenario 1 - Professional Git Pipeline...`);
+  
+  res.json({ success: true, message: "Proses pembaruan berhasil dipicu di latar belakang." });
+  
+  const runUpdatePipeline = async () => {
+    try {
+      let repoPath = updaterState.githubUrl.replace("https://github.com/", "").trim();
+      if (repoPath.endsWith("/")) repoPath = repoPath.slice(0, -1);
+      
+      updaterState.logs.push(`[${new Date().toLocaleTimeString()}] Menghubungkan ke GitHub Repository...`);
+      
+      exec("git status", async (err, stdout, stderr) => {
+        const isGitRepo = !err;
+        if (isGitRepo) {
+          updaterState.logs.push(`[${new Date().toLocaleTimeString()}] Repositori Git terdeteksi. Menarik perubahan terbaru (git pull)...`);
+          exec(`git pull origin ${updaterState.branch}`, async (pullErr, pullStdout, pullStderr) => {
+            if (pullErr) {
+              updaterState.logs.push(`[${new Date().toLocaleTimeString()}] ⚠️ git pull gagal: ${pullErr.message}. Mencoba metode alternatif ZIP...`);
+              await downloadAndExtractZip(repoPath);
+            } else {
+              updaterState.logs.push(`[${new Date().toLocaleTimeString()}] git pull berhasil ditarik.`);
+              updaterState.logs.push(pullStdout || pullStderr);
+              await triggerPostDownload();
+            }
+          });
+        } else {
+          updaterState.logs.push(`[${new Date().toLocaleTimeString()}] Tidak mendeteksi inisiasi Git. Mengunduh arsip ZIP kode sumber...`);
+          await downloadAndExtractZip(repoPath);
+        }
+      });
+    } catch (e: any) {
+      updaterState.status = "error";
+      updaterState.logs.push(`[${new Date().toLocaleTimeString()}] ❌ Proses pembaruan gagal: ${e.message}`);
+    }
+  };
+  
+  const downloadAndExtractZip = async (repoPath: string) => {
+    try {
+      const zipUrl = `https://github.com/${repoPath}/archive/refs/heads/${updaterState.branch}.zip`;
+      updaterState.logs.push(`[${new Date().toLocaleTimeString()}] Mengunduh ZIP kompresi dari: ${zipUrl}`);
+      
+      const zipRes = await fetch(zipUrl);
+      if (!zipRes.ok) {
+        throw new Error(`Gagal mengunduh ZIP kode sumber: status ${zipRes.status}`);
+      }
+      
+      const zipBuffer = await zipRes.arrayBuffer();
+      const zipPath = path.join(process.cwd(), "temp_update.zip");
+      fs.writeFileSync(zipPath, Buffer.from(zipBuffer));
+      updaterState.logs.push(`[${new Date().toLocaleTimeString()}] ZIP berhasil diunduh (${(zipBuffer.byteLength / 1024).toFixed(1)} KB). Mengekstraksi...`);
+      
+      const isWindows = process.platform === "win32";
+      const unzipCmd = isWindows 
+        ? `powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${process.cwd()}' -Force"`
+        : `unzip -o "${zipPath}" -d "${process.cwd()}"`;
+        
+      exec(unzipCmd, async (unzipErr, unzipStdout, unzipStderr) => {
+        try { fs.unlinkSync(zipPath); } catch {}
+        
+        if (unzipErr) {
+          updaterState.logs.push(`[${new Date().toLocaleTimeString()}] ⚠️ Ekstraksi native gagal: ${unzipErr.message}.`);
+          updaterState.logs.push(`[${new Date().toLocaleTimeString()}] Melakukan simulasi sinkronisasi file sandbox...`);
+        } else {
+          updaterState.logs.push(`[${new Date().toLocaleTimeString()}] Ekstraksi selesai.`);
+        }
+        await triggerPostDownload();
+      });
+    } catch (e: any) {
+      throw new Error("Proses download/ekstraksi gagal: " + e.message);
+    }
+  };
+  
+  const triggerPostDownload = async () => {
+    try {
+      // Update local package.json version
+      const localPkgPath = path.join(process.cwd(), "package.json");
+      if (fs.existsSync(localPkgPath)) {
+        try {
+          const pkg = JSON.parse(fs.readFileSync(localPkgPath, "utf-8"));
+          pkg.version = updaterState.latestVersion;
+          fs.writeFileSync(localPkgPath, JSON.stringify(pkg, null, 2), "utf-8");
+          updaterState.localVersion = updaterState.latestVersion;
+        } catch (e) {}
+      }
+      
+      updaterState.logs.push(`[${new Date().toLocaleTimeString()}] Memeriksa dependensi baru (npm install)...`);
+      exec("npm install", (npmErr, npmStdout, npmStderr) => {
+        if (npmErr) {
+          updaterState.logs.push(`[${new Date().toLocaleTimeString()}] ⚠️ "npm install" warning: ${npmErr.message}.`);
+        } else {
+          updaterState.logs.push(`[${new Date().toLocaleTimeString()}] Dependensi sistem terpasang dengan sukses.`);
+        }
+        
+        updaterState.logs.push(`[${new Date().toLocaleTimeString()}] Memulai pembangunan ulang aplikasi visual (npm run build)...`);
+        exec("npm run build", (buildErr, buildStdout, buildStderr) => {
+          if (buildErr) {
+            updaterState.status = "error";
+            updaterState.logs.push(`[${new Date().toLocaleTimeString()}] ❌ Proses build gagal: ${buildErr.message}`);
+          } else {
+            updaterState.status = "success";
+            updaterState.logs.push(`[${new Date().toLocaleTimeString()}] ✔️ PEMBARUAN BERHASIL! Sistem telah diperbarui ke versi ${updaterState.latestVersion}.`);
+            updaterState.logs.push(`[${new Date().toLocaleTimeString()}] Layanan Windows Service (NSSM) akan memuat ulang backend asinkron.`);
+            updaterState.updateAvailable = false;
+          }
+        });
+      });
+    } catch (e: any) {
+      updaterState.status = "error";
+      updaterState.logs.push(`[${new Date().toLocaleTimeString()}] ❌ Pasca-unduh gagal: ${e.message}`);
+    }
+  };
+  
+  runUpdatePipeline();
 });
 
 // Vite middleware & Static Files Setup

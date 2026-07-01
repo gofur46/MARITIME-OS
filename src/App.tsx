@@ -8,7 +8,6 @@ import {
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { WeatherData, AlertLevel, PortInstruction } from './types';
 import { format } from 'date-fns';
-import UserManual from './components/UserManual';
 
 // Create Yesterday's baseline climatology averages for our math
 const CLIMATOLOGY_AVG = {
@@ -427,7 +426,7 @@ export const BMKG_PORTS_LIST: BmkgPortOption[] = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'realtime' | 'analyst' | 'telemetry' | 'database' | 'settings' | 'bmkg' | 'manual'>('realtime');
+  const [activeTab, setActiveTab] = useState<'realtime' | 'analyst' | 'telemetry' | 'database' | 'settings' | 'bmkg'>('realtime');
   
   // Extract and parse saved config first to avoid dependency chain issues
   const savedConfigStr = localStorage.getItem('aws_config');
@@ -480,6 +479,109 @@ export default function App() {
     message: string;
     details?: string;
   }>({ status: 'idle', message: '' });
+
+  // GitHub Auto-Updater States (Skenario 1 - Professional Pipeline)
+  const [updaterState, setUpdaterState] = useState<{
+    status: 'idle' | 'checking' | 'updating' | 'success' | 'error';
+    localVersion: string;
+    githubUrl: string;
+    branch: string;
+    latestVersion: string;
+    updateAvailable: boolean;
+    logs: string[];
+    lastChecked: string;
+    changelog: string[];
+  }>({
+    status: 'idle',
+    localVersion: '3.0.0',
+    githubUrl: 'https://github.com/gofurandryansyah/rms-pro-v3',
+    branch: 'main',
+    latestVersion: '3.0.0',
+    updateAvailable: false,
+    logs: [],
+    lastChecked: 'Belum diperiksa',
+    changelog: []
+  });
+
+  const [updaterInputUrl, setUpdaterInputUrl] = useState('https://github.com/gofurandryansyah/rms-pro-v3');
+  const [updaterInputBranch, setUpdaterInputBranch] = useState('main');
+
+  const fetchUpdaterStatus = async () => {
+    try {
+      const res = await fetch('/api/updater/status');
+      if (res.ok) {
+        const data = await res.json();
+        setUpdaterState(data);
+        if (data.githubUrl) setUpdaterInputUrl(data.githubUrl);
+        if (data.branch) setUpdaterInputBranch(data.branch);
+      }
+    } catch (err) {
+      console.error('Error fetching updater status:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchUpdaterStatus();
+  }, []);
+
+  useEffect(() => {
+    let intervalId: any = null;
+    if (updaterState.status === 'checking' || updaterState.status === 'updating') {
+      intervalId = setInterval(fetchUpdaterStatus, 1500);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [updaterState.status]);
+
+  const handleSaveUpdaterConfig = async () => {
+    try {
+      const res = await fetch('/api/updater/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ githubUrl: updaterInputUrl, branch: updaterInputBranch })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUpdaterState(data.state);
+        showToastNotification('Konfigurasi GitHub Updater berhasil disimpan!');
+      } else {
+        showToastNotification('Gagal menyimpan konfigurasi.');
+      }
+    } catch (err) {
+      showToastNotification('Error menyimpan konfigurasi updater.');
+    }
+  };
+
+  const handleCheckUpdates = async () => {
+    try {
+      showToastNotification('Memulai pemeriksaan pembaruan...');
+      const res = await fetch('/api/updater/check', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setUpdaterState(data);
+        if (data.updateAvailable) {
+          showToastNotification(`Pembaruan tersedia! Versi baru: ${data.latestVersion}`);
+        } else {
+          showToastNotification('Aplikasi Anda sudah mutakhir.');
+        }
+      }
+    } catch (err) {
+      showToastNotification('Gagal melakukan cek update.');
+    }
+  };
+
+  const handleInstallUpdate = async () => {
+    try {
+      showToastNotification('Pembaruan otomatis dimulai...');
+      const res = await fetch('/api/updater/install', { method: 'POST' });
+      if (res.ok) {
+        fetchUpdaterStatus();
+      }
+    } catch (err) {
+      showToastNotification('Gagal memicu penginstalan pembaruan.');
+    }
+  };
 
   // MOXA Gateway Connection Status tracking
   const [moxaStatus, setMoxaStatus] = useState<{
@@ -1879,14 +1981,6 @@ export default function App() {
           >
             <Anchor className="w-4.5 h-4.5" />
             <span className="text-xs">BMKG PORT</span>
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('manual')}
-            className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border ${activeTab === 'manual' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
-          >
-            <BookOpen className="w-4.5 h-4.5" />
-            <span className="text-xs">MANUAL</span>
           </button>
         </nav>
 
@@ -4529,6 +4623,143 @@ header("Content-Type: application/json; charset=UTF-8");
 
               </div>
 
+              {/* CARD: GITHUB AUTO-UPDATE MANAGER (Skenario 1 - Professional Pipeline) */}
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-4 shadow-xl">
+                <div className="text-xs md:text-sm uppercase font-bold text-teal-400 tracking-[0.2em] border-b border-white/5 pb-2 flex items-center justify-between">
+                  <span>🔄 GitHub Automatic System Update</span>
+                  <span className="text-[10px] bg-teal-500/10 text-teal-300 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider font-mono border border-teal-500/25">Skenario 1</span>
+                </div>
+
+                <div className="space-y-4 font-sans">
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Sistem pembaruan asinkron profesional RMS PRO v3. Jika ada perubahan visual atau kode di repositori, cukup masukkan URL & Cabang, lalu komit pembaruan instan.
+                  </p>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs uppercase font-bold text-slate-400 block font-mono mb-1">GitHub Repositori URL</label>
+                      <input 
+                        type="text" 
+                        value={updaterInputUrl}
+                        onChange={(e) => setUpdaterInputUrl(e.target.value)}
+                        placeholder="https://github.com/username/repo-name"
+                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2.5 text-teal-300 rounded-lg outline-none focus:border-[#00f0ff]" 
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs uppercase font-bold text-slate-400 block font-mono mb-1">Nama Cabang (Branch)</label>
+                      <input 
+                        type="text" 
+                        value={updaterInputBranch}
+                        onChange={(e) => setUpdaterInputBranch(e.target.value)}
+                        placeholder="main"
+                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2.5 text-teal-300 rounded-lg outline-none focus:border-[#00f0ff]" 
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveUpdaterConfig}
+                      className="w-full py-2 px-4 bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/30 rounded-lg text-xs font-bold uppercase font-mono tracking-wider transition cursor-pointer"
+                    >
+                      💾 Simpan Konfigurasi Git
+                    </button>
+                  </div>
+
+                  <div className="border-t border-white/5 pt-3 space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                      <div className="bg-[#050a12] p-2.5 rounded border border-white/5 flex flex-col">
+                        <span className="text-slate-500 uppercase text-[9px] font-bold">Versi Terpasang:</span>
+                        <span className="text-white font-extrabold text-sm">{updaterState.localVersion}</span>
+                      </div>
+                      <div className="bg-[#050a12] p-2.5 rounded border border-white/5 flex flex-col">
+                        <span className="text-slate-500 uppercase text-[9px] font-bold">Versi GitHub:</span>
+                        <span className="text-[#00f0ff] font-extrabold text-sm">{updaterState.latestVersion}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center bg-[#050a12] p-2 rounded border border-white/5 text-[10px] font-mono">
+                      <span className="text-slate-500 uppercase">Terakhir Diperiksa:</span>
+                      <span className="text-slate-300 font-bold">{updaterState.lastChecked}</span>
+                    </div>
+
+                    {updaterState.updateAvailable && (
+                      <div className="p-3 bg-teal-500/10 border border-teal-500/20 rounded-xl space-y-1.5 animate-pulse">
+                        <span className="text-xs font-extrabold text-teal-400 uppercase font-mono block">✔️ Pembaruan Kode Tersedia!</span>
+                        <p className="text-[11px] text-slate-300 leading-normal">
+                          Deteksi versi baru {updaterState.latestVersion} ditemukan di server GitHub. Anda dapat menginstal pembaruan secara asinkron.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={updaterState.status === 'checking' || updaterState.status === 'updating'}
+                        onClick={handleCheckUpdates}
+                        className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-bold uppercase font-mono tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                          updaterState.status === 'checking'
+                            ? 'bg-white/5 text-slate-500 border border-white/5 cursor-not-allowed'
+                            : 'bg-slate-800 hover:bg-slate-700 text-white border border-white/10'
+                        }`}
+                      >
+                        {updaterState.status === 'checking' ? '🔄 Memeriksa...' : '🔍 Periksa Pembaruan'}
+                      </button>
+
+                      {updaterState.updateAvailable ? (
+                        <button
+                          type="button"
+                          disabled={updaterState.status === 'updating'}
+                          onClick={handleInstallUpdate}
+                          className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-black uppercase font-mono tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                            updaterState.status === 'updating'
+                              ? 'bg-teal-500/10 text-teal-400 border border-teal-500/25 cursor-not-allowed'
+                              : 'bg-teal-500 text-slate-950 font-black hover:bg-teal-400 shadow-[0_0_15px_rgba(20,184,166,0.3)]'
+                          }`}
+                        >
+                          {updaterState.status === 'updating' ? '⚡ Menginstal...' : '⚡ INSTAL SEKARANG'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          className="flex-1 py-2.5 px-3 bg-white/5 text-slate-500 border border-white/5 rounded-lg text-xs font-bold uppercase font-mono tracking-wider text-center cursor-not-allowed"
+                        >
+                          System Up to Date
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {updaterState.changelog && updaterState.changelog.length > 0 && (
+                    <div className="border-t border-white/5 pt-3 space-y-1.5">
+                      <span className="text-[10px] text-slate-500 font-mono uppercase font-bold tracking-wider block">📋 Riwayat Komit Terakhir (Changelog):</span>
+                      <div className="bg-[#03060d] p-3 rounded-lg border border-white/5 space-y-1 max-h-24 overflow-y-auto scrollbar-thin scrollbar-thumb-teal-500/20 scrollbar-track-transparent">
+                        {updaterState.changelog.map((log, idx) => (
+                          <div key={idx} className="text-[10px] font-mono text-slate-300 leading-normal border-b border-white/5 last:border-0 pb-1 last:pb-0">
+                            {log}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {updaterState.logs && updaterState.logs.length > 0 && (
+                    <div className="border-t border-white/5 pt-3 space-y-1.5">
+                      <span className="text-[10px] text-slate-500 font-mono uppercase font-bold tracking-wider block">📟 LOG TERMINAL PEMBARUAN:</span>
+                      <div className="bg-[#020408] border border-teal-500/30 rounded-xl overflow-hidden">
+                        <div className="w-full h-28 bg-[#010306] text-[10px] font-mono leading-relaxed p-3.5 text-teal-400 outline-none overflow-y-auto select-all max-h-32">
+                          {updaterState.logs.map((log, idx) => (
+                            <div key={idx} className="mb-0.5">{log}</div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
             </div>
 
             {/* COLUMN 2: Channel mappings & indices (width 8/12) */}
@@ -5510,15 +5741,6 @@ header("Content-Type: application/json; charset=UTF-8");
             </div>
 
           </div>
-        )}
-
-        {/* PAGE tab 7: INTERACTIVE USER MANUAL */}
-        {activeTab === 'manual' && (
-          <UserManual 
-            stationId={config.idStation}
-            stationName={config.stationName}
-            localDbApiUrl={config.localDbApiUrl}
-          />
         )}
 
       </main>
