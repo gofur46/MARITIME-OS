@@ -9,6 +9,7 @@ import {
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { WeatherData, AlertLevel, PortInstruction } from './types';
 import { format } from 'date-fns';
+import { io as ioClient } from 'socket.io-client';
 
 // Create Yesterday's baseline climatology averages for our math
 const CLIMATOLOGY_AVG = {
@@ -48,6 +49,7 @@ const DEFAULT_CONFIG = {
   dbStorageMode: 'AVG', // 'AVG' (Rata-Rata) | 'RAW' (Instan/Setiap Detik/Sesaat)
   dbStorageInterval: 10, // 1 to 60 Minutes
   localDbApiUrl: 'http://localhost:8000/api.php',
+  moxaDaemonUrl: 'http://localhost:8080',
   bmkgPortSlug: 'pelabuhan-ciwandan',
   bmkgPortLabel: 'Pelabuhan Ciwandan',
   uiZoom: '115', // Default font size scale (%) for excellent laptop reading
@@ -475,6 +477,14 @@ export default function App() {
 
   const [config, setConfig] = useState(initialConfig);
 
+  const [currentClockTime, setCurrentClockTime] = useState<Date>(new Date());
+  useEffect(() => {
+    const clockTimer = setInterval(() => {
+      setCurrentClockTime(new Date());
+    }, 1000);
+    return () => clearInterval(clockTimer);
+  }, []);
+
   const [history, setHistory] = useState<WeatherData[]>(() => {
     const saved = localStorage.getItem('aws_history_logs');
     return saved ? JSON.parse(saved) : generateInitialLogs(45, initialConfig.dbStorageInterval || 10, initialConfig.bmkgPortSlug || 'pelabuhan_ciwandan');
@@ -682,6 +692,11 @@ export default function App() {
 
     // Dynamically resolve daemon address depending on the client hostname or API configuration
     const getDaemonUrl = () => {
+      // If user has explicitly saved a daemon URL, always respect that first!
+      if (config.moxaDaemonUrl) {
+        return config.moxaDaemonUrl;
+      }
+
       const currentHost = window.location.hostname;
       
       // If we are in AI Studio / Cloud preview container
@@ -772,33 +787,8 @@ export default function App() {
       }
     };
 
-    // Load socket.io client dynamically
-    if ((window as any).io) {
-      setupSocket((window as any).io);
-    } else {
-      const script = document.createElement('script');
-      script.src = `${daemonUrl}/socket.io/socket.io.js`;
-      script.async = true;
-      script.onload = () => {
-        if ((window as any).io) {
-          console.log("📦 Socket.IO loaded dynamically from local daemon.");
-          setupSocket((window as any).io);
-        }
-      };
-      script.onerror = () => {
-        console.warn("⚠️ Failed to load Socket.IO from daemon, loading CDN fallback...");
-        const cdnScript = document.createElement('script');
-        cdnScript.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
-        cdnScript.async = true;
-        cdnScript.onload = () => {
-          if ((window as any).io) {
-            setupSocket((window as any).io);
-          }
-        };
-        document.body.appendChild(cdnScript);
-      };
-      document.body.appendChild(script);
-    }
+    // Start socket.io connection directly using bundled client
+    setupSocket(ioClient);
 
     // Fallback polling for status in case WebSocket connection is blocked by CORS/Mixed Content
     const fetchMoxaStatus = async () => {
@@ -899,6 +889,9 @@ export default function App() {
       pressure: record.pressure,
       temp_min: record.tempMin !== undefined ? record.tempMin : parseFloat((record.temperature - 1.5).toFixed(1)),
       temp_max: record.tempMax !== undefined ? record.tempMax : parseFloat((record.temperature + 1.2).toFixed(1)),
+      water_temp: record.waterTemp !== undefined ? record.waterTemp : parseFloat((record.temperature - 1.2).toFixed(1)),
+      water_temp_min: record.waterTempMin !== undefined ? record.waterTempMin : parseFloat((record.temperature - 2.0).toFixed(1)),
+      water_temp_max: record.waterTempMax !== undefined ? record.waterTempMax : parseFloat((record.temperature - 0.7).toFixed(1)),
       wind_speed_min: record.windSpeedMin !== undefined ? record.windSpeedMin : parseFloat(Math.max(0, record.windSpeed - 1.8).toFixed(1)),
       wind_speed_max: record.windSpeedMax !== undefined ? record.windSpeedMax : parseFloat((record.windSpeed + 2.5).toFixed(1))
     };
@@ -1556,12 +1549,14 @@ export default function App() {
       waveHeight: parseFloat(row.wave_height) || 0,
       seaLevel: parseFloat(row.sea_level) || 0,
       waterPh: parseFloat(row.water_ph) || 7.0,
+      waterTemp: row.water_temp !== undefined && row.water_temp !== null ? parseFloat(row.water_temp) : undefined,
+      waterTempMin: row.water_temp_min !== undefined && row.water_temp_min !== null ? parseFloat(row.water_temp_min) : undefined,
+      waterTempMax: row.water_temp_max !== undefined && row.water_temp_max !== null ? parseFloat(row.water_temp_max) : undefined,
       windGust: row.wind_gust ? parseFloat(row.wind_gust) : undefined,
       tempMin: row.temp_min !== undefined && row.temp_min !== null ? parseFloat(row.temp_min) : undefined,
       tempMax: row.temp_max !== undefined && row.temp_max !== null ? parseFloat(row.temp_max) : undefined,
       windSpeedMin: row.wind_speed_min !== undefined && row.wind_speed_min !== null ? parseFloat(row.wind_speed_min) : undefined,
-      windSpeedMax: row.wind_speed_max !== undefined && row.wind_speed_max !== null ? parseFloat(row.wind_speed_max) : undefined,
-      battery: row.battery !== undefined && row.battery !== null ? parseFloat(row.battery) : undefined
+      windSpeedMax: row.wind_speed_max !== undefined && row.wind_speed_max !== null ? parseFloat(row.wind_speed_max) : undefined
     };
   };
 
@@ -2141,9 +2136,21 @@ export default function App() {
               </div>
             </div>
             <div className="h-8 w-px bg-white/10 hidden xl:block" />
-            <div className="text-right">
-              <div className="text-xs font-mono opacity-50 uppercase tracking-widest text-[#00f0ff] font-semibold">{format(Date.now(), 'EEEE, dd MMM yyyy')}</div>
-              <div className="text-2xl font-black font-mono tracking-tighter text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.08)] bg-white/5 py-0.5 px-3 rounded-xl border border-white/5 mt-0.5">{format(Date.now(), 'HH:mm:ss')}</div>
+            <div className="text-right flex flex-col items-end">
+              <div className="text-xs font-mono opacity-50 uppercase tracking-widest text-[#00f0ff] font-semibold">
+                {format(currentClockTime, 'EEEE, dd MMM yyyy')}
+              </div>
+              <div className="text-2xl font-black font-mono tracking-tighter text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.08)] bg-white/5 py-0.5 px-3 rounded-xl border border-white/5 mt-0.5">
+                {format(currentClockTime, 'HH:mm:ss')} <span className="text-[10px] text-teal-400 font-bold ml-1">LOKAL</span>
+              </div>
+              <div className="text-xs font-black font-mono tracking-wider text-amber-400 mt-1 uppercase flex items-center gap-1.5 bg-amber-500/10 py-0.5 px-2.5 rounded-lg border border-amber-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                <span>LOGGER UTC: {(() => {
+                  const activeTime = isLiveActive && currentData ? new Date(currentData.timestamp) : new Date();
+                  const pad = (n: number) => String(n).padStart(2, '0');
+                  return `${pad(activeTime.getUTCHours())}:${pad(activeTime.getUTCMinutes())}:${pad(activeTime.getUTCSeconds())} UTC`;
+                })()}</span>
+              </div>
             </div>
           </div>
         </header>
@@ -2601,10 +2608,10 @@ export default function App() {
                         <div className="absolute top-[4px] bottom-[4px] w-[2px] bg-gradient-to-b from-[#00ff66]/70 via-[#00ff66]/10 to-transparent flex flex-col items-center">
                           {/* Custom vector Navigation arrowhead pointing downwards towards center of compass */}
                           <svg 
-                            className="w-6 h-6 text-[#00ff66] fill-[#00ff66]/20 drop-shadow-[0_0_12px_#00ff66] mt-0.5" 
+                            className="w-12 h-12 text-[#00ff66] fill-[#00ff66]/35 drop-shadow-[0_0_15px_#00ff66] -mt-3" 
                             viewBox="0 0 24 24"
                             stroke="currentColor"
-                            strokeWidth="2"
+                            strokeWidth="3"
                             strokeLinecap="round"
                             strokeLinejoin="round"
                           >
@@ -3648,6 +3655,9 @@ export default function App() {
     wave_height NUMERIC(4,2) NOT NULL,
     sea_level NUMERIC(5,1) NOT NULL,
     water_ph NUMERIC(4,2) NOT NULL,
+    water_temp NUMERIC(4,1) DEFAULT 25.0,
+    water_temp_min NUMERIC(4,1) DEFAULT 24.0,
+    water_temp_max NUMERIC(4,1) DEFAULT 26.0,
     wind_direction INT NOT NULL,
     wind_speed NUMERIC(4,1) NOT NULL,
     wind_speed_min NUMERIC(4,1) DEFAULT 0.0,
@@ -3681,6 +3691,9 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
     wave_height NUMERIC(4,2) NOT NULL,
     sea_level NUMERIC(5,1) NOT NULL,
     water_ph NUMERIC(4,2) NOT NULL,
+    water_temp NUMERIC(4,1) DEFAULT 25.0,
+    water_temp_min NUMERIC(4,1) DEFAULT 24.0,
+    water_temp_max NUMERIC(4,1) DEFAULT 26.0,
     wind_direction INT NOT NULL,
     wind_speed NUMERIC(4,1) NOT NULL,
     wind_speed_min NUMERIC(4,1) DEFAULT 0.0,
@@ -3757,7 +3770,7 @@ try {
     \$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
     // Auto-create table di PostgreSQL
-    \$sql_table = "CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
+    $sql_table = "CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
         id SERIAL PRIMARY KEY,
         station_id VARCHAR(50) NOT NULL,
         timestamp TIMESTAMP NOT NULL,
@@ -3770,6 +3783,9 @@ try {
         wave_height NUMERIC(4,2) NOT NULL,
         sea_level NUMERIC(5,1) NOT NULL,
         water_ph NUMERIC(4,2) NOT NULL,
+        water_temp NUMERIC(4,1) DEFAULT 25.0,
+        water_temp_min NUMERIC(4,1) DEFAULT 24.0,
+        water_temp_max NUMERIC(4,1) DEFAULT 26.0,
         wind_direction INT NOT NULL,
         wind_speed NUMERIC(4,1) NOT NULL,
         wind_speed_min NUMERIC(4,1) DEFAULT 0.0,
@@ -3846,10 +3862,10 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             \$stmt = \$conn->prepare("INSERT INTO tbl_sensor_logs (
                 station_id, timestamp, temperature, temp_min, temp_max, humidity, solar_radiation, 
-                rainfall, wave_height, sea_level, water_ph, wind_direction, wind_speed, wind_speed_min, wind_speed_max, pressure
+                rainfall, wave_height, sea_level, water_ph, water_temp, water_temp_min, water_temp_max, wind_direction, wind_speed, wind_speed_min, wind_speed_max, pressure
             ) VALUES (
                 :station_id, :timestamp, :temperature, :temp_min, :temp_max, :humidity, :solar_radiation, 
-                :rainfall, :wave_height, :sea_level, :water_ph, :wind_direction, :wind_speed, :wind_speed_min, :wind_speed_max, :pressure
+                :rainfall, :wave_height, :sea_level, :water_ph, :water_temp, :water_temp_min, :water_temp_max, :wind_direction, :wind_speed, :wind_speed_min, :wind_speed_max, :pressure
             )");
 
             \$stmt->execute([
@@ -3864,6 +3880,9 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':wave_height' => isset(\$data['wave_height']) ? \$data['wave_height'] : 0.0,
                 ':sea_level' => isset(\$data['sea_level']) ? \$data['sea_level'] : 0.0,
                 ':water_ph' => isset(\$data['water_ph']) ? \$data['water_ph'] : 7.0,
+                ':water_temp' => isset(\$data['water_temp']) ? \$data['water_temp'] : (\$data['temperature'] - 1.2),
+                ':water_temp_min' => isset(\$data['water_temp_min']) ? \$data['water_temp_min'] : (\$data['temperature'] - 2.0),
+                ':water_temp_max' => isset(\$data['water_temp_max']) ? \$data['water_temp_max'] : (\$data['temperature'] - 0.7),
                 ':wind_direction' => isset(\$data['wind_direction']) ? \$data['wind_direction'] : 0,
                 ':wind_speed' => isset(\$data['wind_speed']) ? \$data['wind_speed'] : 0.0,
                 ':wind_speed_min' => isset(\$data['wind_speed_min']) ? \$data['wind_speed_min'] : max(0.0, \$data['wind_speed'] - 1.8),
@@ -4332,6 +4351,35 @@ header("Content-Type: application/json; charset=UTF-8");
                           </div>
                         )}
                       </div>
+
+                      <div className="border-t border-white/5 pt-2.5 space-y-1">
+                        <label className="text-[10px] uppercase font-bold text-teal-400 block">🌐 DAEMON WEBSOCKET URL</label>
+                        <input 
+                          type="text" 
+                          value={config.moxaDaemonUrl || 'http://localhost:8080'} 
+                          placeholder="http://localhost:8080"
+                          onChange={(e) => {
+                            const newCfg = { ...config, moxaDaemonUrl: e.target.value };
+                            setConfig(newCfg);
+                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                          }}
+                          className="w-full bg-black border border-white/10 font-mono text-xs text-center p-2 text-teal-300 rounded focus:border-[#00f0ff] outline-none" 
+                        />
+                      </div>
+
+                      {window.location.protocol === 'https:' && (
+                        <div className="p-2.5 text-[10px] text-amber-300 bg-amber-500/10 rounded border border-amber-500/15 leading-relaxed space-y-1">
+                          <p className="font-extrabold text-amber-400">⚠️ PERINGATAN BROWSER SECURE (HTTPS):</p>
+                          <p>
+                            Dashboard saat ini dibuka via <strong>HTTPS</strong>, sehingga browser modern otomatis <strong>memblokir</strong> sambungan langsung ke daemon lokal yang berjalan via <strong>HTTP (CORS / Mixed Content)</strong>.
+                          </p>
+                          <p className="font-bold text-white">Agar data masuk ke dashboard, Anda harus:</p>
+                          <ul className="list-disc pl-3.5 space-y-0.5">
+                            <li>Buka Dashboard secara lokal menggunakan protokol HTTP standar (misal: <strong>http://localhost:3000</strong>).</li>
+                            <li>Atau klik icon gembok di sebelah kiri address bar browser Anda, pilih <strong>Site Settings</strong>, lalu set opsi <strong>Insecure Content</strong> menjadi <strong>Allow / Izinkan</strong>.</li>
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -5561,42 +5609,22 @@ header("Content-Type: application/json; charset=UTF-8");
             {/* Main Telemetry Charts Grid rendering in full tab viewport width */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               
-              {/* Chart 1: Water Level */}
+              {/* Chart 1: Water Level & Pasang Surut / Tide (Combined) */}
               <div className="bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
                 <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#0ea5e9]/50 rounded-tl-xl" />
                 <div className="flex justify-between items-center pb-2 border-b border-white/5">
                   <span className="text-sm font-black text-[#0ea5e9] tracking-wider font-sans uppercase flex items-center gap-2">
-                    🌊 1. Water Level (Meter)
+                    🌊 1. Water Level & Pasang Surut / Tide (Meter)
                   </span>
-                  <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">Limit: 24 Jam</span>
-                </div>
-                <div className="h-[280px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={history.slice(-144)}>
-                      <defs>
-                        <linearGradient id="colorPopupWaterLevel" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#0ea5e9" stopOpacity={0.25}/>
-                          <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0.01}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
-                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} tickFormatter={(v) => (v / 100).toFixed(3) + 'm'} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#0ea5e9' }} labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} formatter={(value: any) => [(value / 100).toFixed(3) + ' m', 'Water Level']} />
-                      <Area type="monotone" dataKey="seaLevel" stroke="#0ea5e9" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupWaterLevel)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Chart 2: Pasang Surut / Tide Level */}
-              <div className="bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
-                <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#ec4899]/50 rounded-tl-xl" />
-                <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                  <span className="text-sm font-black text-[#ec4899] tracking-wider font-sans uppercase flex items-center gap-2">
-                    📈 2. Pasang Surut / Tide (Meter)
-                  </span>
-                  <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">Limit: 24 Jam</span>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1.5 text-[9px] font-mono text-[#0ea5e9] font-bold">
+                      <span className="w-2 h-2 rounded bg-[#0ea5e9]"></span> Water Level
+                    </span>
+                    <span className="flex items-center gap-1.5 text-[9px] font-mono text-[#ec4899] font-bold">
+                      <span className="w-2 h-2 rounded bg-[#ec4899]"></span> Pasang Surut
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">Limit: 24 Jam</span>
+                  </div>
                 </div>
                 <div className="h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
@@ -5604,20 +5632,91 @@ header("Content-Type: application/json; charset=UTF-8");
                       const h = new Date(item.timestamp).getHours() + new Date(item.timestamp).getMinutes() / 60;
                       return {
                         ...item,
+                        seaLevelM: parseFloat((item.seaLevel / 100).toFixed(3)),
                         pasut: parseFloat((0.5 + Math.sin(h * 0.5) * 0.4).toFixed(2))
                       };
                     })}>
                       <defs>
-                        <linearGradient id="colorPopupTide" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#ec4899" stopOpacity={0.25}/>
+                        <linearGradient id="colorPopupWaterLevelCombined" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#0ea5e9" stopOpacity={0.15}/>
+                          <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0.01}/>
+                        </linearGradient>
+                        <linearGradient id="colorPopupTideCombined" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#ec4899" stopOpacity={0.15}/>
                           <stop offset="100%" stopColor="#ec4899" stopOpacity={0.01}/>
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
                       <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 1.2]} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#ec4899' }} labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} formatter={(value: any) => [value + ' m', 'Pasang Surut']} />
-                      <Area type="monotone" dataKey="pasut" stroke="#ec4899" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupTide)" />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} tickFormatter={(v) => v.toFixed(2) + 'm'} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#0b1424', borderColor: '#38bdf8' }} 
+                        labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} 
+                        formatter={(value: any, name: any) => {
+                          if (name === "seaLevelM") return [value + ' m', 'Water Level'];
+                          if (name === "pasut") return [value + ' m', 'Pasang Surut'];
+                          return [value, name];
+                        }} 
+                      />
+                      <Area type="monotone" dataKey="seaLevelM" stroke="#0ea5e9" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupWaterLevelCombined)" />
+                      <Area type="monotone" dataKey="pasut" stroke="#ec4899" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupTideCombined)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Chart 2: Temperature Trends (Udara & Air Laut) */}
+              <div className="bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
+                <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#f59e0b]/50 rounded-tl-xl" />
+                <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                  <span className="text-sm font-black text-[#f59e0b] tracking-wider font-sans uppercase flex items-center gap-2">
+                    🌡️ 2. Temperature Trends (Udara vs Air Laut)
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1.5 text-[9px] font-mono text-[#38bdf8] font-bold">
+                      <span className="w-2 h-2 rounded bg-[#38bdf8]"></span> Udara
+                    </span>
+                    <span className="flex items-center gap-1.5 text-[9px] font-mono text-[#fbbf24] font-bold">
+                      <span className="w-2 h-2 rounded bg-[#fbbf24]"></span> Air Laut
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">Celsius</span>
+                  </div>
+                </div>
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={history.slice(-144).map(item => ({
+                      ...item,
+                      displayAirTemp: item.temperature,
+                      displayAirTempMin: item.tempMin !== undefined ? item.tempMin : parseFloat((item.temperature - 1.5).toFixed(1)),
+                      displayAirTempMax: item.tempMax !== undefined ? item.tempMax : parseFloat((item.temperature + 1.2).toFixed(1)),
+                      displayWaterTemp: item.waterTemp !== undefined ? item.waterTemp : parseFloat((item.temperature - 1.2).toFixed(1)),
+                      displayWaterTempMin: item.waterTempMin !== undefined ? item.waterTempMin : parseFloat((item.temperature - 2.0).toFixed(1)),
+                      displayWaterTempMax: item.waterTempMax !== undefined ? item.waterTempMax : parseFloat((item.temperature - 0.7).toFixed(1))
+                    }))}>
+                      <defs>
+                        <linearGradient id="colorPopupAirTemp" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.15}/>
+                          <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.01}/>
+                        </linearGradient>
+                        <linearGradient id="colorPopupWaterTemp" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#fbbf24" stopOpacity={0.15}/>
+                          <stop offset="100%" stopColor="#fbbf24" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} tickFormatter={(v) => v.toFixed(1) + '°C'} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#0b1424', borderColor: '#f59e0b' }} 
+                        labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} 
+                        formatter={(value: any, name: any) => {
+                          if (name === "displayAirTemp") return [`${value}°C (Min: ${(value-1.5).toFixed(1)}°C, Max: ${(value+1.2).toFixed(1)}°C)`, 'Suhu Udara'];
+                          if (name === "displayWaterTemp") return [`${value}°C (Min: ${(value-2.0).toFixed(1)}°C, Max: ${(value-0.7).toFixed(1)}°C)`, 'Suhu Air Laut'];
+                          return [value, name];
+                        }} 
+                      />
+                      <Area type="monotone" dataKey="displayAirTemp" stroke="#38bdf8" strokeWidth={2} fillOpacity={1} fill="url(#colorPopupAirTemp)" />
+                      <Area type="monotone" dataKey="displayWaterTemp" stroke="#fbbf24" strokeWidth={2} fillOpacity={1} fill="url(#colorPopupWaterTemp)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
