@@ -4,7 +4,7 @@ import {
   Waves, MoveDown, LayoutDashboard, History, Settings, FileText,
   AlertTriangle, Play, RefreshCw, Send, CheckCircle, Database,
   Anchor, ArrowUpRight, Eye, Compass, X, ExternalLink, Maximize2, BookOpen,
-  Battery, BatteryCharging
+  Battery, BatteryCharging, BellRing, ShieldAlert, Activity
 } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { WeatherData, AlertLevel, PortInstruction } from './types';
@@ -508,6 +508,8 @@ export default function App() {
   const [selectedForecastIndex, setSelectedForecastIndex] = useState<number | null>(0);
   const [bmkgLayout, setBmkgLayout] = useState<'table' | 'cards'>('table');
   const [bmkgForecast, setBmkgForecast] = useState<BMKGForecastRow[]>(BMKG_CIWANDAN_FORECAST);
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [activeManualChapter, setActiveManualChapter] = useState<'intro' | 'realtime' | 'option' | 'database' | 'troubleshoot' | 'bmkg'>('intro');
   const [lastBmkgFetched, setLastBmkgFetched] = useState<string>('Preseed Data');
   const [bmkgSource, setBmkgSource] = useState<'static' | 'live' | 'cache' | 'stale-cache'>('static');
   const [showTelemetryPopup, setShowTelemetryPopup] = useState(false);
@@ -1752,10 +1754,17 @@ export default function App() {
     return { min, max };
   })();
 
-  // Find the last recorded wind gust from the history
-  const lastGustRecord = [...history].reverse().find(row => row.windGust !== undefined && row.windGust !== null);
-  const lastWindGustVal = lastGustRecord ? lastGustRecord.windGust : null;
-  const lastWindGustTime = lastGustRecord ? format(lastGustRecord.timestamp, 'HH:mm:ss') : null;
+  // Find the last recorded wind gust from the history, filtered to only include gusts that occurred on the same calendar day as the current clock time
+  const lastGustRecord = [...history].reverse().find(row => {
+    if (row.windGust === undefined || row.windGust === null) return false;
+    const rowDate = new Date(row.timestamp);
+    const clockDate = currentClockTime;
+    return rowDate.getFullYear() === clockDate.getFullYear() &&
+           rowDate.getMonth() === clockDate.getMonth() &&
+           rowDate.getDate() === clockDate.getDate();
+  });
+  const lastWindGustVal = lastGustRecord ? lastGustRecord.windGust : 0;
+  const lastWindGustTime = lastGustRecord ? format(lastGustRecord.timestamp, 'HH:mm:ss') : "00:00:00";
 
   // Wind Rose accumulator calculations
   const windRoseData = (() => {
@@ -2029,10 +2038,10 @@ export default function App() {
       <aside className="w-full md:w-28 bg-gradient-to-b from-[#11243b] via-[#081220] to-[#03060d] border-r border-[#00f0ff]/20 flex flex-col items-center py-8 gap-8 z-10 shadow-[6px_0_50px_rgba(0,240,255,0.08)] relative">
         <div className="absolute top-0 right-0 w-px h-full bg-gradient-to-b from-[#00f0ff]/40 via-transparent to-[#00f0ff]/15" />
         
-        {/* RMS Yacht Logo */}
-        <div className="w-16 h-16 bg-gradient-to-br from-[#00f0ff] to-[#3b82f6]/40 rounded-2xl flex flex-col items-center justify-center shadow-[0_0_35px_rgba(0,240,255,0.3)] border border-[#00f0ff]/30 cursor-pointer" onClick={() => setActiveTab('realtime')}>
-          <span className="text-bg text-black font-black text-2xl tracking-tighter leading-none">RMS</span>
-          <span className="text-xs text-white tracking-[0.2em] pl-[0.2em] font-extrabold uppercase mt-1">PRO v3</span>
+        {/* PII Instrument Logo */}
+        <div className="w-16 h-16 bg-gradient-to-br from-[#00f0ff]/20 to-[#3b82f6]/10 rounded-2xl flex flex-col items-center justify-center shadow-[0_0_25px_rgba(0,240,255,0.15)] border border-[#00f0ff]/30 cursor-pointer p-1.5 hover:border-[#00f0ff]/60 hover:shadow-[0_0_30px_rgba(0,240,255,0.3)] transition-all duration-300" onClick={() => setActiveTab('realtime')}>
+          <span className="text-white font-black text-base tracking-tighter leading-none font-sans">PII</span>
+          <span className="text-[7px] text-[#00f0ff] tracking-[0.05em] font-black uppercase mt-1 text-center leading-none">INSTRUMENT</span>
         </div>
 
         <nav className="flex flex-col gap-5 w-full px-3">
@@ -2077,10 +2086,21 @@ export default function App() {
           </button>
         </nav>
 
-        {/* Station Indicator */}
-        <div className="mt-auto text-center">
-          <div className="text-xs font-mono opacity-50 uppercase font-black text-slate-400">Station ID</div>
-          <div className="text-xs font-mono tracking-wider font-black text-[#00f0ff] mt-1 bg-white/5 px-2.5 py-1 rounded border border-[#00f0ff]/20">{config.idStation}</div>
+        {/* Station & Manual Book Indicator */}
+        <div className="mt-auto flex flex-col items-center gap-4 w-full px-2.5">
+          <button 
+            onClick={() => setIsManualModalOpen(true)}
+            className="w-full py-2 px-1 rounded-xl flex flex-col items-center gap-1.5 transition-all text-[10px] font-black uppercase tracking-wider font-sans border text-amber-400 border-amber-500/30 bg-amber-500/10 hover:bg-amber-400 hover:text-black hover:border-amber-400 cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.15)] group"
+            title="Klik untuk membuka Manual Pengoperasian & Buku Panduan"
+          >
+            <BookOpen className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+            <span className="text-center text-[9px] leading-tight">MANUAL BOOK</span>
+          </button>
+          
+          <div className="text-center w-full pt-2 border-t border-white/5">
+            <div className="text-[10px] font-mono opacity-40 uppercase font-black text-slate-400">Station ID</div>
+            <div className="text-xs font-mono tracking-wider font-black text-[#00f0ff] mt-1 bg-white/5 py-1 px-1.5 rounded border border-[#00f0ff]/20 truncate w-full block">{config.idStation}</div>
+          </div>
         </div>
       </aside>
 
@@ -2113,7 +2133,7 @@ export default function App() {
               )}
             </div>
             <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-white uppercase flex flex-wrap items-baseline gap-x-2">
-              <span>Automatic weather station</span> <span className="text-[#00f0ff] text-xs font-mono lowercase tracking-[0.05em] bg-[#00f0ff]/10 py-0.5 px-3 rounded border border-[#00f0ff]/30 font-bold">Pro RMS v3</span>
+              <span>Automatic weather station</span> <span className="text-[#00f0ff] text-xs font-mono lowercase tracking-[0.05em] bg-[#00f0ff]/10 py-0.5 px-3 rounded border border-[#00f0ff]/30 font-bold">Pro AWS</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-bold">
               Kondisi Operasional Port & Log Terminal Cuaca Maritim
@@ -3418,6 +3438,160 @@ export default function App() {
                       <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} />
                       <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#38bdf8' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
                       <Area type="monotone" dataKey="waterTemp" stroke="#38bdf8" fillOpacity={1} fill="url(#colorWaterTemp)" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+            </div>
+
+            {/* ROW 3: WIND SPEED & GUST, SEA LEVEL (PASANG SURUT), WATER pH */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+              
+              {/* Wind Speed & Gust Line Chart */}
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3 shadow-xl">
+                <div className="text-xs uppercase font-extrabold text-amber-500 tracking-[0.2em] font-sans pb-2 border-b border-white/5 flex items-center justify-between">
+                  <span>📈 WIND SPEED & GUST / ANGIN (m/s)</span>
+                  <span className="text-[10px] font-mono text-slate-500">REALTIME</span>
+                </div>
+                <div className="h-[210px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={analystLogs}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 'auto']} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#fbbf24' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
+                      <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'monospace' }} />
+                      <Line type="monotone" dataKey="windSpeed" name="Avg Speed (m/s)" stroke="#fbbf24" strokeWidth={2.5} dot={false} />
+                      <Line type="monotone" dataKey="windSpeedMax" name="Max Gust (m/s)" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="3 3" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Sea Level / Tidal (Pasang Surut) Area Chart */}
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3 shadow-xl">
+                <div className="text-xs uppercase font-extrabold text-sky-400 tracking-[0.2em] font-sans pb-2 border-b border-white/5 flex items-center justify-between">
+                  <span>📈 TIDAL LEVEL / PASANG SURUT (m)</span>
+                  <span className="text-[10px] font-mono text-slate-500">SEA LEVEL</span>
+                </div>
+                <div className="h-[210px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={analystLogs}>
+                      <defs>
+                        <linearGradient id="colorSeaLevel" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.4}/>
+                          <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tickFormatter={(val) => (val / 100).toFixed(1)} tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#0b1424', borderColor: '#38bdf8' }} 
+                        labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')}
+                        formatter={(value: any) => [`${(value / 100).toFixed(3)} m`, 'Sea Level']}
+                      />
+                      <Area type="monotone" dataKey="seaLevel" stroke="#38bdf8" fillOpacity={1} fill="url(#colorSeaLevel)" strokeWidth={2.5} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Water pH Area Chart */}
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3 shadow-xl">
+                <div className="text-xs uppercase font-extrabold text-pink-400 tracking-[0.2em] font-sans pb-2 border-b border-white/5 flex items-center justify-between">
+                  <span>📈 WATER pH / KUALITAS AIR</span>
+                  <span className="text-[10px] font-mono text-slate-500">pH INDEX</span>
+                </div>
+                <div className="h-[210px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={analystLogs}>
+                      <defs>
+                        <linearGradient id="colorPh" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f472b6" stopOpacity={0.4}/>
+                          <stop offset="100%" stopColor="#f472b6" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[6.0, 9.0]} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#f472b6' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
+                      <Area type="monotone" dataKey="waterPh" stroke="#f472b6" fillOpacity={1} fill="url(#colorPh)" strokeWidth={2.5} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+            </div>
+
+            {/* ROW 4: SOLAR RADIATION, RAINFALL, BATTERY VOLTAGE */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+              
+              {/* Solar Radiation Area Chart */}
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3 shadow-xl">
+                <div className="text-xs uppercase font-extrabold text-yellow-500 tracking-[0.2em] font-sans pb-2 border-b border-white/5 flex items-center justify-between">
+                  <span>📈 SOLAR RADIATION (W/m²)</span>
+                  <span className="text-[10px] font-mono text-slate-500">SUNLIGHT</span>
+                </div>
+                <div className="h-[210px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={analystLogs}>
+                      <defs>
+                        <linearGradient id="colorSolar" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#eab308" stopOpacity={0.4}/>
+                          <stop offset="100%" stopColor="#eab308" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 'auto']} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#eab308' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
+                      <Area type="monotone" dataKey="solarRadiation" stroke="#eab308" fillOpacity={1} fill="url(#colorSolar)" strokeWidth={2.5} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Rainfall Bar Chart */}
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3 shadow-xl">
+                <div className="text-xs uppercase font-extrabold text-sky-400 tracking-[0.2em] font-sans pb-2 border-b border-white/5 flex items-center justify-between">
+                  <span>📊 RAINFALL INTENSITY / HUJAN (mm)</span>
+                  <span className="text-[10px] font-mono text-slate-500">ACCUMULATION</span>
+                </div>
+                <div className="h-[210px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analystLogs}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 'auto']} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#38bdf8' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
+                      <Bar dataKey="rainfall" name="Rainfall (mm)" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Battery Voltage Area Chart */}
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3 shadow-xl">
+                <div className="text-xs uppercase font-extrabold text-emerald-400 tracking-[0.2em] font-sans pb-2 border-b border-white/5 flex items-center justify-between">
+                  <span>📈 SYSTEM BATTERY VOLTAGE (V)</span>
+                  <span className="text-[10px] font-mono text-slate-500">HEALTH INDICATOR</span>
+                </div>
+                <div className="h-[210px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={analystLogs}>
+                      <defs>
+                        <linearGradient id="colorBatt" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.4}/>
+                          <stop offset="100%" stopColor="#10b981" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[10, 15]} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#10b981' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
+                      <Area type="monotone" dataKey="battery" stroke="#10b981" fillOpacity={1} fill="url(#colorBatt)" strokeWidth={2.5} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -5970,6 +6144,1120 @@ header("Content-Type: application/json; charset=UTF-8");
 
       </main>
 
+      {/* MANUAL BOOK MODAL / USER GUIDE OVERLAY */}
+      {isManualModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in font-sans">
+          <div className="bg-[#07111e] border-2 border-[#00f0ff]/30 w-full max-w-6xl h-[85vh] rounded-3xl shadow-[0_0_60px_rgba(0,240,255,0.3)] flex flex-col overflow-hidden relative text-slate-100">
+            
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-[#11243b] to-[#081220] px-6 py-4 border-b border-[#00f0ff]/20 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-500/15 rounded-lg border border-amber-500/30">
+                  <BookOpen className="w-6 h-6 text-amber-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black tracking-wider uppercase text-white">Manual Pengoperasian & Buku Panduan</h2>
+                  <p className="text-[10px] font-mono text-[#00f0ff] uppercase tracking-widest mt-0.5">AUTOMATIC WEATHER STATION (AWS)</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsManualModalOpen(false)}
+                className="p-1.5 rounded-lg border border-white/10 hover:border-red-500/40 text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer flex items-center justify-center"
+                title="Tutup Manual Book"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+              
+              {/* Modal Left Sidebar Index */}
+              <div className="w-full md:w-64 bg-[#050b14] border-r border-white/5 p-4 flex flex-col gap-1.5 overflow-y-auto shrink-0">
+                <div className="text-[10px] font-mono text-slate-500 uppercase tracking-widest px-2 mb-2 font-bold">Daftar Bab & Panduan</div>
+                
+                <button 
+                  onClick={() => setActiveManualChapter('intro')}
+                  className={`w-full text-left py-2.5 px-3 rounded-lg text-xs font-bold transition-all border flex items-center gap-2.5 ${activeManualChapter === 'intro' ? 'bg-[#00f0ff]/10 text-[#00f0ff] border-[#00f0ff]/30' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
+                >
+                  <span className="font-mono text-[9px] bg-white/5 px-1.5 py-0.5 rounded text-slate-400">01</span>
+                  <span>Pendahuluan & Overview</span>
+                </button>
+
+                <button 
+                  onClick={() => setActiveManualChapter('realtime')}
+                  className={`w-full text-left py-2.5 px-3 rounded-lg text-xs font-bold transition-all border flex items-center gap-2.5 ${activeManualChapter === 'realtime' ? 'bg-[#00f0ff]/10 text-[#00f0ff] border-[#00f0ff]/30' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
+                >
+                  <span className="font-mono text-[9px] bg-white/5 px-1.5 py-0.5 rounded text-slate-400">02</span>
+                  <span>Dashboard & Analisis</span>
+                </button>
+
+                <button 
+                  onClick={() => setActiveManualChapter('option')}
+                  className={`w-full text-left py-2.5 px-3 rounded-lg text-xs font-bold transition-all border flex items-center gap-2.5 ${activeManualChapter === 'option' ? 'bg-[#00f0ff]/10 text-[#00f0ff] border-[#00f0ff]/30' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
+                >
+                  <span className="font-mono text-[9px] bg-white/5 px-1.5 py-0.5 rounded text-slate-400">03</span>
+                  <span>Setting Hardware & Moxa</span>
+                </button>
+
+                <button 
+                  onClick={() => setActiveManualChapter('database')}
+                  className={`w-full text-left py-2.5 px-3 rounded-lg text-xs font-bold transition-all border flex items-center gap-2.5 ${activeManualChapter === 'database' ? 'bg-[#00f0ff]/10 text-[#00f0ff] border-[#00f0ff]/30' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
+                >
+                  <span className="font-mono text-[9px] bg-white/5 px-1.5 py-0.5 rounded text-slate-400">04</span>
+                  <span>Download Data & Logs</span>
+                </button>
+
+                <button 
+                  onClick={() => setActiveManualChapter('bmkg')}
+                  className={`w-full text-left py-2.5 px-3 rounded-lg text-xs font-bold transition-all border flex items-center gap-2.5 ${activeManualChapter === 'bmkg' ? 'bg-[#00f0ff]/10 text-[#00f0ff] border-[#00f0ff]/30' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
+                >
+                  <span className="font-mono text-[9px] bg-white/5 px-1.5 py-0.5 rounded text-slate-400">05</span>
+                  <span>Prakiraan BMKG Maritim</span>
+                </button>
+
+                <button 
+                  onClick={() => setActiveManualChapter('troubleshoot')}
+                  className={`w-full text-left py-2.5 px-3 rounded-lg text-xs font-bold transition-all border flex items-center gap-2.5 ${activeManualChapter === 'troubleshoot' ? 'bg-[#00f0ff]/10 text-[#00f0ff] border-[#00f0ff]/30' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
+                >
+                  <span className="font-mono text-[9px] bg-white/5 px-1.5 py-0.5 rounded text-slate-400">06</span>
+                  <span>Troubleshooting & Alarm</span>
+                </button>
+
+                {/* Integration status badge */}
+                <div className="mt-auto pt-4 border-t border-white/5 flex flex-col gap-2">
+                  <div className="text-[9px] font-mono text-slate-500 uppercase tracking-widest text-center font-bold">INTEGRITAS DAEMON</div>
+                  <div className="bg-slate-950 p-2.5 rounded-lg border border-white/5 space-y-1.5 text-[9px] font-mono">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">MOXA TCP IN:</span>
+                      <span className="text-emerald-400 font-bold">ONLINE</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">DB STORAGE:</span>
+                      <span className="text-teal-400 font-bold">SQL DATABASE</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">ALARM STATUS:</span>
+                      <span className="text-amber-400 font-bold">MONITORED</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Modal Right Content Pane */}
+              <div className="flex-1 p-6 md:p-8 overflow-y-auto bg-gradient-to-b from-[#07111e] to-[#040a12] space-y-6">
+                
+                {activeManualChapter === 'intro' && (
+                  <div className="space-y-6">
+                    <div className="bg-gradient-to-r from-blue-950/40 to-transparent p-5 rounded-2xl border border-blue-500/20">
+                      <h3 className="text-base font-black text-white mb-2">01. PENDAHULUAN & OVERVIEW SYSTEM</h3>
+                      <p className="text-xs text-slate-300 leading-relaxed mb-3">
+                        Sistem <strong>Automatic Weather Station (AWS)</strong> merupakan konsol kontrol terintegrasi yang dirancang khusus untuk memonitor parameter meteorologi fisik dan oseanografi di dermaga pelabuhan maritim secara real-time. Sistem ini menghubungkan sensor-sensor lapangan melalui hardware gateway <strong>Moxa Router (TCP/IP atau Serial RS232)</strong> dan mengamankan perekaman log data ke dalam engine database terintegrasi secara otomatis.
+                      </p>
+                      <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3.5 space-y-1">
+                        <span className="text-[#00f0ff] font-bold text-xs block">🖥️ AKSES WEB-BASED (KONEKTIVITAS JARINGAN LOKAL)</span>
+                        <p className="text-[11px] text-slate-300 leading-relaxed">
+                          Sistem aplikasi ini sepenuhnya <strong>berbasis web (web-based client-server)</strong>, yang berarti aplikasi dapat dipanggil, diakses, dan dimonitor secara instan <strong>di mana saja dari komputer, laptop, tablet, atau smartphone lain dalam 1 jaringan (LAN/Wi-Fi)</strong> yang sama. Anda cukup membuka browser dan mengetik alamat IP host server monitoring pelabuhan tanpa perlu melakukan instalasi software tambahan di setiap perangkat klien.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold text-[#00f0ff] uppercase tracking-widest">📋 DAFTAR MENU UTAMA SISTEM</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-1.5">
+                          <div className="flex items-center gap-2 text-xs font-bold text-white uppercase">
+                            <span className="w-2 h-2 rounded bg-cyan-400"></span> REALTIME MONITORING
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Memonitor sensor suhu udara aktual, kelembaban, radiasi matahari, curah hujan, pH air, serta visualisasi kompas dinamis wind vector & orientasi sandar kapal.
+                          </p>
+                        </div>
+
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-1.5">
+                          <div className="flex items-center gap-2 text-xs font-bold text-white uppercase">
+                            <span className="w-2 h-2 rounded bg-amber-400"></span> ANALYST SYSTEM
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Menghitung perkiraan cuaca dan ramalan kecepatan angin hingga 60 menit kedepan, serta menyajikan visualisasi data wind rose untuk memetakan arah dominan hembusan angin dermaga.
+                          </p>
+                        </div>
+
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-1.5">
+                          <div className="flex items-center gap-2 text-xs font-bold text-white uppercase">
+                            <span className="w-2 h-2 rounded bg-emerald-400"></span> DATABASE ENGINE
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Pusat logs data. Menyimpan kompresi rata-rata data meteorologi berskala 10 menit (standar WMO). Memiliki fasilitas filter periode log, pencarian, dan pengeksporan file laporan CSV.
+                          </p>
+                        </div>
+
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-1.5">
+                          <div className="flex items-center gap-2 text-xs font-bold text-white uppercase">
+                            <span className="w-2 h-2 rounded bg-purple-400"></span> OPTION / CONFIG
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Mengkonfigurasi alamat IP Moxa, port, baudrate, ID stasiun, sudut kelurusan dermaga (pier angle), batas ambang alarm bahaya, serta pemetaan indeks kolom sensor (mapping).
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-white/5 pt-4">
+                      <div className="text-xs font-bold text-amber-400 mb-3 uppercase tracking-wider">🖥️ BENTUK INTEGRASI ANTARMUKA LAYAR UTAMA</div>
+                      {/* CSS Mockup of Realtime Tab to represent user screen */}
+                      <div className="border border-white/10 rounded-2xl bg-slate-950/60 p-4 space-y-3 shadow-inner">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                          <span className="text-xs font-mono font-bold text-[#00f0ff] uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                            GAMBAR 1: ANTARMUKA DASHBOARD UTAMA (REALTIME VIEW)
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">AWS SYSTEM</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-12 gap-3 aspect-[1.8/1] text-[8px] font-mono text-slate-400">
+                          {/* Left panel: Sensors */}
+                          <div className="col-span-3 bg-[#0b1424] border border-white/5 rounded-lg p-2 flex flex-col justify-between">
+                            <div>
+                              <div className="font-bold text-white border-b border-white/5 pb-1 mb-1">🌡️ THERMAL</div>
+                              <div className="bg-white/5 rounded p-1 text-center">
+                                <div className="text-xs text-emerald-400 font-bold">26.0 °C</div>
+                                <div className="text-[7px]">Suhu Aktual</div>
+                              </div>
+                            </div>
+                            <div className="mt-1">
+                              <div className="font-bold text-white border-b border-white/5 pb-1 mb-1">💧 HYGRO & SOLAR</div>
+                              <div className="space-y-0.5">
+                                <div className="flex justify-between bg-white/5 p-0.5 rounded"><span>Hum:</span><span className="text-white">67 %</span></div>
+                                <div className="flex justify-between bg-white/5 p-0.5 rounded"><span>Rad:</span><span className="text-amber-400">116 W/m²</span></div>
+                              </div>
+                            </div>
+                            <div className="mt-1">
+                              <div className="font-bold text-white border-b border-white/5 pb-1 mb-1">🧪 WATER PH</div>
+                              <div className="flex justify-between bg-white/5 p-0.5 rounded items-center">
+                                <span>pH:</span><span className="text-pink-400 font-bold">7.64 IDEAL</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Center panel: Wind Compass Circle */}
+                          <div className="col-span-6 bg-[#0b1424] border border-white/5 rounded-lg p-2 flex flex-col items-center justify-between">
+                            <div className="font-bold text-white text-center w-full uppercase">🧭 Wind Vector & Port Orientation</div>
+                            <div className="w-20 h-20 rounded-full border-2 border-dashed border-[#00f0ff]/20 flex items-center justify-center relative my-1">
+                              <div className="absolute top-0 text-[7px] text-[#00f0ff] font-bold">N</div>
+                              <div className="absolute bottom-0 text-[7px] text-slate-500">S</div>
+                              <div className="w-1.5 h-12 bg-gradient-to-b from-[#00ff66]/70 to-transparent rounded-full rotate-[45deg] flex items-center justify-center">
+                                <div className="w-1 h-1 rounded-full bg-[#00ff66]"></div>
+                              </div>
+                              <div className="absolute text-center bg-slate-950 px-1.5 py-0.5 rounded border border-white/10 text-[9px] text-[#00ff66] font-bold">
+                                4.2 m/s
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 w-full text-center text-[7px]">
+                              <div className="bg-white/5 p-0.5 rounded">
+                                <span>REL WIND:</span> <strong className="text-blue-400">41° Azimuth</strong>
+                              </div>
+                              <div className="bg-white/5 p-0.5 rounded">
+                                <span>ARAH:</span> <strong className="text-amber-400">86° (E)</strong>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Right panel: Wind stats */}
+                          <div className="col-span-3 bg-[#0b1424] border border-white/5 rounded-lg p-2 flex flex-col justify-between">
+                            <div>
+                              <div className="font-bold text-white border-b border-white/5 pb-1 mb-1 uppercase">📊 Wind Speeds</div>
+                              <div className="space-y-0.5">
+                                <div className="bg-white/5 p-0.5 rounded flex justify-between"><span>Max Spd:</span><span className="text-white">14.7 m/s</span></div>
+                                <div className="bg-white/5 p-0.5 rounded flex justify-between"><span>Min Spd:</span><span className="text-white">2.0 m/s</span></div>
+                              </div>
+                            </div>
+                            <div className="mt-1">
+                              <div className="font-bold text-white border-b border-white/5 pb-1 mb-1 uppercase">⚡ Recent Vector</div>
+                              <div className="space-y-0.5 text-[7px]">
+                                <div className="flex justify-between border-b border-white/5"><span>14:47</span><span className="text-white">W 9.6 m/s</span></div>
+                                <div className="flex justify-between border-b border-white/5"><span>14:47</span><span className="text-white">N 8.2 m/s</span></div>
+                                <div className="flex justify-between border-b border-white/5"><span>14:47</span><span className="text-white">E 4.2 m/s</span></div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-400 italic">
+                          * Tampilan skema dashboard realtime di atas mencakup seluruh widget pembacaan live sesuai screenshot AWS OS Connection.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeManualChapter === 'realtime' && (
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <h3 className="text-base font-black text-white uppercase">02. MENU REALTIME & HISTORICAL ANALYST</h3>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        Menu ini berfungsi untuk memantau status cuaca laut saat ini (real-time) dan melihat tren analitis historis guna menjamin keselamatan operasional pelayaran kapal dan dermaga.
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* Port Orientation Utility Card */}
+                      <div className="bg-[#0b1424] p-5 rounded-2xl border border-blue-500/20 space-y-3">
+                        <div className="flex items-center gap-2 text-xs font-bold text-[#00f0ff] uppercase tracking-wider">
+                          <Compass className="w-5 h-5 text-[#00f0ff]" />
+                          <span>🧭 KEGUNAAN WIDGET "LIVE WIND VECTOR & PORT ORIENTATION"</span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 leading-relaxed">
+                          Widget kompas di tengah layar utama mengintegrasikan <strong>Arah Tiupan Angin Absolut</strong> dengan <strong>Kelurusan Fisik Dermaga (Pier Alignment / Angle)</strong>.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] text-slate-400">
+                          <div className="space-y-1.5">
+                            <strong className="text-white block">1. Kalibrasi Sudut Dermaga (Pier Alignment)</strong>
+                            Sudut dermaga dikonfigurasi melalui menu <span className="text-purple-400">Option</span> (misal: <em>45° Clockwise</em>). Kompas secara dinamis memutar garis lintang hijau yang berlabel <strong className="text-emerald-400">PORT (Kiri)</strong> dan <strong className="text-emerald-400">STARBOARD (Kanan)</strong>. Ini mensimulasikan orientasi lambung kapal saat sedang sandar sejajar dermaga.
+                          </div>
+                          <div className="space-y-1.5">
+                            <strong className="text-white block">2. Penghitungan Relative Wind Angle</strong>
+                            Sistem secara real-time menghitung <strong>Relative Wind (Suhu/Sudut Angin Relatif)</strong> terhadap badan kapal (misal: <em>41° Azimuth</em>). Ini sangat krusial karena memberi tahu petugas pandu pelabuhan dari sudut sebelah mana angin menghantam dinding kapal saat proses bersandar.
+                          </div>
+                        </div>
+                        <div className="bg-slate-950 p-3 rounded-lg border border-white/5 text-[11px] text-amber-300">
+                          <strong>⚠️ Manfaat Operasional Utama:</strong> Mencegah bahaya kecelakaan kapal membentur beton dermaga (docking collision). Angin samping kencang (crosswind) dari arah laut lepas sangat berbahaya; dengan widget ini, kapten kapal dan operator pelabuhan dapat langsung mengantisipasi gaya dorong samping angin pada struktur kapal secara instan.
+                        </div>
+                      </div>
+
+                      {/* Wind Speed Warnings Detail Card */}
+                      <div className="bg-[#0b1424] p-5 rounded-2xl border border-yellow-500/20 space-y-3">
+                        <div className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-wider">
+                          <ShieldAlert className="w-5 h-5 text-amber-400" />
+                          <span>🚨 WARNING BATAS ANGIN (WIND STATS & GUST EVENTS)</span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 leading-relaxed">
+                          Parameter peringatan kecepatan angin dikelola langsung melalui indikator status di bagian kanan bawah dashboard realtime.
+                        </p>
+                        <ul className="text-[11px] text-slate-300 space-y-2 list-disc pl-5">
+                          <li>
+                            <strong>Live Wind Speed Limits:</strong> Widget ini memantau ambang batas kecepatan angin riil. Terbagi menjadi <strong className="text-cyan-400">WIND MAX</strong> (kecepatan puncak tiupan angin aktual) dan <strong className="text-cyan-400">WIND MIN</strong> (kecepatan hembusan terendah) dalam rentang sampling berjalan.
+                          </li>
+                          <li>
+                            <strong>Last Gust Occurrence Event:</strong> Angin kencang mendadak (Gust) adalah ancaman terbesar bagi kestabilan kapal dan bongkar muat kontainer. Sistem mencatat secara otomatis kapan terjadinya lonjakan hembusan angin ekstrem (kecepatan Gust dan pencatatan Waktu Kejadian / Time of Gust).
+                          </li>
+                          <li>
+                            <strong>Mengapa Warning Angin Ini Sangat Penting?</strong>
+                            <ul className="list-circle pl-5 mt-1 space-y-1 text-slate-400">
+                              <li><strong>Batas Aman Crane:</strong> Alat bongkar muat pelabuhan (Gantry Crane) wajib menghentikan operasional jika hembusan angin melebihi 15 m/s karena berisiko roboh atau mematahkan boom penopang.</li>
+                              <li><strong>Kestabilan Mooring:</strong> Tali penambat kapal di dermaga bisa putus jika angin kencang berdurasi lama menghantam lambung kapal secara tegak lurus.</li>
+                            </ul>
+                          </li>
+                        </ul>
+                      </div>
+
+                      {/* Other widgets explanation */}
+                      <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2">
+                        <h4 className="text-xs font-bold text-white uppercase tracking-wider">📊 PARAMETER ANALISIS LAINNYA DI DASHBOARD</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] text-slate-400">
+                          <div className="bg-slate-950/40 p-3 rounded-lg space-y-1">
+                            <span className="text-white font-bold block">1. Wind Rose (Distribusi Arah Angin)</span>
+                            Grafik jaring laba-laba yang memetakan akumulasi arah tiupan angin selama 24 jam terakhir. Digunakan oleh ahli meteorologi untuk merancang tata letak dermaga baru berdasarkan hembusan angin dominan tahunan.
+                          </div>
+                          <div className="bg-slate-950/40 p-3 rounded-lg space-y-1">
+                            <span className="text-white font-bold block">2. Wind Force Forecast (Tren Prediksi 60m)</span>
+                            Grafik garis dinamis yang memprediksi kecepatan angin ke depan. Garis putus-putus pada grafik menandakan estimasi matematis tren peningkatan/penurunan guna membantu kesiapan darurat tim evakuasi dermaga.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-white/5 pt-4">
+                      <div className="text-xs font-bold text-amber-400 mb-3 uppercase tracking-wider">📊 BENTUK INTEGRASI ANTARMUKA LAYAR ANALYST</div>
+                      {/* CSS Mockup of Analyst Tab to represent user screen */}
+                      <div className="border border-white/10 rounded-2xl bg-slate-950/60 p-4 space-y-3 shadow-inner">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                          <span className="text-xs font-mono font-bold text-[#00f0ff] uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                            GAMBAR 2: ANTARMUKA ANALIS HISTORIS (ANALYST TAB)
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">ANALYST TAB</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-12 gap-3 aspect-[1.8/1] text-[8px] font-mono text-slate-400">
+                          {/* Left: Trend Graph */}
+                          <div className="col-span-8 bg-[#0b1424] border border-white/5 rounded-lg p-2 space-y-2">
+                            <div className="font-bold text-white">📈 WIND FORCE FORECAST & TRENDS (M/S)</div>
+                            <div className="h-20 bg-slate-950 rounded border border-white/5 relative flex items-end p-1 overflow-hidden">
+                              <svg className="w-full h-full text-amber-500/10" viewBox="0 0 100 30" preserveAspectRatio="none">
+                                <path d="M0,25 Q15,25 30,22 T60,8 T90,9 L100,9 L100,30 L0,30 Z" fill="currentColor" />
+                                <path d="M0,25 Q15,25 30,22 T60,8 T90,9" fill="none" stroke="#fbbf24" strokeWidth="1" />
+                                <path d="M60,8 Q70,8 80,9 T100,10" fill="none" stroke="#fbbf24" strokeWidth="1" strokeDasharray="1,1" />
+                              </svg>
+                              <div className="absolute top-1 left-2 text-[6px] text-[#00f0ff] font-bold">10-Minute Step Forecast</div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-center text-[7px]">
+                              <div className="bg-slate-950/50 p-1 rounded"><span>Air Temp:</span> <strong className="text-white">28.5 °C</strong></div>
+                              <div className="bg-slate-950/50 p-1 rounded"><span>Humidity:</span> <strong className="text-white">67 %</strong></div>
+                              <div className="bg-slate-950/50 p-1 rounded"><span>Solar Rad:</span> <strong className="text-white">433 W/m²</strong></div>
+                            </div>
+                          </div>
+                          {/* Right: Mini Wind Rose */}
+                          <div className="col-span-4 bg-[#0b1424] border border-white/5 rounded-lg p-2 flex flex-col items-center justify-between">
+                            <div className="font-bold text-white text-center">🕸️ WIND ROSE (24H)</div>
+                            <div className="w-16 h-16 rounded-full border border-[#00f0ff]/10 relative flex items-center justify-center my-1">
+                              <div className="absolute w-full h-px bg-white/5"></div>
+                              <div className="absolute h-full w-px bg-white/5"></div>
+                              <div className="w-8 h-8 bg-amber-500/40 rounded-full rotate-45 border border-amber-400"></div>
+                            </div>
+                            <div className="bg-slate-950 p-1 rounded w-full text-center">
+                              <div className="text-red-400 font-bold text-[8px]">38% Risk Level</div>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-400 italic">
+                          * Tampilan skema chart tren cuaca dan wind rose di atas mencakup seluruh widget sesuai screenshot Analyst Tab.
+                        </p>
+                      </div>
+
+                      {/* Detail of 11 Sensor Analyst Charts */}
+                      <div className="bg-[#0b1424] p-5 rounded-2xl border border-teal-500/20 space-y-3">
+                        <div className="flex items-center gap-2 text-xs font-bold text-teal-400 uppercase tracking-wider">
+                          <Activity className="w-5 h-5 text-teal-400" />
+                          <span>📋 DAFTAR LENGKAP 11 GRAFIK & TAMPILAN SENSOR HISTORIS</span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 leading-relaxed">
+                          Menu <strong>Historical Analyst</strong> mengintegrasikan seluruh pembacaan telemetri fisik dari stasiun AWS ke dalam 11 panel visualisasi grafik interaktif murni (berbasis Recharts):
+                        </p>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-[11px] text-slate-300">
+                          <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1">
+                            <span className="text-[#00f0ff] font-bold block">1. Wind Force Forecast & Trends (Area Chart)</span>
+                            Grafik hibrida yang memadukan data kecepatan angin riil 24 jam terakhir (garis kuning stabil) dengan kurva prediksi matematis 60 menit ke depan (garis merah putus-putus) dengan interval per 10 menit.
+                          </div>
+                          
+                          <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1">
+                            <span className="text-amber-400 font-bold block">2. Wind Rose 24H Distribution (Polar Spatial SVG)</span>
+                            Grafik jaring laba-laba spasial yang memetakan arah sebaran embusan angin dominan lengkap dengan indeks kecepatan dalam satuan knot (kt) untuk memantau ancaman badai kencang (storm gale).
+                          </div>
+
+                          <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1">
+                            <span className="text-[#38bdf8] font-bold block">3. Air Temperature / Suhu Udara (°C)</span>
+                            Grafik area dinamis yang memvisualisasikan siklus fluktuasi suhu udara laut sepanjang siklus 24 jam untuk mendeteksi perubahan suhu lingkungan ekstrem secara dini.
+                          </div>
+
+                          <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1">
+                            <span className="text-[#22c55e] font-bold block">4. Relative Humidity / Kelembaban Nisbi (%)</span>
+                            Grafik tren kelembaban udara sekitar dermaga pelabuhan. Nilai yang terlalu tinggi berpotensi memicu timbulnya kabut laut (sea fog) yang mengganggu navigasi visual kapal.
+                          </div>
+
+                          <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1">
+                            <span className="text-[#38bdf8] font-bold block">5. Water Temperature / Suhu Air (°C)</span>
+                            Mengukur suhu air permukaan di dermaga (Sea Surface Temperature). Sangat krusial untuk kapal-kapal tanker kimia atau operasional muatan sensitif di pelabuhan.
+                          </div>
+
+                          <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1">
+                            <span className="text-amber-500 font-bold block">6. Wind Speed & Gust / Kecepatan & Hembusan Angin (m/s)</span>
+                            Grafik garis ganda yang membandingkan secara langsung hembusan angin rata-rata (Average Wind Speed) dengan hembusan mendadak (Maximum Gust) guna mencegah risiko putusnya tali penambat kapal.
+                          </div>
+
+                          <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1">
+                            <span className="text-sky-400 font-bold block">7. Tidal Level / Pasang Surut Air Laut (m)</span>
+                            Menggunakan sensor sonar ultra-presisi untuk merekam naik-turunnya permukaan air laut dermaga (Pasut) secara akurat dalam satuan meter. Sangat menentukan jendela waktu aman kapal kargo bersandar (safe draft).
+                          </div>
+
+                          <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1">
+                            <span className="text-pink-400 font-bold block">8. Water pH / Tingkat Keasaman Air Laut</span>
+                            Menampilkan parameter pH air di area dermaga guna memantau kualitas air pelabuhan serta memitigasi korosi lambung kapal baja akibat keasaman air laut yang tinggi.
+                          </div>
+
+                          <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1">
+                            <span className="text-yellow-500 font-bold block">9. Solar Radiation / Radiasi Matahari (W/m²)</span>
+                            Mengukur tingkat intensitas sinar matahari langsung. Digunakan untuk memantau performa pengisian energi solar panel sistem AWS di lapangan pelabuhan.
+                          </div>
+
+                          <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1">
+                            <span className="text-cyan-400 font-bold block">10. Rainfall Intensity / Akumulasi Curah Hujan (mm)</span>
+                            Grafik batang (Bar Chart) presisi tinggi yang merekam volume curah hujan kumulatif per interval pencatatan untuk memicu peringatan visibilitas buruk kapal.
+                          </div>
+
+                          <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1 col-span-1 md:col-span-2">
+                            <span className="text-emerald-400 font-bold block">11. System Battery Voltage / Tegangan Baterai Logger (V)</span>
+                            Grafik pemantau daya baterai internal logger fisik Moxa. Menunjukkan stabilitas asupan tegangan 12V dari panel surya pelabuhan guna menjamin kelangsungan transmisi data tanpa henti (non-stop telemetry stream).
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-950 p-3 rounded-lg border border-teal-500/10 text-[11px] text-slate-300 leading-relaxed">
+                          💡 <strong>Analisis Terpadu:</strong> Dengan perpaduan 11 sensor lengkap di atas, tim analis pelabuhan dapat dengan mudah mengekspor laporan korelasi cuaca langsung ke format file <strong>Excel/CSV</strong> melalui sub-menu yang terintegrasi di bagian bawah halaman.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeManualChapter === 'option' && (
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <h3 className="text-base font-black text-white uppercase">03. KONFIGURASI LENGKAP HARDWARE, CLOUD & SENSOR (MENU OPTION)</h3>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        Halaman <strong>Option / Settings</strong> merupakan pusat konfigurasi utama untuk menghubungkan konsol visualisasi dengan perangkat keras fisik AWS, mengatur sinkronisasi data awan (cloud), mengkalibrasi posisi fisik dermaga, serta mengatur ambang batas peringatan dini (alarm thresholds).
+                      </p>
+                    </div>
+
+                    {/* Section 1: Data Input Methods */}
+                    <div className="bg-[#0b1424] p-5 rounded-2xl border border-amber-500/20 space-y-3">
+                      <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                        🔌 1. PILIHAN KONEKSI DATA MASUK (SERIAL COM vs TCP/IP MOXA)
+                      </h4>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Sistem AWS mendukung fleksibilitas asupan telemetry melalui beberapa saluran pengiriman fisik yang dapat dipilih langsung pada menu dropdown <strong>Logger Mode</strong>:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] text-slate-300">
+                        <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1.5">
+                          <span className="text-[#00f0ff] font-bold block">A. SERIAL PORT COM (Direct Cable RS232/RS485)</span>
+                          Digunakan jika komputer monitoring terhubung secara fisik langsung ke data logger lapangan melalui kabel serial.
+                          <ul className="list-disc pl-4 mt-1 space-y-1 text-slate-400">
+                            <li><strong>Web Serial API Integration:</strong> Sistem memanfaatkan antarmuka native browser modern untuk membuka koneksi port tanpa software tambahan.</li>
+                            <li><strong>Baudrate & COM:</strong> Konfigurasikan nomor port komunikasi (misal: <code>COM3</code> atau <code>ttyUSB0</code>) dan Baudrate (paling umum <code>9600</code> bps atau <code>115200</code> bps).</li>
+                            <li><strong>Tombol Koneksi:</strong> Klik <span className="text-emerald-400">CONNECT COM PORT</span> untuk mengaktifkan pemindaian. Indikator port akan menyala hijau cerah saat aktif.</li>
+                          </ul>
+                        </div>
+
+                        <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1.5">
+                          <span className="text-emerald-400 font-bold block">B. TCP/IP GATEWAY MOXA (Ethernet / Wireless Router)</span>
+                          Digunakan saat stasiun AWS di luar lapangan mentransmisikan data serial RS485 melalui konverter serial-ke-Ethernet Moxa NPort.
+                          <ul className="list-disc pl-4 mt-1 space-y-1 text-slate-400">
+                            <li><strong>IP & Port Gateway:</strong> Tentukan IP Address Moxa (IP default: <code>192.168.127.254</code>) beserta Socket Port tujuan (umumnya <code>4001</code> atau <code>10001</code>).</li>
+                            <li><strong>Moxa Web Daemon:</strong> Komunikasi data dikawal oleh background daemon Websocket lokal (default pada port <code>8080</code>).</li>
+                            <li><strong>CORS & HTTPS Warn:</strong> Jika server dibuka melalui protokol HTTPS (Secure), browser akan memblokir koneksi HTTP tidak aman ke localhost. Pastikan Anda mengaktifkan izin <em>Insecure Content / Allow</em> di setingan privasi browser Anda.</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 2: Alarm Thresholds */}
+                    <div className="bg-[#0b1424] p-5 rounded-2xl border border-blue-500/20 space-y-3">
+                      <h4 className="text-xs font-bold text-[#00f0ff] uppercase tracking-wider flex items-center gap-1.5">
+                        🧪 2. SETTING ALARM THRESHOLDS (BATAS AMBANG AMAN SENSOR)
+                      </h4>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Untuk memicu fungsi peringatan visual di layar utama dan mengaktifkan kilatan oranye/merah, pengguna wajib mengonfigurasi batas-batas parameter aman di bagian bawah form settings:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] text-slate-300">
+                        <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1.5">
+                          <span className="text-pink-400 font-bold block">A. Water pH Alarm Limits</span>
+                          Menentukan rentang derajat keasaman air laut pelabuhan yang aman guna melindungi integritas korosif lambung kapal serta ekosistem sekitar dermaga.
+                          <ul className="list-disc pl-4 mt-1 space-y-1 text-slate-400">
+                            <li><strong>Min Safe pH (Acidic):</strong> Standar disetel pada angka <strong className="text-pink-400">6.5</strong>. Pembacaan di bawah ini memicu alarm asam.</li>
+                            <li><strong>Max Safe pH (Alkaline):</strong> Standar disetel pada angka <strong className="text-pink-400">8.5</strong>. Pembacaan di atas ini menandakan pencemaran basa.</li>
+                          </ul>
+                        </div>
+
+                        <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1.5">
+                          <span className="text-sky-400 font-bold block">B. Rainfall Warning Settings</span>
+                          Menentukan curah hujan maksimal yang ditoleransi sebelum kapten kapal mengalami gangguan pandangan (reduced visibility).
+                          <ul className="list-disc pl-4 mt-1 space-y-1 text-slate-400">
+                            <li><strong>Heavy Rain Threshold (mm):</strong> Nilai ambang batas standar disetel pada <strong className="text-sky-400">10.0 mm</strong>. Indikator curah hujan di dashboard utama akan otomatis berkedip oranye jika curah hujan melampaui batas ini untuk memicu kesiapan operasional darurat.</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 3: Cloud Mode Settings */}
+                    <div className="bg-[#0b1424] p-5 rounded-2xl border border-emerald-500/20 space-y-3">
+                      <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        📡 3. PEMILIHAN MODE CLOUD (SINKRONISASI TRANSMISI INTERNET)
+                      </h4>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Sistem AWS dilengkapi mesin transmisi multi-protokol untuk menyalurkan data telemetri pelabuhan secara simultan ke pusat kendali jarak jauh (Cloud Server):
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[10px] text-slate-300">
+                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-white/5 space-y-1">
+                          <span className="text-teal-400 font-bold block">☁️ HTTP API TRANSMITTER</span>
+                          Mengirimkan paket data JSON terstruktur menggunakan metode POST request ke RESTful endpoint web tujuan Anda secara periodik. Cocok untuk integrasi dengan dasbor web terpusat.
+                        </div>
+                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-white/5 space-y-1">
+                          <span className="text-emerald-400 font-bold block">📁 FTP AUTOMATIC UPLOAD</span>
+                          Secara otomatis membuat laporan berkala dalam format XML atau CSV lalu mengunggahnya ke Server FTP yang dikonfigurasi (memerlukan Host, Username, Password, dan direktori penyimpanan FTP).
+                        </div>
+                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-white/5 space-y-1">
+                          <span className="text-amber-400 font-bold block">🔌 MQTT LIGHTWEIGHT BROKER</span>
+                          Mengirimkan data instan melalui protokol IoT berlatensi rendah ke broker MQTT. Membutuhkan konfigurasi Host Broker, Port (umumnya <code>1883</code>), Topic Publikasi (misal: <code>aws/ports/telemetry</code>), beserta username/password otentikasi.
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 4: Pier Alignment Angle */}
+                    <div className="bg-[#0b1424] p-5 rounded-2xl border border-pink-500/20 space-y-3">
+                      <h4 className="text-xs font-bold text-pink-400 uppercase tracking-wider flex items-center gap-1.5">
+                        🧭 4. KALIBRASI SUDUT DERMAGA (VISUAL PIER ANGLE CALIBRATION)
+                      </h4>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Fitur kalibrasi sudut kelurusan dermaga (<strong>Pier Angle</strong> dalam derajat <code>0-360°</code>) sangat krusial untuk menghasilkan visualisasi angin yang kontekstual bagi navigasi laut:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] text-slate-400">
+                        <div className="space-y-1">
+                          <strong className="text-white block">A. Mengapa Sudut Dermaga Perlu Diisi?</strong>
+                          Dermaga di setiap pelabuhan memiliki arah hadap pantai yang berbeda-beda secara geografis (azimuth). Dengan mengisi sudut kelurusan dermaga fisik (contoh: <code>45°</code> untuk dermaga berorientasi Timur Laut), visual kompas di layar utama akan berputar secara akurat meluruskan posisi Kiri (Port) dan Kanan (Starboard) kapal terhadap garis pantai.
+                        </div>
+                        <div className="space-y-1">
+                          <strong className="text-white block">B. Kalkulasi Vektor Angin Relatif (Relative Wind)</strong>
+                          Setelah dikalibrasi, sistem secara otomatis menghitung komponen gaya angin: <strong>Crosswind</strong> (angin yang mendorong lambung kapal dari samping) dan <strong>Headwind/Tailwind</strong> (angin sejajar haluan kapal) sehingga petugas pandu tahu persis tingkat kesulitan sandar kapal secara presisi.
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 5: Raw Stream Monitor & Channel Mappings */}
+                    <div className="bg-[#0b1424] p-5 rounded-2xl border border-teal-500/20 space-y-3">
+                      <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
+                        📟 5. RAW STREAM MONITOR & DYNAMIC CHANNEL MAPPING INDEXES
+                      </h4>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Data mentah yang keluar dari logger fisik biasanya dikirimkan berupa susunan string CSV satu baris yang dipisahkan karakter pembatas (Splitter Char). Menu Option memberikan alat penata (mapping tool) yang sangat canggih:
+                      </p>
+                      <ul className="text-[11px] text-slate-300 space-y-2 list-disc pl-5">
+                        <li>
+                          <strong>Raw Stream Monitor Console:</strong> Terminal konsol hijau di kanan bawah menampilkan feed asupan biner asli yang tertangkap. Struktur paket data standar: <code className="text-emerald-400 bg-slate-950 px-1 py-0.5 rounded">#AWS001;03-07-2026;08:43:55;30.2;78;220;5.4;12.4</code>
+                        </li>
+                        <li>
+                          <strong>Dynamic Channel Mapping Indexes:</strong> Pengguna dapat mencocokkan nomor index (kolom pembacaan dimulai dari index 0) ke nama parameter sensor secara langsung. Misalnya, jika data kelembaban udara berada di kolom ke-9, cukup pilih angka <code>9</code> pada kolom <strong>Humidity (ch_8)</strong>. Angka real-time sensor akan langsung diperbarui saat itu juga tanpa menghentikan sistem monitoring!
+                        </li>
+                        <li>
+                          <strong>Moxa Telemetry Presets:</strong> Tombol pintas sekali klik <strong className="text-cyan-400">LOAD MOXA TELEMETRY PRESETS</strong> akan otomatis memuat setingan urutan index bawaan stasiun Moxa AWS lapangan standar untuk kemudahan instalasi kilat.
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="border-t border-white/5 pt-4">
+                      <div className="text-xs font-bold text-amber-400 mb-3 uppercase tracking-wider">🔧 BENTUK INTEGRASI ANTARMUKA LAYAR OPTION (SETTINGS)</div>
+                      {/* CSS Mockup of Option Tab to represent user screen */}
+                      <div className="border border-white/10 rounded-2xl bg-slate-950/60 p-4 space-y-3 shadow-inner">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                          <span className="text-xs font-mono font-bold text-[#00f0ff] uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                            GAMBAR 3: ANTARMUKA OPTION & SETTINGS (OPTION TAB)
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">OPTION TAB</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-12 gap-3 aspect-[1.8/1] text-[8px] font-mono text-slate-400">
+                          {/* Left panel: Config Forms */}
+                          <div className="col-span-6 bg-[#0b1424] border border-white/5 rounded-lg p-2 space-y-1.5">
+                            <div className="font-bold text-white border-b border-white/5 pb-0.5">🔌 HARDWARE CONFIG</div>
+                            <div className="bg-slate-950 p-1 rounded">
+                              <span className="text-slate-500 text-[6px] block">LOGGER MODE</span>
+                              <span className="text-white font-bold">TCP/IP GATEWAY MOXA</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <div className="bg-slate-950 p-1 rounded">
+                                <span className="text-slate-500 text-[6px] block">MOXA IP / HOST</span>
+                                <span className="text-white">192.168.1.254</span>
+                              </div>
+                              <div className="bg-slate-950 p-1 rounded">
+                                <span className="text-slate-500 text-[6px] block">SOCKET PORT</span>
+                                <span className="text-white">4001</span>
+                              </div>
+                            </div>
+                            <div className="bg-emerald-500/10 p-1 rounded text-emerald-400 text-[7px]">
+                              Status: Connected (IP 192.168.1.254:4001)
+                            </div>
+                            <div className="grid grid-cols-2 gap-1">
+                              <button className="bg-amber-500 text-black rounded text-[6px] py-0.5">RESET OPT</button>
+                              <button className="bg-emerald-500 text-black rounded text-[6px] py-0.5">SAVE CONFIG</button>
+                            </div>
+                          </div>
+                          
+                          {/* Right panel: Channel indexes mapping */}
+                          <div className="col-span-6 bg-[#0b1424] border border-white/5 rounded-lg p-2 flex flex-col justify-between">
+                            <div className="font-bold text-white border-b border-white/5 pb-0.5 uppercase">📟 SENSOR MAPPING INDEXES</div>
+                            <div className="grid grid-cols-2 gap-1 overflow-y-auto max-h-16 pr-1">
+                              <div className="flex justify-between bg-slate-950/50 p-0.5 rounded items-center">
+                                <span>AIR TEMP (CH_0):</span>
+                                <span className="text-white bg-white/10 px-0.5 rounded text-[6px]">Idx 3</span>
+                              </div>
+                              <div className="flex justify-between bg-slate-950/50 p-0.5 rounded items-center">
+                                <span>TEMP AVG (CH_2):</span>
+                                <span className="text-white bg-white/10 px-0.5 rounded text-[6px]">Idx 6</span>
+                              </div>
+                              <div className="flex justify-between bg-slate-950/50 p-0.5 rounded items-center">
+                                <span>HUMIDITY (CH_8):</span>
+                                <span className="text-white bg-white/10 px-0.5 rounded text-[6px]">Idx 7</span>
+                              </div>
+                            </div>
+                            <div className="border border-white/5 rounded bg-black p-1 font-mono text-[5px] text-emerald-400 leading-none">
+                              [14:47:53 RAW] "#AWS001;28-06-2026;14:47:52;30.2;29.2;..."
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-400 italic">
+                          * Tampilan skema menu Option di atas mencakup seluruh widget pengaturan sesuai screenshot Option Tab.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeManualChapter === 'bmkg' && (
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <h3 className="text-base font-black text-white uppercase">05. TAB PRAKIRAAN CUACA MARITIM BMKG (PORT FORECAST)</h3>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        Halaman <strong>BMKG Port</strong> mengintegrasikan sistem AWS dengan pangkalan data prakiraan cuaca resmi BMKG (Badan Meteorologi, Klimatologi, dan Geofisika) khusus untuk sektor maritim dan pelabuhan.
+                      </p>
+                    </div>
+
+                    {/* Section 1: Data Integration & Sync */}
+                    <div className="bg-[#0b1424] p-5 rounded-2xl border border-emerald-500/20 space-y-3">
+                      <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        📡 1. KONTROL SYNC & SUMBER DATA (BMKG LIVE SYNC)
+                      </h4>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Di bagian kanan atas header, terdapat serangkaian kontrol interaktif untuk mengelola asupan data prakiraan maritim yang diterima sistem:
+                      </p>
+                      <ul className="text-[11px] text-slate-300 space-y-2 list-disc pl-5">
+                        <li>
+                          <strong>Sync Live Button:</strong> Klik tombol hijau <strong className="text-emerald-400">SYNC LIVE</strong> untuk memaksa sistem melakukan panggilan API (fetch) langsung ke server BMKG Maritim untuk memperbarui seluruh data prakiraan jam terbaru secara online.
+                        </li>
+                        <li>
+                          <strong>Indikator Sumber (Source Indicator):</strong> Sistem menunjukkan status real-time asupan data di layar:
+                          <ul className="list-disc pl-5 mt-1 space-y-1 text-slate-400">
+                            <li><span className="text-indigo-400 font-bold">live:</span> Data berhasil ditarik secara langsung dan instan dari server BMKG pusat.</li>
+                            <li><span className="text-blue-400 font-bold">cache:</span> Data dimuat dari memori lokal berkecepatan tinggi demi efisiensi bandwidth transmisi.</li>
+                            <li><span className="text-amber-400 font-bold">stale-cache / static:</span> Terjadi kendala internet, sistem menyajikan data statis cadangan terenkripsi agar konsol monitor tidak kosong.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          <strong>Pencarian Data (Cari Jam / Cuaca):</strong> Kotak pencarian interaktif yang menyaring isi tabel prakiraan secara instan berdasarkan kata kunci tertentu (misalnya Anda mencari <code>"14:00"</code>, <code>"Hujan"</code>, atau arah angin <code>"Utara"</code>).
+                        </li>
+                        <li>
+                          <strong>Layout Selector (Table vs Grid):</strong> Tombol toggle untuk beralih mode visualisasi data antara format <strong>Table</strong> (tabel spreadsheet presisi tinggi) atau format <strong>Grid</strong> (kartu-kartu ringkas modern yang responsif).
+                        </li>
+                      </ul>
+                    </div>
+
+                    {/* Section 2: Port Profile Profiles */}
+                    <div className="bg-[#0b1424] p-5 rounded-2xl border border-blue-500/20 space-y-3">
+                      <h4 className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                        ⚓ 2. PORT PROFILE SELECTOR (PEMILIHAN LOKASI PELABUHAN)
+                      </h4>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Sistem AWS mengawal wilayah perairan Selat Sunda dan Teluk Jakarta dengan menyediakan preset profil pelabuhan BMKG yang dapat dialihkan secara instan:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] text-slate-300">
+                        <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1">
+                          <span className="text-[#00f0ff] font-bold block">A. Wilayah Banten (Selat Sunda)</span>
+                          Meliputi simpul penyeberangan kargo dan penumpang vital:
+                          <ul className="list-disc pl-4 mt-1 space-y-1 text-slate-400">
+                            <li>Pelabuhan Ciwandan (Banten Utama)</li>
+                            <li>Pelabuhan Bojonegara</li>
+                            <li>Pelabuhan Karangantu (Banten Lama)</li>
+                            <li>Pelabuhan Penyeberangan Merak</li>
+                          </ul>
+                        </div>
+                        <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-1">
+                          <span className="text-pink-400 font-bold block">B. Wilayah DKI Jakarta (Teluk Jakarta)</span>
+                          Meliputi pintu gerbang ekspor-impor dan pelayaran rakyat:
+                          <ul className="list-disc pl-4 mt-1 space-y-1 text-slate-400">
+                            <li>Pelabuhan Utama Tanjung Priok</li>
+                            <li>Pelabuhan Sunda Kelapa (Pelayaran Rakyat)</li>
+                            <li>Pelabuhan Muara Angke (Perikanan)</li>
+                            <li>Pelabuhan Pulau Tidung (Kepulauan Seribu)</li>
+                          </ul>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        💡 <strong>Mode Profil Kustom (Custom Port):</strong> Jika Anda memilih opsi <em>── LAINNYA / CUSTOM ──</em> pada dropdown, sistem membuka kolom input untuk mendefinisikan <strong>Custom Slug</strong> dan <strong>Custom Name</strong> secara mandiri guna menyambungkan stasiun cuaca pelabuhan khusus Anda sendiri ke dalam konsol.
+                      </p>
+                    </div>
+
+                    {/* Section 3: Sensor Information Overview */}
+                    <div className="bg-[#0b1424] p-5 rounded-2xl border border-pink-500/20 space-y-3">
+                      <h4 className="text-xs font-bold text-pink-400 uppercase tracking-wider flex items-center gap-1.5">
+                        📈 3. INFORMASI SENSOR SINKRON & INDIKATOR UTAMA
+                      </h4>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Bagian tengah menampilkan 4 panel ringkasan parameter laut utama hasil komputasi data BMKG terbaru:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-[10px] text-slate-300">
+                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-white/5 space-y-1">
+                          <span className="text-teal-400 font-bold block">🌊 GELOMBANG LAUT</span>
+                          Menyajikan estimasi tinggi gelombang laut signifikan dalam meter (m) beserta klasifikasi tingkat keselamatan operasional dermaga (Tenang, Rendah, atau Sedang).
+                        </div>
+                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-white/5 space-y-1">
+                          <span className="text-[#f59e0b] font-bold block">💨 KECEPATAN ANGIN</span>
+                          Membaca kecepatan angin maritim dalam satuan <strong>Knot (kt)</strong>, lengkap dengan pencatatan hembusan puncak mendadak (Gust Speed) serta arah kompas angin dominan.
+                        </div>
+                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-white/5 space-y-1">
+                          <span className="text-pink-400 font-bold block">📈 PASANG AIR LAUT</span>
+                          Menampilkan nilai elevasi pasang air laut dermaga (m). Indikator status akan otomatis mendeteksi kondisi <strong className="text-pink-400">"PASANG TINGGI"</strong> jika elevasi melampaui batas aman draf kapal sandar.
+                        </div>
+                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-white/5 space-y-1">
+                          <span className="text-sky-400 font-bold block">👁️ VISIBILITAS UDARA</span>
+                          Mengukur jarak pandang visual nakhoda dalam satuan Kilometer (Km). Nilai di atas 8 Km diklasifikasikan sebagai status <strong className="text-emerald-400">"SANGAT CLEAR"</strong> untuk pelayaran aman.
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 4: Interactive Charts and Trend Lines */}
+                    <div className="bg-[#0b1424] p-5 rounded-2xl border border-yellow-500/20 space-y-3">
+                      <h4 className="text-xs font-bold text-yellow-500 uppercase tracking-wider flex items-center gap-1.5">
+                        📊 4. INTERACTIVE TREND CHARTS (VISUALISASI SIKLUS 12 JAM)
+                      </h4>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Sistem mengolah seluruh deretan data prakiraan BMKG ke dalam dua grafik interaktif cerdas beresolusi tinggi berbasis pustaka Recharts:
+                      </p>
+                      <ul className="text-[11px] text-slate-300 space-y-1.5 list-disc pl-5">
+                        <li>
+                          <strong>Grafik Elevasi Air & Gelombang (Area Chart):</strong> Menggabungkan grafik pasang air laut berwarna pink gradien dengan grafik tinggi gelombang berwarna hijau emerald guna membantu analis melihat korelasi antara pasang surut dengan kenaikan gelombang dermaga.
+                        </li>
+                        <li>
+                          <strong>Grafik Parameter Atmosfer (Line Chart):</strong> Memetakan tren fluktuasi suhu udara maritim (°C) berdampingan secara langsung dengan tingkat kelembaban nisbi (%) sepanjang siklus waktu 12 jam ke depan.
+                        </li>
+                      </ul>
+                    </div>
+
+                    {/* Section 5: Selected Hour Inspector & Safety Assessment */}
+                    <div className="bg-[#0b1424] p-5 rounded-2xl border border-teal-500/20 space-y-3">
+                      <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
+                        🧭 5. DETAIL HOUR INSPECTOR & SAFETY ASSESSMENT (ASESMEN KESELAMATAN)
+                      </h4>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Saat operator mengeklik salah satu baris jam prakiraan pada tabel/grid di sebelah kiri, panel <strong>Selected Hour Inspector</strong> di bagian kanan akan melakukan pembongkaran instrumen visual parameter laut secara mendalam:
+                      </p>
+                      <ul className="text-[11px] text-slate-300 space-y-2 list-disc pl-5">
+                        <li>
+                          <strong>Dial Parameter Cuaca:</strong> Menampilkan dial temperatur udara, tingkat kelembaban nisbi (RH), tinggi gelombang, serta pasang surut dalam satu papan instrumen berdesain modern.
+                        </li>
+                        <li>
+                          <strong>Ocean Current Vector (Arah Arus Air):</strong> Menampilkan petunjuk arah aliran arus laut menggunakan ikon kompas spasial murni disertai pembacaan kecepatan arus dalam satuan Knot (Knot).
+                        </li>
+                        <li>
+                          <strong>Wind Profile (Arah & Hembusan Angin):</strong> Menampilkan data arah hembusan angin dari kompas meteorologi secara presisi, lengkap dengan hembusan rata-rata dan hembusan kencang tiba-tiba (Gust).
+                        </li>
+                        <li>
+                          <strong>Port Commander Safety Assessment:</strong> Fitur unggulan berupa kalkulasi matematis otomatis untuk menghasilkan laporan kesimpulan keselamatan operasional bersandarnya kapal kargo di pelabuhan aktif secara dinamis.
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="border-t border-white/5 pt-4">
+                      <div className="text-xs font-bold text-amber-400 mb-3 uppercase tracking-wider">📊 BENTUK INTEGRASI ANTARMUKA LAYAR BMKG PORT</div>
+                      {/* CSS Mockup of BMKG Tab to represent user screen */}
+                      <div className="border border-white/10 rounded-2xl bg-slate-950/60 p-4 space-y-3 shadow-inner">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                          <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                            GAMBAR 5: ANTARMUKA DETAIL PRAKIRAAN BMKG MARITIM (BMKG TAB)
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">PORT FORECAST MONITOR</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-12 gap-3 aspect-[1.8/1] text-[8px] font-mono text-slate-400">
+                          {/* Header Controls Mock */}
+                          <div className="col-span-12 bg-[#0b1424] border border-white/5 rounded p-1.5 flex justify-between items-center text-[7px]">
+                            <span className="text-white font-bold uppercase">📍 PRAKIRAAN CUACA MARITIM - CIWANDAN</span>
+                            <span className="bg-emerald-500/10 text-emerald-400 font-bold px-1 rounded">SYNC OK</span>
+                          </div>
+                          
+                          {/* 4 Summary Cards Mock */}
+                          <div className="col-span-12 grid grid-cols-4 gap-2 text-[6px]">
+                            <div className="bg-[#050b14] border border-white/5 p-1 rounded">
+                              <span className="text-teal-400 font-bold">GELOMBANG LAUT</span>
+                              <div className="text-white font-bold text-xs mt-0.5">0.4m</div>
+                            </div>
+                            <div className="bg-[#050b14] border border-white/5 p-1 rounded">
+                              <span className="text-amber-400 font-bold">ANGIN KNOTS</span>
+                              <div className="text-white font-bold text-xs mt-0.5">10 kt</div>
+                            </div>
+                            <div className="bg-[#050b14] border border-white/5 p-1 rounded">
+                              <span className="text-pink-400 font-bold">PASANG SURUT</span>
+                              <div className="text-white font-bold text-xs mt-0.5">+0.59m</div>
+                            </div>
+                            <div className="bg-[#050b14] border border-white/5 p-1 rounded">
+                              <span className="text-sky-400 font-bold">VISIBILITAS</span>
+                              <div className="text-white font-bold text-xs mt-0.5">10.0km</div>
+                            </div>
+                          </div>
+
+                          {/* Split layout Mock */}
+                          <div className="col-span-8 bg-[#0b1424]/40 border border-white/5 rounded p-1.5 overflow-hidden">
+                            <span className="text-emerald-400 font-bold text-[7px] block mb-1">📋 TABEL PERKIRAAN CUACA BERKALA (WIB)</span>
+                            <div className="bg-emerald-600 text-white p-0.5 grid grid-cols-4 text-center font-bold text-[5px]">
+                              <span>JAM</span><span>CUACA</span><span>WIND</span><span>TIDE</span>
+                            </div>
+                            <div className="p-0.5 grid grid-cols-4 text-center bg-emerald-500/10 text-white border-b border-white/5">
+                              <span>09:00</span><span>Berawan ⛅</span><span>UTARA / 8 kt</span><span>+0.35m</span>
+                            </div>
+                            <div className="p-0.5 grid grid-cols-4 text-center text-slate-300 border-b border-white/5">
+                              <span>12:00</span><span>Cerah ☀️</span><span>BARAT / 10 kt</span><span>+0.52m</span>
+                            </div>
+                          </div>
+
+                          <div className="col-span-4 bg-[#050b14] border border-emerald-500/20 rounded p-1.5 space-y-1 text-[5px]">
+                            <span className="text-teal-400 font-bold block text-[6px]">🧭 INSPECTOR HOUR DETIL</span>
+                            <div className="bg-slate-900 p-1 rounded">
+                              <span className="text-slate-400">ARUS LAUT (OCEAN CURRENT)</span>
+                              <div className="text-teal-400 font-bold text-[7px] mt-0.5">UTARA (0.8 kt)</div>
+                            </div>
+                            <div className="bg-slate-900 p-1 rounded">
+                              <span className="text-slate-400">WIND PROFILE</span>
+                              <div className="text-amber-450 font-bold text-[7px] mt-0.5">TENGGARA (10 kt)</div>
+                            </div>
+                            <div className="bg-emerald-950/40 border border-emerald-500/10 p-1 rounded text-emerald-200">
+                              Asesmen: Aman untuk penyandaran kapal laut.
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-400 italic">
+                          * Tampilan skema halaman BMKG di atas mencakup seluruh widget parameter cuaca laut sesuai screenshot BMKG Tab.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeManualChapter === 'database' && (
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <h3 className="text-base font-black text-white uppercase">04. DOWNLOAD DATA & LOG DATABASE ENGINE</h3>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        Bagian ini menjelaskan secara rinci tentang pengolahan logs dan cara mengekspor data logger AWS ke dalam format tabel excel (CSV).
+                      </p>
+                    </div>
+
+                    <div className="bg-gradient-to-r from-emerald-950/40 to-transparent p-5 rounded-2xl border border-emerald-500/20 space-y-3">
+                      <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400"></span> 
+                        Langkah-Langkah Mengunduh / Men-download Data AWS (Ekspor CSV):
+                      </h4>
+                      <ol className="text-[11px] text-slate-200 space-y-2.5 list-decimal pl-5">
+                        <li>
+                          Klik tab menu <strong>DATABASE</strong> pada sidebar navigasi di pojok kiri atas.
+                        </li>
+                        <li>
+                          Pada panel <strong>Mode Penampilan Data Telemetri</strong>, pilih sumber data log yang diinginkan. Anda dapat men-toggle mode ke <strong>ONLINE TABLE</strong> untuk melihat logs riil dari database utama, atau <strong>OFFLINE LOGS</strong> untuk melihat database simulasi offline.
+                        </li>
+                        <li>
+                          Atur rentang tanggal perekaman data yang ingin diambil menggunakan formulir filter:
+                          <ul className="list-disc pl-5 mt-1 space-y-1 text-slate-300">
+                            <li><strong>START LOG PERIOD:</strong> Tanggal mulai penarikan data log.</li>
+                            <li><strong>END LOG PERIOD:</strong> Tanggal akhir penarikan data log.</li>
+                          </ul>
+                        </li>
+                        <li>
+                          *(Opsional)* Gunakan kolom pencarian <strong>SEARCH METRICS</strong> jika ingin memfilter logs yang memuat karakter/nilai spesifik (misal mencari saat terjadi angin kencang di atas 10 m/s).
+                        </li>
+                        <li>
+                          Klik tombol <strong>APPLY FILTER</strong> (tombol berwarna biru muda) untuk memproses penyaringan data. Tabel log di bawahnya akan dimuat ulang menyesuaikan filter tanggal.
+                        </li>
+                        <li>
+                          Klik tombol <strong>EXPORT CSV FILE</strong> (tombol berwarna hijau emerald di pojok kanan kontrol panel).
+                        </li>
+                        <li>
+                          Sistem akan memformat data logs ke dalam struktur spreadsheet dan otomatis mengunduh file berformat <code>.csv</code> ke komputer Anda. File ini siap dibuka langsung menggunakan program spreadsheet seperti <strong>Microsoft Excel</strong> atau <strong>Google Sheets</strong> untuk analisis teknis lanjutan.
+                        </li>
+                      </ol>
+                    </div>
+
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2 text-[11px]">
+                      <h4 className="text-xs font-bold text-[#00f0ff] uppercase tracking-wider">⚙️ SISTEM SINKRONISASI DATABASE INTEGRATOR</h4>
+                      <p className="text-slate-300 leading-relaxed">
+                        Sistem AWS memiliki fitur <strong>Integrated Database Engine</strong> yang berjalan secara efisien. Mengacu pada standar WMO (World Meteorological Organization), sistem ini melakukan kompresi <em>10-Minute Average</em> (Rata-rata 10 menit) dari 5 sampel sensor instan yang ditangkap buffer akumulator. 
+                        Tombol <strong>SYNC & AMBIL DATA ASLI</strong> digunakan untuk melakukan sinkronisasi database server secara real-time.
+                      </p>
+                    </div>
+
+                    <div className="border-t border-white/5 pt-4">
+                      <div className="text-xs font-bold text-amber-400 mb-3 uppercase tracking-wider">📊 BENTUK INTEGRASI ANTARMUKA LAYAR DATABASE</div>
+                      {/* CSS Mockup of Database Tab to represent user screen */}
+                      <div className="border border-white/10 rounded-2xl bg-slate-950/60 p-4 space-y-3 shadow-inner">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                          <span className="text-xs font-mono font-bold text-[#00f0ff] uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                            GAMBAR 4: ANTARMUKA LOG DATABASE & EKSPOR DATA (DATABASE TAB)
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">DATABASE TAB</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-12 gap-3 aspect-[1.8/1] text-[8px] font-mono text-slate-400">
+                          {/* DB Header */}
+                          <div className="col-span-12 bg-[#0b1424] border border-white/5 rounded p-1.5 flex justify-between items-center text-[7px]">
+                            <span className="bg-emerald-500/10 text-emerald-400 font-bold px-1 rounded border border-emerald-500/20">DATABASE DRIVER ACTIVE</span>
+                            <span className="text-slate-400">10 MIN AVG LOGGER</span>
+                          </div>
+                          {/* Filter Panel */}
+                          <div className="col-span-12 bg-[#0d1e31]/40 border border-[#00f0ff]/10 rounded-lg p-2 grid grid-cols-4 gap-2 items-center text-[7px]">
+                            <div>
+                              <span>START PERIOD</span>
+                              <div className="bg-slate-950 p-1 rounded text-white mt-0.5">22/06/2026</div>
+                            </div>
+                            <div>
+                              <span>END PERIOD</span>
+                              <div className="bg-slate-950 p-1 rounded text-white mt-0.5">23/06/2026</div>
+                            </div>
+                            <div>
+                              <span>SEARCH METRICS</span>
+                              <div className="bg-slate-950 p-1 rounded text-slate-500 mt-0.5">Search logs...</div>
+                            </div>
+                            <div className="flex gap-1">
+                              <button className="bg-cyan-500 text-black px-1.5 py-1 rounded font-bold">APPLY FILTER</button>
+                              <button className="bg-emerald-500 text-black px-1.5 py-1 rounded font-bold">EXPORT CSV</button>
+                            </div>
+                          </div>
+                          {/* Table logs */}
+                          <div className="col-span-12 bg-[#0b1424] border border-white/5 rounded overflow-hidden">
+                            <div className="bg-white/5 p-1 grid grid-cols-5 text-white font-bold text-center">
+                              <span>DATETIME</span><span>TEMP</span><span>HUMID</span><span>RAIN</span><span>W-SPEED</span>
+                            </div>
+                            <div className="p-1 grid grid-cols-5 text-center bg-white/2 border-t border-white/5">
+                              <span>23-06-2026 21:49</span><span>28.4 °C</span><span>67%</span><span>2.5 mm</span><span>4.2 m/s</span>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-400 italic">
+                          * Tampilan skema menu Database di atas mencakup seluruh widget pengolahan logs sesuai screenshot Database Tab.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeManualChapter === 'troubleshoot' && (
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <h3 className="text-base font-black text-white uppercase">05. DETIL SISTEM ALARM & TROUBLESHOOTING</h3>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        Panduan praktis untuk mengenali letak sistem alarm, memahami parameter ambang batas aman (thresholds), serta langkah penyelesaian masalah teknis pada sistem AWS.
+                      </p>
+                    </div>
+
+                    {/* Alarm System Detail Block */}
+                    <div className="bg-[#0b1424] p-5 rounded-2xl border border-red-500/20 space-y-4">
+                      <div className="flex items-center gap-2 text-xs font-bold text-red-400 uppercase tracking-wider">
+                        <BellRing className="w-5 h-5 text-red-400 animate-pulse" />
+                        <span>🚨 PEMETAAN SISTEM ALARM & PARAMETERNYA DI DASHBOARD</span>
+                      </div>
+                      
+                      <div className="space-y-3.5 text-[11px] text-slate-300">
+                        <div className="border-l-2 border-red-500 pl-3 space-y-1">
+                          <strong className="text-white text-xs block">1. Alarm Kualitas Air (Water pH Alarm)</strong>
+                          <p className="leading-relaxed">
+                            <span className="text-amber-400 font-semibold">Letak di Dashboard:</span> Widget <strong>LIVE WATER QUALITY INDEX</strong> yang berada di blok <strong>KUALITAS AIR</strong> (Pojok Kiri Bawah pada layar Realtime).
+                          </p>
+                          <p className="leading-relaxed">
+                            <span className="text-amber-400 font-semibold">Parameter / Batas Aman:</span> Nilai pH ideal air laut berkisar antara <strong className="text-emerald-400">6.5 s/d 8.5</strong>.
+                          </p>
+                          <p className="leading-relaxed">
+                            <span className="text-red-400 font-semibold">Fungsi Warning:</span> Jika pH terdeteksi di luar batas aman (misal kurang dari 6.5 karena polusi asam, atau lebih dari 8.5 karena limpahan limbah kimia), teks status kualitas air pada dashboard akan berubah dari hijau <strong>"IDEAL"</strong> menjadi merah berkedip bertuliskan <strong className="text-red-400">"WARNING / DANGER"</strong>.
+                          </p>
+                        </div>
+
+                        <div className="border-l-2 border-amber-500 pl-3 space-y-1">
+                          <strong className="text-white text-xs block">2. Alarm Batas Curah Hujan (Rainfall Warning)</strong>
+                          <p className="leading-relaxed">
+                            <span className="text-amber-400 font-semibold">Letak di Dashboard:</span> Terletak di dalam widget <strong>RAINFALL</strong> pada blok <strong>HYGRO, SOLAR & RAIN</strong> (Tengah Kiri pada layar Realtime).
+                          </p>
+                          <p className="leading-relaxed">
+                            <span className="text-amber-400 font-semibold">Parameter / Batas Aman:</span> Ambang batas (threshold) curah hujan lebat default disetel pada angka <strong className="text-cyan-400">10.0 mm</strong>.
+                          </p>
+                          <p className="leading-relaxed">
+                            <span className="text-amber-400 font-semibold">Fungsi Warning:</span> Hujan yang terlalu lebat (&gt; 10 mm) dapat menghalangi pandangan nakhoda kapal dan memicu genangan air di dermaga. Indikator curah hujan akan berkedip oranye jika curah hujan melampaui batas aman ini.
+                          </p>
+                        </div>
+
+                        <div className="border-l-2 border-cyan-500 pl-3 space-y-1">
+                          <strong className="text-white text-xs block">3. Alarm Kecepatan Angin Maksimum (Wind Speed Limit & Gust Alert)</strong>
+                          <p className="leading-relaxed">
+                            <span className="text-amber-400 font-semibold">Letak di Dashboard:</span> Terletak pada panel <strong>WIND STATS & GUST EVENTS</strong> (Pojok Kanan Bawah pada layar Realtime).
+                          </p>
+                          <p className="leading-relaxed">
+                            <span className="text-amber-400 font-semibold">Parameter / Batas Aman:</span> Mengukur kecepatan angin sesaat maksimum (<strong className="text-cyan-400">WIND MAX</strong>) dan melacak kejadian hembusan angin kencang mendadak (<strong className="text-cyan-400">GUST EVENT</strong>).
+                          </p>
+                          <p className="leading-relaxed">
+                            <span className="text-red-400 font-semibold">Fungsi Warning:</span> Kecepatan angin di atas <strong className="text-red-400">15 m/s</strong> digolongkan sebagai bahaya badai laut. Jika sensor mencatat angka ini, status Gust akan berkedip merah untuk memperingatkan operator bahwa kondisi luar ruangan sangat berbahaya untuk bongkar muat gantry crane dan proses penyandaran kapal.
+                          </p>
+                        </div>
+
+                        <div className="border-l-2 border-purple-500 pl-3 space-y-1">
+                          <strong className="text-white text-xs block">4. Threat Radar / Marine Risk Assessment Warning</strong>
+                          <p className="leading-relaxed">
+                            <span className="text-amber-400 font-semibold">Letak di Dashboard:</span> Terletak di dalam tab menu <strong>ANALYST</strong>, tepatnya pada widget <strong>THREAT RADAR</strong>.
+                          </p>
+                          <p className="leading-relaxed">
+                            <span className="text-amber-400 font-semibold">Parameter / Batas Aman:</span> Menggabungkan kecepatan angin, kelembapan udara, dan radiasi solar untuk menilai risiko operasi pelayaran.
+                          </p>
+                          <p className="leading-relaxed">
+                            <span className="text-purple-400 font-semibold">Fungsi Warning:</span> Jika tingkat risiko melampaui 50%, indikator status operasi di dashboard analis akan bergeser dari hijau <strong>"SAFE OPERATION"</strong> ke merah bertuliskan <strong>"HIGH MARINE RISK"</strong> untuk mengisyaratkan kesiagaan kru darurat pelabuhan.
+                          </p>
+                        </div>
+
+                        <div className="border-l-2 border-orange-500 pl-3 space-y-1">
+                          <strong className="text-white text-xs block">5. Peringatan / Warning Data Terputus (Loss of Signal / Offline Warning)</strong>
+                          <p className="leading-relaxed">
+                            <span className="text-amber-400 font-semibold">Letak di Dashboard:</span> Terlihat pada bagian **Indikator Koneksi Logger / Status Aliran Data** (Header Atas, Streaming Monitor, serta label port di layar utama).
+                          </p>
+                          <p className="leading-relaxed">
+                            <span className="text-amber-400 font-semibold">Parameter / Batas Aman:</span> Menguji jeda asupan (timeout) penerimaan string data telemetri. Batas kritis ditoleransi selama maksimal <strong className="text-orange-400">10-15 detik</strong> tanpa pembaruan data masuk.
+                          </p>
+                          <p className="leading-relaxed">
+                            <span className="text-red-400 font-semibold">Fungsi Warning:</span> Jika transmisi terputus akibat kabel kendur atau daya Moxa mati, widget indikator koneksi di panel atas akan berubah menjadi merah menyala bertuliskan <strong className="text-red-400">"DATA FEED DISCONNECTED / OFFLINE"</strong> dan mengunci visualisasi data pada status terakhir. Ini merupakan protokol keamanan kritis untuk mencegah kesalahan pembacaan data basi/stale oleh petugas pelabuhan.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2 text-[11px]">
+                        <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider">🛠️ TROUBLESHOOTING KONEKSI & DATA</h4>
+                        <ul className="space-y-2 text-slate-300 list-disc pl-4">
+                          <li>
+                            <strong>Gejala: Dashboard Menampilkan Tulisan "OFFLINE"</strong>
+                            <br />
+                            <em>Langkah Penanganan:</em> Periksa panel <strong>Moxa Live Status</strong> di menu Option. Pastikan daemon berstatus <strong>CONNECTED</strong>. Jika terputus, pastikan kabel LAN Moxa terhubung dan alamat IP Moxa <code>192.168.1.254</code> dalam kondisi menyala (aktif).
+                          </li>
+                          <li>
+                            <strong>Gejala: Muncul Peringatan "DATA FEED DISCONNECTED" atau "CONNECTION LOSS"</strong>
+                            <br />
+                            <em>Langkah Penanganan:</em>
+                            <ul className="list-decimal pl-4 mt-1 space-y-1 text-slate-400">
+                              <li>Buka tab <strong>OPTION</strong> dan periksa feed data mentah di console bawah. Jika kosong, asupan fisik terhenti.</li>
+                              <li>Jika memakai mode Serial COM: periksa sambungan kabel fisik RS232, dan pastikan Port COM yang dipilih di browser tidak sedang dipakai oleh software terminal lain (seperti Putty/HyperTerminal).</li>
+                              <li>Jika memakai mode Moxa TCP/IP: lakukan ping ke IP <code>192.168.1.254</code> (atau IP yang diset) lewat Command Prompt PC Anda untuk memastikan link jaringan hidup.</li>
+                              <li>Lakukan siklus reboot daya (power-cycle) pada router Moxa di gardu sensor dengan mencabut adaptor selama 10 detik lalu tancapkan kembali.</li>
+                            </ul>
+                          </li>
+                          <li>
+                            <strong>Gejala: Angka Sensor Tertukar / Kacau</strong>
+                            <br />
+                            <em>Langkah Penanganan:</em> Terjadi kesalahan urutan parsing data. Masuk ke menu Option dan atur ulang nomor index pada panel <strong>Sensor Channel Mapping Indexes</strong> untuk menyelaraskan urutan kolom output dari logger AWS Anda.
+                          </li>
+                        </ul>
+                      </div>
+
+                      <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl text-[11px] space-y-1.5 text-slate-300">
+                        <h4 className="font-bold text-amber-400 uppercase tracking-wider">⚠️ REKOMENDASI PEMELIHARAAN ROUTER MOXA</h4>
+                        <p className="leading-relaxed">
+                          Pastikan Moxa NPort Gateway dipasang dalam kotak panel IP66 yang kedap air dari paparan air laut asin (salt mist/korosi). Lakukan restart berkala pada router Moxa melalui web interface admin atau mematikan steker listrik selama 10 detik apabila koneksi daemon mengalami penurunan kecepatan atau kehilangan transmisi paket data (packet loss).
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-950 px-6 py-4 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0 text-slate-400 text-xs font-mono">
+              <span>SISTEM DOKUMENTASI AWS RESMI (ID: AWS_DOC_PRO_V3)</span>
+              <button 
+                onClick={() => setIsManualModalOpen(false)}
+                className="bg-[#00f0ff] hover:bg-[#00d0e0] text-black font-bold px-6 py-2 rounded-xl transition-all cursor-pointer shadow-[0_0_15px_rgba(0,240,255,0.3)] text-xs font-sans"
+              >
+                TUTUP BUKU MANUAL
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* Decorative subtle console metadata footer */}
       <footer className="fixed bottom-3 right-6 pointer-events-none opacity-20 flex flex-col items-end gap-0.5">
         <span className="text-xs font-mono tracking-widest text-[#00f0ff] uppercase">AWS SYS STN: CONNECTED SECURE</span>
@@ -5978,3 +7266,4 @@ header("Content-Type: application/json; charset=UTF-8");
     </div>
   );
 }
+
