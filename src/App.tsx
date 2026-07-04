@@ -2607,14 +2607,14 @@ export default function App() {
                           <div className="absolute top-[12px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
                           <div className="absolute bottom-[12px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
 
-                          {/* Left side region: PORT / AREA DARAT */}
-                          <div className="absolute left-[40px] top-[110px] text-[7.5px] uppercase font-black text-cyan-400/60 font-sans tracking-[0.25em] -rotate-90">
-                            PORT / AREA DARAT
+                          {/* Left side region: LAUT LEPAS / OPEN SEA */}
+                          <div className="absolute left-[40px] top-[110px] text-[7.5px] uppercase font-black text-emerald-400/60 font-sans tracking-[0.25em] -rotate-90">
+                            LAUT LEPAS / OPEN SEA
                           </div>
                           
-                          {/* Right side region: LAUT LEPAS / OPEN SEA */}
-                          <div className="absolute right-[40px] top-[110px] text-[7.5px] uppercase font-black text-emerald-400/60 font-sans tracking-[0.25em] rotate-90">
-                            LAUT LEPAS / OPEN SEA
+                          {/* Right side region: PORT / AREA DARAT */}
+                          <div className="absolute right-[40px] top-[110px] text-[7.5px] uppercase font-black text-cyan-400/60 font-sans tracking-[0.25em] rotate-90">
+                            PORT / AREA DARAT
                           </div>
                         </div>
                       </div>
