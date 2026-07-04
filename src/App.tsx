@@ -1000,67 +1000,61 @@ export default function App() {
   };
 
   const processNewSample = (record: WeatherData) => {
-    // Added support to buffer and save at the custom selected minute logging interval (e.g., 10 minutes) instead of every second
-    setSampleBuffer(prevBuf => {
-      const updated = [...prevBuf, record];
-      const now = Date.now();
-      const intervalMin = configRef.current.dbStorageInterval || 10;
-      const intervalMs = intervalMin * 60 * 1000;
-      const currentBlock = Math.floor(now / intervalMs);
-      const lastSaveBlock = Math.floor(lastDbSaveTimeRef.current / intervalMs);
+    const now = Date.now();
+    const intervalMin = configRef.current.dbStorageInterval || 10;
+    const intervalMs = intervalMin * 60 * 1000;
+    const currentBlock = Math.floor(now / intervalMs);
+    const lastSaveBlock = Math.floor(lastDbSaveTimeRef.current / intervalMs);
 
-      // Check if we have entered a new clock-aligned interval block
-      if (currentBlock > lastSaveBlock && updated.length > 0) {
-        // Synchronously advance ref to prevent duplicate triggers for this block
-        lastDbSaveTimeRef.current = currentBlock * intervalMs;
+    if (currentBlock > lastSaveBlock) {
+      // Synchronously advance ref to prevent duplicate triggers for this block
+      lastDbSaveTimeRef.current = currentBlock * intervalMs;
 
-        // Wrap side-effects in a microtask to keep the state reducer pure
-        setTimeout(() => {
-          let recordToSave: WeatherData;
-          let msgLog = '';
+      const updated = [...sampleBufferRef.current, record];
+      let recordToSave: WeatherData;
+      let msgLog = '';
 
-          const spaceMode = configRef.current.dbStorageMode || 'AVG';
-          if (spaceMode === 'AVG') {
-            recordToSave = calculateAverageRecord(updated);
-            msgLog = `⏱️ compiled and saved standard WMO ${configRef.current.dbStorageInterval}-minute average based on ${updated.length} raw samples successfully.`;
-          } else {
-            const rawSpeeds = updated.map(item => item.windSpeed);
-            const maxR = rawSpeeds.length > 0 ? Math.max(...rawSpeeds) : 0;
-            const minR = rawSpeeds.length > 0 ? Math.min(...rawSpeeds) : 0;
-            const hasRGust = (maxR - minR) >= 10;
-            
-            recordToSave = { 
-              ...record,
-              windGust: hasRGust ? parseFloat(maxR.toFixed(1)) : undefined
-            };
-            msgLog = `📦 saved raw instantaneous record for ${configRef.current.dbStorageInterval}-minute interval directly to database successfully.`;
-          }
-
-          // Adjust timestamp of record to reflect the completed logging window boundary precisely (e.g. 19:40:00, 19:50:00)
-          recordToSave.timestamp = currentBlock * intervalMs;
-
-          // Asynchronously post to local PostgreSQL database backend
-          postLogToLocalPostgres(recordToSave);
-
-          // Append SQL success notification to terminal logs
-          setStreamLogs(prevLogs => {
-            const lines = prevLogs.split('\n');
-            const timeStr = format(new Date(), 'HH:mm:ss');
-            const msg = `[${timeStr} SQL SYSTEM] ${msgLog}`;
-            const output = [...lines, msg];
-            if (output.length > 40) return output.slice(output.length - 30).join('\n');
-            return output.join('\n');
-          });
-
-          // Reset the last saved time mark to exactly the saved block timestamp
-          setLastDbSaveTime(currentBlock * intervalMs);
-        }, 0);
-
-        return []; // Clear the buffer
+      const spaceMode = configRef.current.dbStorageMode || 'AVG';
+      if (spaceMode === 'AVG') {
+        recordToSave = calculateAverageRecord(updated);
+        msgLog = `⏱️ compiled and saved standard WMO ${configRef.current.dbStorageInterval}-minute average based on ${updated.length} raw samples successfully.`;
+      } else {
+        const rawSpeeds = updated.map(item => item.windSpeed);
+        const maxR = rawSpeeds.length > 0 ? Math.max(...rawSpeeds) : 0;
+        const minR = rawSpeeds.length > 0 ? Math.min(...rawSpeeds) : 0;
+        const hasRGust = (maxR - minR) >= 10;
+        
+        recordToSave = { 
+          ...record,
+          windGust: hasRGust ? parseFloat(maxR.toFixed(1)) : undefined
+        };
+        msgLog = `📦 saved raw instantaneous record for ${configRef.current.dbStorageInterval}-minute interval directly to database successfully.`;
       }
 
-      return updated; // Keep gathering raw measurements
-    });
+      // Adjust timestamp of record to reflect the completed logging window boundary precisely (e.g. 19:40:00, 19:50:00)
+      recordToSave.timestamp = currentBlock * intervalMs;
+
+      // Asynchronously post to local PostgreSQL database backend
+      postLogToLocalPostgres(recordToSave);
+
+      // Append SQL success notification to terminal logs
+      setStreamLogs(prevLogs => {
+        const lines = prevLogs.split('\n');
+        const timeStr = format(new Date(), 'HH:mm:ss');
+        const msg = `[${timeStr} SQL SYSTEM] ${msgLog}`;
+        const output = [...lines, msg];
+        if (output.length > 40) return output.slice(output.length - 30).join('\n');
+        return output.join('\n');
+      });
+
+      // Reset the last saved time mark to exactly the saved block timestamp
+      setLastDbSaveTime(currentBlock * intervalMs);
+      sampleBufferRef.current = [];
+      setSampleBuffer([]);
+    } else {
+      sampleBufferRef.current.push(record);
+      setSampleBuffer([...sampleBufferRef.current]);
+    }
   };
 
   // Keep processNewSampleRef updated with the latest state bindings on every render
@@ -1353,6 +1347,7 @@ export default function App() {
 
   // Active simulated buffer for WMO 10-Min (or custom min) averages
   const [sampleBuffer, setSampleBuffer] = useState<WeatherData[]>([]);
+  const sampleBufferRef = useRef<WeatherData[]>([]);
 
   // Active simulated logger feed
   useEffect(() => {
@@ -1404,62 +1399,63 @@ export default function App() {
       if (config.transport === 'OFF') {
         const spaceMode = config.dbStorageMode || 'AVG';
         
-        setSampleBuffer(prevBuf => {
-          const updated = [...prevBuf, newRecord];
-          // After 5 samples are compiled (simulating full period cycle for high usability live visual), we write the record according to the chosen mode (AVG vs RAW)
-          if (updated.length >= 5) {
-            let recordToSave: WeatherData;
-            let msgLog = '';
+        sampleBufferRef.current.push(newRecord);
+        const updated = [...sampleBufferRef.current];
+        setSampleBuffer(updated);
 
-            if (spaceMode === 'AVG') {
-              recordToSave = calculateAverageRecord(updated);
-              msgLog = `⏱️ compiled and saved standard WMO ${config.dbStorageInterval}-minute average based on 5 raw samples successfully.`;
-            } else {
-              // RAW mode: Save the latest instantaneous sample at the exact interval
-              const rawSpeeds = updated.map(item => item.windSpeed);
-              const maxR = rawSpeeds.length > 0 ? Math.max(...rawSpeeds) : 0;
-              const minR = rawSpeeds.length > 0 ? Math.min(...rawSpeeds) : 0;
-              const hasRGust = (maxR - minR) >= 10;
-              
-              recordToSave = { 
-                ...newRecord,
-                windGust: hasRGust ? parseFloat(maxR.toFixed(1)) : undefined
-              };
-              msgLog = `📦 saved raw instantaneous record for ${config.dbStorageInterval}-minute interval directly to database successfully.`;
-            }
+        // After 5 samples are compiled (simulating full period cycle for high usability live visual), we write the record according to the chosen mode (AVG vs RAW)
+        if (updated.length >= 5) {
+          let recordToSave: WeatherData;
+          let msgLog = '';
+
+          if (spaceMode === 'AVG') {
+            recordToSave = calculateAverageRecord(updated);
+            msgLog = `⏱️ compiled and saved standard WMO ${config.dbStorageInterval}-minute average based on 5 raw samples successfully.`;
+          } else {
+            // RAW mode: Save the latest instantaneous sample at the exact interval
+            const rawSpeeds = updated.map(item => item.windSpeed);
+            const maxR = rawSpeeds.length > 0 ? Math.max(...rawSpeeds) : 0;
+            const minR = rawSpeeds.length > 0 ? Math.min(...rawSpeeds) : 0;
+            const hasRGust = (maxR - minR) >= 10;
             
-            // Adjust simulated timestamp to reflect precise clock block boundary (e.g. 10, 20, 30...)
-            const intervalMin = config.dbStorageInterval || 10;
-            const intervalMs = intervalMin * 60 * 1000;
-            const alignedTimestamp = Math.floor(Date.now() / intervalMs) * intervalMs;
-            recordToSave.timestamp = alignedTimestamp;
-
-            // Asynchronously post to local PostgreSQL database script
-            postLogToLocalPostgres(recordToSave);
-
-            setHistory(prevHist => {
-              const keeps = [...prevHist, recordToSave];
-              if (keeps.length > 200) {
-                return keeps.slice(keeps.length - 150);
-              }
-              localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
-              return keeps;
-            });
-
-            // Write notification in terminal
-            setStreamLogs(prevLogs => {
-              const lines = prevLogs.split('\n');
-              const timeStr = format(new Date(), 'HH:mm:ss');
-              const msg = `[${timeStr} SQL SYSTEM] ${msgLog}`;
-              const output = [...lines, msg];
-              if (output.length > 40) return output.slice(output.length - 30).join('\n');
-              return output.join('\n');
-            });
-
-            return []; // clear buffer
+            recordToSave = { 
+              ...newRecord,
+              windGust: hasRGust ? parseFloat(maxR.toFixed(1)) : undefined
+            };
+            msgLog = `📦 saved raw instantaneous record for ${config.dbStorageInterval}-minute interval directly to database successfully.`;
           }
-          return updated;
-        });
+          
+          // Adjust simulated timestamp to reflect precise clock block boundary (e.g. 10, 20, 30...)
+          const intervalMin = config.dbStorageInterval || 10;
+          const intervalMs = intervalMin * 60 * 1000;
+          const alignedTimestamp = Math.floor(Date.now() / intervalMs) * intervalMs;
+          recordToSave.timestamp = alignedTimestamp;
+
+          // Asynchronously post to local PostgreSQL database script
+          postLogToLocalPostgres(recordToSave);
+
+          setHistory(prevHist => {
+            const keeps = [...prevHist, recordToSave];
+            if (keeps.length > 200) {
+              return keeps.slice(keeps.length - 150);
+            }
+            localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
+            return keeps;
+          });
+
+          // Write notification in terminal
+          setStreamLogs(prevLogs => {
+            const lines = prevLogs.split('\n');
+            const timeStr = format(new Date(), 'HH:mm:ss');
+            const msg = `[${timeStr} SQL SYSTEM] ${msgLog}`;
+            const output = [...lines, msg];
+            if (output.length > 40) return output.slice(output.length - 30).join('\n');
+            return output.join('\n');
+          });
+
+          sampleBufferRef.current = [];
+          setSampleBuffer([]);
+        }
       }
 
       // Update terminal stream simulator and feed rawString directly through parser
@@ -2547,10 +2543,10 @@ export default function App() {
               {/* WIND COMPASS PORT-REPRESENTATION (PORT & STD) */}
               <div className="flex justify-center items-center my-6 relative">
                 
-                {/* STARBOARD std side panel labels (now on the left) */}
+                {/* PORT side panel labels (on the left) */}
                 <div className="absolute left-1 md:left-2 lg:left-0.5 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-2 rounded-xl max-w-[100px] shadow-xl select-none font-sans z-10 scale-90 lg:scale-80 xl:scale-100">
-                  <div className="text-[10px] md:text-xs font-black text-[#22c55e] uppercase tracking-wider mb-0.5">STARBOARD</div>
-                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kanan / Right</div>
+                  <div className="text-[10px] md:text-xs font-black text-[#00f0ff] uppercase tracking-wider mb-0.5">PORT</div>
+                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kiri / Left</div>
                 </div>
 
                 {/* Compass Ring wrapper with dynamic warning colors */}
@@ -2612,9 +2608,9 @@ export default function App() {
                             LAUT LEPAS / OPEN SEA
                           </div>
                           
-                          {/* Right side region: PORT / AREA DARAT */}
+                          {/* Right side region: DERMAGA / AREA DARAT */}
                           <div className="absolute right-[40px] top-[110px] text-[7.5px] uppercase font-black text-cyan-400/60 font-sans tracking-[0.25em] rotate-90">
-                            PORT / AREA DARAT
+                            DERMAGA / AREA DARAT
                           </div>
                         </div>
                       </div>
@@ -2643,10 +2639,10 @@ export default function App() {
                   );
                 })()}
 
-                {/* PORT side panel labels (now on the right) */}
+                {/* STARBOARD side panel labels (on the right) */}
                 <div className="absolute right-1 md:right-2 lg:right-0.5 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-2 rounded-xl max-w-[100px] shadow-xl select-none font-sans z-10 scale-90 lg:scale-80 xl:scale-100">
-                  <div className="text-[10px] md:text-xs font-black text-[#00f0ff] uppercase tracking-wider mb-0.5">PORT</div>
-                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kiri / Left</div>
+                  <div className="text-[10px] md:text-xs font-black text-[#22c55e] uppercase tracking-wider mb-0.5">STARBOARD</div>
+                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kanan / Right</div>
                 </div>
 
               </div>
@@ -3697,6 +3693,7 @@ export default function App() {
                         return output.join('\n');
                       });
 
+                      sampleBufferRef.current = [];
                       setSampleBuffer([]);
                       setLastDbSaveTime(Date.now());
                       showToastNotification(config.dbStorageMode === 'AVG' ? "Successfully forced calculation of average record!" : "Successfully forced raw instantaneous log commit!");
