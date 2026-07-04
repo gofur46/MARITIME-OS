@@ -3259,7 +3259,7 @@ export default function App() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
                       <XAxis dataKey="time" tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 50]} />
                       <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#fbbf24' }} />
                       <Legend wrapperStyle={{ fontSize: 10, fontFamily: 'monospace' }} />
                       <Area type="monotone" dataKey="pastWind" name="Past Wind Speed" stroke="#fbbf24" strokeWidth={2.5} fillOpacity={1} strokeDasharray="" fill="url(#colorPastWind)" dot={false} connectNulls />
@@ -3429,7 +3429,7 @@ export default function App() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
                       <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 50]} />
                       <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#38bdf8' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
                       <Area type="monotone" dataKey="temperature" stroke="#38bdf8" fillOpacity={1} fill="url(#colorTemp)" strokeWidth={2} />
                     </AreaChart>
@@ -3479,7 +3479,7 @@ export default function App() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
                       <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 50]} />
                       <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#38bdf8' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
                       <Area type="monotone" dataKey="waterTemp" stroke="#38bdf8" fillOpacity={1} fill="url(#colorWaterTemp)" strokeWidth={2} />
                     </AreaChart>
@@ -3503,7 +3503,7 @@ export default function App() {
                     <LineChart data={analystLogs}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
                       <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 'auto']} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 50]} />
                       <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#fbbf24' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
                       <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'monospace' }} />
                       <Line type="monotone" dataKey="windSpeed" name="Avg Speed (m/s)" stroke="#fbbf24" strokeWidth={2.5} dot={false} />
@@ -3530,7 +3530,7 @@ export default function App() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
                       <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tickFormatter={(val) => (val / 100).toFixed(1)} tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} />
+                      <YAxis tickFormatter={(val) => (val / 100).toFixed(1)} tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 1000]} />
                       <Tooltip 
                         contentStyle={{ backgroundColor: '#0b1424', borderColor: '#38bdf8' }} 
                         labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')}
@@ -5936,7 +5936,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
                       <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} tickFormatter={(v) => v.toFixed(2) + 'm'} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 10]} tickFormatter={(v) => v.toFixed(2) + 'm'} />
                       <Tooltip 
                         contentStyle={{ backgroundColor: '#0b1424', borderColor: '#38bdf8' }} 
                         labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} 
@@ -5993,7 +5993,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
                       <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} tickFormatter={(v) => v.toFixed(1) + '°C'} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 50]} tickFormatter={(v) => v.toFixed(1) + '°C'} />
                       <Tooltip 
                         contentStyle={{ backgroundColor: '#0b1424', borderColor: '#f59e0b' }} 
                         labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} 
@@ -6030,7 +6030,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
                       <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[500, 1100]} />
                       <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#22d3ee' }} labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} formatter={(value: any) => [value + ' hPa', 'Pressure']} />
                       <Area type="monotone" dataKey="pressure" stroke="#22d3ee" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupPressure)" />
                     </AreaChart>
@@ -6089,7 +6089,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
                       <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 40]} />
                       <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#f97316' }} labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} formatter={(value: any) => [value + ' kt', 'Wind Gust']} />
                       <Area type="monotone" dataKey="displayGust" stroke="#f97316" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupGust)" />
                     </AreaChart>
