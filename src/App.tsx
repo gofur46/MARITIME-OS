@@ -329,7 +329,10 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
   const solarRads = buffer.map(item => item.solarRadiationMax ?? item.solarRadiation).filter(s => s !== undefined && !isNaN(s)) as number[];
   const maxSolarRad = solarRads.length > 0 ? Math.max(...solarRads) : 350;
 
-  const waterTemps = buffer.map(item => item.waterTemp ?? (item.temperature - 1.2)).filter(t => t !== undefined && !isNaN(t)) as number[];
+  const waterTemps = buffer.map(item => {
+    const rawVal = item.waterTemp ?? (item.temperature - 1.2);
+    return rawVal > 70 ? rawVal / 10 : rawVal;
+  }).filter(t => t !== undefined && !isNaN(t)) as number[];
   const minWaterTemp = waterTemps.length > 0 ? Math.min(...waterTemps) : 26.8;
   const maxWaterTemp = waterTemps.length > 0 ? Math.max(...waterTemps) : 28.8;
   const sumWaterTemp = waterTemps.reduce((sum, t) => sum + t, 0);
@@ -1118,15 +1121,18 @@ export default function App() {
       const rain = getMappedVal('ch_rain', 0.0);
       const raw_sea = getMappedVal('ch_15', 140.0);
       const ph = getMappedVal('ch_18', 7.80);
-      const water_temp = getMappedVal('ch_water_temp', temp - 1.2);
+      const raw_water_temp = getMappedVal('ch_water_temp', temp - 1.2);
+      const water_temp = raw_water_temp > 70 ? raw_water_temp / 10 : raw_water_temp;
 
       // Parse temperature and wind speed min/max values from sensors mapping (with fallback calculation if not mapped)
       const temp_max = getMappedVal('ch_4', temp + 1.2);
       const temp_min = getMappedVal('ch_6', temp - 1.5);
       const wind_max = getMappedVal('ch_19', wind_spd + 2.5);
       const wind_min = getMappedVal('ch_20', Math.max(0, wind_spd - 1.8));
-      const water_temp_max = getMappedVal('ch_water_temp_max', water_temp + 0.5);
-      const water_temp_min = getMappedVal('ch_water_temp_min', water_temp - 0.8);
+      const raw_water_temp_max = getMappedVal('ch_water_temp_max', water_temp + 0.5);
+      const water_temp_max = raw_water_temp_max > 70 ? raw_water_temp_max / 10 : raw_water_temp_max;
+      const raw_water_temp_min = getMappedVal('ch_water_temp_min', water_temp - 0.8);
+      const water_temp_min = raw_water_temp_min > 70 ? raw_water_temp_min / 10 : raw_water_temp_min;
       const battery_volt = getMappedVal('ch_batt', 12.2);
 
       // Smart handling for sea level: convert meters to cm if the values are very small
@@ -1572,9 +1578,9 @@ export default function App() {
       seaLevelMin: row.sea_level_min !== undefined && row.sea_level_min !== null ? parseFloat(row.sea_level_min) : undefined,
       seaLevelMax: row.sea_level_max !== undefined && row.sea_level_max !== null ? parseFloat(row.sea_level_max) : undefined,
       waterPh: parseFloat(row.water_ph) || 7.0,
-      waterTemp: row.water_temp !== undefined && row.water_temp !== null ? parseFloat(row.water_temp) : undefined,
-      waterTempMin: row.water_temp_min !== undefined && row.water_temp_min !== null ? parseFloat(row.water_temp_min) : undefined,
-      waterTempMax: row.water_temp_max !== undefined && row.water_temp_max !== null ? parseFloat(row.water_temp_max) : undefined,
+      waterTemp: row.water_temp !== undefined && row.water_temp !== null ? (parseFloat(row.water_temp) > 70 ? parseFloat(row.water_temp) / 10 : parseFloat(row.water_temp)) : undefined,
+      waterTempMin: row.water_temp_min !== undefined && row.water_temp_min !== null ? (parseFloat(row.water_temp_min) > 70 ? parseFloat(row.water_temp_min) / 10 : parseFloat(row.water_temp_min)) : undefined,
+      waterTempMax: row.water_temp_max !== undefined && row.water_temp_max !== null ? (parseFloat(row.water_temp_max) > 70 ? parseFloat(row.water_temp_max) / 10 : parseFloat(row.water_temp_max)) : undefined,
       windGust: row.wind_gust ? parseFloat(row.wind_gust) : undefined,
       tempMin: row.temp_min !== undefined && row.temp_min !== null ? parseFloat(row.temp_min) : undefined,
       tempMax: row.temp_max !== undefined && row.temp_max !== null ? parseFloat(row.temp_max) : undefined,
@@ -1746,18 +1752,30 @@ export default function App() {
   const waterTempStats = (() => {
     const lastSix = history.slice(-12); // approx last couple hours
     if (lastSix.length === 0) {
-      const curWaterTemp = currentData.waterTemp ?? (currentData.temperature - 1.2);
-      const curWaterTempMax = currentData.waterTempMax ?? (currentData.temperature - 0.7);
-      const curWaterTempMin = currentData.waterTempMin ?? (currentData.temperature - 2.0);
+      let curWaterTemp = currentData.waterTemp ?? (currentData.temperature - 1.2);
+      if (curWaterTemp > 70) curWaterTemp = curWaterTemp / 10;
+      let curWaterTempMax = currentData.waterTempMax ?? (currentData.temperature - 0.7);
+      if (curWaterTempMax > 70) curWaterTempMax = curWaterTempMax / 10;
+      let curWaterTempMin = currentData.waterTempMin ?? (currentData.temperature - 2.0);
+      if (curWaterTempMin > 70) curWaterTempMin = curWaterTempMin / 10;
       return {
         avg: curWaterTemp.toFixed(1),
         max: curWaterTempMax.toFixed(1),
         min: curWaterTempMin.toFixed(1)
       };
     }
-    const temps = lastSix.map(h => h.waterTemp ?? (h.temperature - 1.2));
-    const maxTemps = lastSix.map(h => h.waterTempMax ?? (h.waterTemp ?? (h.temperature - 0.7)));
-    const minTemps = lastSix.map(h => h.waterTempMin ?? (h.waterTemp ?? (h.temperature - 2.0)));
+    const temps = lastSix.map(h => {
+      const v = h.waterTemp ?? (h.temperature - 1.2);
+      return v > 70 ? v / 10 : v;
+    });
+    const maxTemps = lastSix.map(h => {
+      const v = h.waterTempMax ?? (h.waterTemp ?? (h.temperature - 0.7));
+      return v > 70 ? v / 10 : v;
+    });
+    const minTemps = lastSix.map(h => {
+      const v = h.waterTempMin ?? (h.waterTemp ?? (h.temperature - 2.0));
+      return v > 70 ? v / 10 : v;
+    });
     
     const sum = temps.reduce((a, b) => a + b, 0);
     const avg = (sum / temps.length).toFixed(1);
