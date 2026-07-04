@@ -170,10 +170,16 @@ const generateInitialLogs = (count: number, intervalMinutes: number = 10, portSl
       waveHeight: parseFloat((profile.avgWave - 0.15 + Math.random() * 0.35).toFixed(2)),
       currentSpeed: parseFloat((0.8 + Math.random() * 2.2).toFixed(2)), // simulated Knots (0.8 - 3.0)
       seaLevel: parseFloat((120 + Math.random() * 50).toFixed(1)), // cm
+      seaLevelMin: parseFloat((120 + Math.random() * 50 - 15.5).toFixed(1)),
+      seaLevelMax: parseFloat((120 + Math.random() * 50 + 12.3).toFixed(1)),
       waterPh: parseFloat((7.6 + Math.random() * 0.8).toFixed(2)), // pH
       waterTemp: parseFloat((temp - 1.2 + Math.random() * 0.4).toFixed(1)),
       waterTempMin: parseFloat((temp - 2.0 + Math.random() * 0.3).toFixed(1)),
       waterTempMax: parseFloat((temp - 0.7 + Math.random() * 0.3).toFixed(1)),
+      tempMin: parseFloat((temp - 1.5).toFixed(1)),
+      tempMax: parseFloat((temp + 1.2).toFixed(1)),
+      windSpeedMin: parseFloat(Math.max(0, avgWindSpeed - 1.8).toFixed(1)),
+      windSpeedMax: parseFloat((avgWindSpeed + 2.5).toFixed(1)),
       windGust: windGustValue,
       battery: parseFloat((11.9 + Math.random() * 0.6).toFixed(2))
     });
@@ -332,6 +338,10 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
   const batts = buffer.map(item => item.battery).filter(b => b !== undefined && !isNaN(b)) as number[];
   const avgBattery = batts.length > 0 ? batts.reduce((sum, b) => sum + b, 0) / batts.length : 12.2;
 
+  const seaLevels = buffer.map(item => item.seaLevel).filter(s => s !== undefined && !isNaN(s)) as number[];
+  const minSeaLevel = seaLevels.length > 0 ? Math.min(...seaLevels) : 120;
+  const maxSeaLevel = seaLevels.length > 0 ? Math.max(...seaLevels) : 160;
+
   buffer.forEach(item => {
     sumTemp += item.temperature;
     sumHum += item.humidity;
@@ -365,6 +375,8 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
     waveHeight: parseFloat((sumWave / count).toFixed(2)),
     currentSpeed: parseFloat((sumCurrent / count).toFixed(2)),
     seaLevel: parseFloat((sumSea / count).toFixed(1)),
+    seaLevelMin: parseFloat(minSeaLevel.toFixed(1)),
+    seaLevelMax: parseFloat(maxSeaLevel.toFixed(1)),
     waterPh: parseFloat((sumPh / count).toFixed(2)),
     windGust: computedWindGust,
     tempMin: parseFloat(minTemp.toFixed(1)),
@@ -894,6 +906,8 @@ export default function App() {
       rainfall: record.rainfall,
       wave_height: record.waveHeight,
       sea_level: record.seaLevel,
+      sea_level_min: record.seaLevelMin !== undefined ? record.seaLevelMin : parseFloat((record.seaLevel - 15.5).toFixed(1)),
+      sea_level_max: record.seaLevelMax !== undefined ? record.seaLevelMax : parseFloat((record.seaLevel + 12.3).toFixed(1)),
       water_ph: record.waterPh,
       wind_direction: record.windDirection,
       wind_speed: record.windSpeed,
@@ -1555,6 +1569,8 @@ export default function App() {
       rainfall: parseFloat(row.rainfall) || 0,
       waveHeight: parseFloat(row.wave_height) || 0,
       seaLevel: parseFloat(row.sea_level) || 0,
+      seaLevelMin: row.sea_level_min !== undefined && row.sea_level_min !== null ? parseFloat(row.sea_level_min) : undefined,
+      seaLevelMax: row.sea_level_max !== undefined && row.sea_level_max !== null ? parseFloat(row.sea_level_max) : undefined,
       waterPh: parseFloat(row.water_ph) || 7.0,
       waterTemp: row.water_temp !== undefined && row.water_temp !== null ? parseFloat(row.water_temp) : undefined,
       waterTempMin: row.water_temp_min !== undefined && row.water_temp_min !== null ? parseFloat(row.water_temp_min) : undefined,
@@ -1852,7 +1868,7 @@ export default function App() {
     const headers = [
       'DateTime', 'Temp (deg C)', 'Temp Min (deg C)', 'Temp Max (deg C)',
       'Humidity (%)', 'Solar (W/m2)', 'Rainfall (mm)', 'Wind Gust (m/s)',
-      'WaterLvl (cm)', 'Water pH', 'Battery (V)', 'WindDir (deg)', 'WindSpd (m/s)',
+      'WaterLvl (cm)', 'WaterLvl Min (cm)', 'WaterLvl Max (cm)', 'Water pH', 'Water Temp (deg C)', 'Water Temp Min (deg C)', 'Water Temp Max (deg C)', 'Battery (V)', 'WindDir (deg)', 'WindSpd (m/s)',
       'WindSpd Min (m/s)', 'WindSpd Max (m/s)', 'Press (hPa)'
     ];
     const rows = filteredLogs.map(row => [
@@ -1865,7 +1881,12 @@ export default function App() {
       row.rainfall,
       row.windGust !== undefined && row.windGust !== null ? row.windGust : "",
       row.seaLevel,
+      row.seaLevelMin !== undefined ? row.seaLevelMin : parseFloat((row.seaLevel - 15.5).toFixed(1)),
+      row.seaLevelMax !== undefined ? row.seaLevelMax : parseFloat((row.seaLevel + 12.3).toFixed(1)),
       row.waterPh || 7.8,
+      row.waterTemp !== undefined ? row.waterTemp : parseFloat((row.temperature - 1.2).toFixed(1)),
+      row.waterTempMin !== undefined ? row.waterTempMin : parseFloat((row.temperature - 2.0).toFixed(1)),
+      row.waterTempMax !== undefined ? row.waterTempMax : parseFloat((row.temperature - 0.7).toFixed(1)),
       row.battery !== undefined ? row.battery : 12.2,
       row.windDirection,
       row.windSpeed,
@@ -3834,6 +3855,8 @@ export default function App() {
     rainfall NUMERIC(5,2) NOT NULL,
     wave_height NUMERIC(4,2) NOT NULL,
     sea_level NUMERIC(5,1) NOT NULL,
+    sea_level_min NUMERIC(5,1) DEFAULT 0.0,
+    sea_level_max NUMERIC(5,1) DEFAULT 0.0,
     water_ph NUMERIC(4,2) NOT NULL,
     water_temp NUMERIC(4,1) DEFAULT 25.0,
     water_temp_min NUMERIC(4,1) DEFAULT 24.0,
@@ -3843,10 +3866,20 @@ export default function App() {
     wind_speed_min NUMERIC(4,1) DEFAULT 0.0,
     wind_speed_max NUMERIC(4,1) DEFAULT 0.0,
     pressure NUMERIC(6,2) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);`;
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_station_timestamp UNIQUE (station_id, timestamp)
+);
+
+/* QUERY UNTUK MIGRASI DAN MEMBERSIHKAN DUPLIKAT (JIKA TABEL SUDAH ADA):
+-- 1. Hapus baris duplikat, simpan hanya data terbaru
+DELETE FROM tbl_sensor_logs a USING tbl_sensor_logs b 
+WHERE a.id < b.id AND a.station_id = b.station_id AND a.timestamp = b.timestamp;
+
+-- 2. Tambahkan batasan unik agar duplikasi tidak pernah terjadi lagi
+ALTER TABLE tbl_sensor_logs ADD CONSTRAINT unique_station_timestamp UNIQUE (station_id, timestamp);
+*/`;
                           navigator.clipboard.writeText(sqlText);
-                          showToastNotification("PostgreSQL Query successfully copied to clipboard!");
+                          showToastNotification("PostgreSQL Query & Migration scripts successfully copied to clipboard!");
                         }}
                         className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 font-bold uppercase px-3 py-1.5 rounded-lg border border-teal-500/20 transition cursor-pointer font-mono"
                       >
@@ -3870,6 +3903,8 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
     rainfall NUMERIC(5,2) NOT NULL,
     wave_height NUMERIC(4,2) NOT NULL,
     sea_level NUMERIC(5,1) NOT NULL,
+    sea_level_min NUMERIC(5,1) DEFAULT 0.0,
+    sea_level_max NUMERIC(5,1) DEFAULT 0.0,
     water_ph NUMERIC(4,2) NOT NULL,
     water_temp NUMERIC(4,1) DEFAULT 25.0,
     water_temp_min NUMERIC(4,1) DEFAULT 24.0,
@@ -3879,8 +3914,18 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
     wind_speed_min NUMERIC(4,1) DEFAULT 0.0,
     wind_speed_max NUMERIC(4,1) DEFAULT 0.0,
     pressure NUMERIC(6,2) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);`}
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_station_timestamp UNIQUE (station_id, timestamp)
+);
+
+/* QUERY UNTUK MIGRASI DAN MEMBERSIHKAN DUPLIKAT (JIKA TABEL SUDAH ADA):
+-- 1. Hapus baris duplikat, simpan hanya data terbaru
+DELETE FROM tbl_sensor_logs a USING tbl_sensor_logs b 
+WHERE a.id < b.id AND a.station_id = b.station_id AND a.timestamp = b.timestamp;
+
+-- 2. Tambahkan batasan unik agar duplikasi tidak terjadi lagi
+ALTER TABLE tbl_sensor_logs ADD CONSTRAINT unique_station_timestamp UNIQUE (station_id, timestamp);
+*/`}
                     </pre>
                   </div>
                 ) : (
@@ -3967,6 +4012,8 @@ try {
         rainfall NUMERIC(5,2) NOT NULL,
         wave_height NUMERIC(4,2) NOT NULL,
         sea_level NUMERIC(5,1) NOT NULL,
+        sea_level_min NUMERIC(5,1) DEFAULT 0.0,
+        sea_level_max NUMERIC(5,1) DEFAULT 0.0,
         water_ph NUMERIC(4,2) NOT NULL,
         water_temp NUMERIC(4,1) DEFAULT 25.0,
         water_temp_min NUMERIC(4,1) DEFAULT 24.0,
@@ -3976,7 +4023,8 @@ try {
         wind_speed_min NUMERIC(4,1) DEFAULT 0.0,
         wind_speed_max NUMERIC(4,1) DEFAULT 0.0,
         pressure NUMERIC(6,2) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT unique_station_timestamp UNIQUE (station_id, timestamp)
     );";
     
     \$conn->exec(\$sql_table);
@@ -4047,11 +4095,31 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             \$stmt = \$conn->prepare("INSERT INTO tbl_sensor_logs (
                 station_id, timestamp, temperature, temp_min, temp_max, humidity, solar_radiation, 
-                rainfall, wave_height, sea_level, water_ph, water_temp, water_temp_min, water_temp_max, wind_direction, wind_speed, wind_speed_min, wind_speed_max, pressure
+                rainfall, wave_height, sea_level, sea_level_min, sea_level_max, water_ph, water_temp, water_temp_min, water_temp_max, wind_direction, wind_speed, wind_speed_min, wind_speed_max, pressure
             ) VALUES (
                 :station_id, :timestamp, :temperature, :temp_min, :temp_max, :humidity, :solar_radiation, 
-                :rainfall, :wave_height, :sea_level, :water_ph, :water_temp, :water_temp_min, :water_temp_max, :wind_direction, :wind_speed, :wind_speed_min, :wind_speed_max, :pressure
-            )");
+                :rainfall, :wave_height, :sea_level, :sea_level_min, :sea_level_max, :water_ph, :water_temp, :water_temp_min, :water_temp_max, :wind_direction, :wind_speed, :wind_speed_min, :wind_speed_max, :pressure
+            ) ON CONFLICT (station_id, timestamp) DO UPDATE SET
+                temperature = EXCLUDED.temperature,
+                temp_min = EXCLUDED.temp_min,
+                temp_max = EXCLUDED.temp_max,
+                humidity = EXCLUDED.humidity,
+                solar_radiation = EXCLUDED.solar_radiation,
+                rainfall = EXCLUDED.rainfall,
+                wave_height = EXCLUDED.wave_height,
+                sea_level = EXCLUDED.sea_level,
+                sea_level_min = EXCLUDED.sea_level_min,
+                sea_level_max = EXCLUDED.sea_level_max,
+                water_ph = EXCLUDED.water_ph,
+                water_temp = EXCLUDED.water_temp,
+                water_temp_min = EXCLUDED.water_temp_min,
+                water_temp_max = EXCLUDED.water_temp_max,
+                wind_direction = EXCLUDED.wind_direction,
+                wind_speed = EXCLUDED.wind_speed,
+                wind_speed_min = EXCLUDED.wind_speed_min,
+                wind_speed_max = EXCLUDED.wind_speed_max,
+                pressure = EXCLUDED.pressure,
+                created_at = NOW()");
 
             \$stmt->execute([
                 ':station_id' => \$data['station_id'],
@@ -4064,6 +4132,8 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':rainfall' => isset(\$data['rainfall']) ? \$data['rainfall'] : 0.0,
                 ':wave_height' => isset(\$data['wave_height']) ? \$data['wave_height'] : 0.0,
                 ':sea_level' => isset(\$data['sea_level']) ? \$data['sea_level'] : 0.0,
+                ':sea_level_min' => isset(\$data['sea_level_min']) ? \$data['sea_level_min'] : (isset(\$data['sea_level']) ? \$data['sea_level'] - 15.5 : 0.0),
+                ':sea_level_max' => isset(\$data['sea_level_max']) ? \$data['sea_level_max'] : (isset(\$data['sea_level']) ? \$data['sea_level'] + 12.3 : 0.0),
                 ':water_ph' => isset(\$data['water_ph']) ? \$data['water_ph'] : 7.0,
                 ':water_temp' => isset(\$data['water_temp']) ? \$data['water_temp'] : (\$data['temperature'] - 1.2),
                 ':water_temp_min' => isset(\$data['water_temp_min']) ? \$data['water_temp_min'] : (\$data['temperature'] - 2.0),
@@ -4341,23 +4411,24 @@ header("Content-Type: application/json; charset=UTF-8");
                    <thead>
                      <tr className="bg-[#050a12] border-b border-[#00f0ff]/20">
                        <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">DateTime</th>
-                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Temp (°C)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Temp Avg/Min/Max (°C)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Hum (%)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Rad Avg / Max (W/m²)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-sky-400 text-center text-xs">Rain (mm)</th>
                        <th className="p-3.5 uppercase font-bold tracking-[0.15em] text-amber-500 text-center text-xs">W-Gust (m/s / kt)</th>
-                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-xs">W-Level (m)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-xs">W-Level Avg/Min/Max (m)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-pink-400 text-center text-xs">pH Air</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-teal-400 text-center text-xs">Suhu Air Avg/Min/Max (°C)</th>
                         <th className="p-3.5 uppercase font-bold tracking-widest text-emerald-400 text-center text-xs">Battery (V)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Dir (°)</th>
-                       <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Spd (m/s / kt)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Spd Avg/Min/Max (m/s / kt)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-slate-400 text-center text-xs">Press (hPa)</th>
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-white/5 font-mono">
                      {filteredLogs.length === 0 ? (
                        <tr>
-                         <td colSpan={12} className="p-8 text-center uppercase tracking-widest text-slate-500 text-xs">
+                         <td colSpan={13} className="p-8 text-center uppercase tracking-widest text-slate-500 text-xs">
                            No logged matching rows found. Adjust criteria.
                          </td>
                        </tr>
@@ -4365,18 +4436,27 @@ header("Content-Type: application/json; charset=UTF-8");
                        filteredLogs.map((item, idx) => (
                          <tr key={idx} className="hover:bg-white/5 transition-colors">
                            <td className="p-3 text-center border-r border-white/5 text-slate-300 font-sans">{format(item.timestamp, 'dd-MM-yyyy HH:mm:ss')}</td>
-                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.temperature.toFixed(1)}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">
+                             {item.temperature.toFixed(1)} / {(item.tempMin !== undefined ? item.tempMin : (item.temperature - 1.5)).toFixed(1)} / {(item.tempMax !== undefined ? item.tempMax : (item.temperature + 1.2)).toFixed(1)}
+                           </td>
                            <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.humidity}%</td>
                            <td className="p-3 text-center border-r border-white/5 text-[#f59e0b]">{item.solarRadiation} / {item.solarRadiationMax ?? Math.round(item.solarRadiation * 1.15)}</td>
                            <td className="p-3 text-center border-r border-white/5 text-sky-400 font-bold">{(item.rainfall ?? 0.0).toFixed(1)}</td>
                            <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">
                              {item.windGust !== undefined && item.windGust !== null ? `${item.windGust.toFixed(1)} / ${(item.windGust * 1.94384).toFixed(0)}` : "—"}
                            </td>
-                           <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">{(item.seaLevel / 100).toFixed(3)}m</td>
+                           <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">
+                             {(item.seaLevel / 100).toFixed(3)}m / {((item.seaLevelMin !== undefined ? item.seaLevelMin : (item.seaLevel - 15.5)) / 100).toFixed(3)}m / {((item.seaLevelMax !== undefined ? item.seaLevelMax : (item.seaLevel + 12.3)) / 100).toFixed(3)}m
+                           </td>
                            <td className="p-3 text-center border-r border-white/5 text-pink-400 font-bold">{(item.waterPh ?? 7.80).toFixed(2)}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-teal-400 font-bold">
+                             {item.waterTemp !== undefined ? item.waterTemp.toFixed(1) : "—"} / {item.waterTempMin !== undefined ? item.waterTempMin.toFixed(1) : "—"} / {item.waterTempMax !== undefined ? item.waterTempMax.toFixed(1) : "—"}
+                           </td>
                             <td className="p-3 text-center border-r border-white/5 text-emerald-400 font-bold">{item.battery !== undefined ? item.battery.toFixed(2) : "12.2"}</td>
                            <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.windDirection}°</td>
-                           <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">{item.windSpeed.toFixed(1)} / {(item.windSpeed * 1.94384).toFixed(0)}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">
+                             {item.windSpeed.toFixed(1)} / {(item.windSpeedMin !== undefined ? item.windSpeedMin : Math.max(0, item.windSpeed - 1.8)).toFixed(1)} / {(item.windSpeedMax !== undefined ? item.windSpeedMax : (item.windSpeed + 2.5)).toFixed(1)} ({(item.windSpeed * 1.94384).toFixed(0)} kt)
+                           </td>
                            <td className="p-3 text-center text-slate-300 pr-4 text-right">{item.pressure.toFixed(1)}</td>
                          </tr>
                        ))

@@ -20,6 +20,8 @@ export interface WeatherData {
   waterTempMin?: number;
   waterTempMax?: number;
   solarRadiationMax?: number;
+  seaLevelMin?: number;
+  seaLevelMax?: number;
   battery?: number; // battery voltage (V)
 }
 
