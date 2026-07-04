@@ -2547,10 +2547,10 @@ export default function App() {
               {/* WIND COMPASS PORT-REPRESENTATION (PORT & STD) */}
               <div className="flex justify-center items-center my-6 relative">
                 
-                {/* PORT STD side panels labels */}
+                {/* STARBOARD std side panel labels (now on the left) */}
                 <div className="absolute left-1 md:left-2 lg:left-0.5 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-2 rounded-xl max-w-[100px] shadow-xl select-none font-sans z-10 scale-90 lg:scale-80 xl:scale-100">
-                  <div className="text-[10px] md:text-xs font-black text-[#00f0ff] uppercase tracking-wider mb-0.5">PORT</div>
-                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kiri / Left</div>
+                  <div className="text-[10px] md:text-xs font-black text-[#22c55e] uppercase tracking-wider mb-0.5">STARBOARD</div>
+                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kanan / Right</div>
                 </div>
 
                 {/* Compass Ring wrapper with dynamic warning colors */}
@@ -2643,10 +2643,10 @@ export default function App() {
                   );
                 })()}
 
-                {/* STARBOARD std side panel labels */}
+                {/* PORT side panel labels (now on the right) */}
                 <div className="absolute right-1 md:right-2 lg:right-0.5 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-2 rounded-xl max-w-[100px] shadow-xl select-none font-sans z-10 scale-90 lg:scale-80 xl:scale-100">
-                  <div className="text-[10px] md:text-xs font-black text-[#22c55e] uppercase tracking-wider mb-0.5">STARBOARD</div>
-                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kanan / Right</div>
+                  <div className="text-[10px] md:text-xs font-black text-[#00f0ff] uppercase tracking-wider mb-0.5">PORT</div>
+                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kiri / Left</div>
                 </div>
 
               </div>
