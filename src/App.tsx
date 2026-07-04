@@ -460,6 +460,15 @@ export const BMKG_PORTS_LIST: BmkgPortOption[] = [
   { slug: 'pelabuhan_p_sabira', label: 'Pelabuhan P. Sabira', region: 'Jakarta' }
 ];
 
+const resolveLocalApiUrl = (urlStr: string) => {
+  if (!urlStr) return urlStr;
+  const currentHost = window.location.hostname;
+  if (currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
+    return urlStr.replace(/(localhost|127\.0\.0\.1)/g, currentHost);
+  }
+  return urlStr;
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'realtime' | 'analyst' | 'telemetry' | 'database' | 'settings' | 'bmkg'>('realtime');
   
@@ -694,26 +703,26 @@ export default function App() {
 
     // Dynamically resolve daemon address depending on the client hostname or API configuration
     const getDaemonUrl = () => {
-      // If user has explicitly saved a daemon URL, always respect that first!
+      // If user has explicitly saved a daemon URL, always respect that first (resolved dynamically)!
       if (config.moxaDaemonUrl) {
-        return config.moxaDaemonUrl;
+        return resolveLocalApiUrl(config.moxaDaemonUrl);
       }
 
       const currentHost = window.location.hostname;
-      
-      // If we are in AI Studio / Cloud preview container
-      if (currentHost.includes('run.app') || currentHost.includes('google.com') || currentHost.includes('aistudio')) {
-        return 'http://localhost:8080';
-      }
       
       // If accessed via a remote local network IP (e.g. http://192.168.1.50:3000)
       if (currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
         return `http://${currentHost}:8080`;
       }
+
+      // If we are in AI Studio / Cloud preview container
+      if (currentHost.includes('run.app') || currentHost.includes('google.com') || currentHost.includes('aistudio')) {
+        return 'http://localhost:8080';
+      }
       
       // Fallback: check config.localDbApiUrl host
       try {
-        const apiParts = new URL(config.localDbApiUrl || 'http://localhost:8000/api.php');
+        const apiParts = new URL(resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php'));
         if (apiParts.hostname && apiParts.hostname !== 'localhost' && apiParts.hostname !== '127.0.0.1') {
           return `http://${apiParts.hostname}:8080`;
         }
@@ -794,7 +803,7 @@ export default function App() {
 
     // Fallback polling for status in case WebSocket connection is blocked by CORS/Mixed Content
     const fetchMoxaStatus = async () => {
-      const testUrl = config.localDbApiUrl || 'http://localhost:8000/api.php';
+      const testUrl = resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php');
       const moxaStatusUrl = `${testUrl}?get_moxa_status=1`;
       try {
         const res = await fetch(moxaStatusUrl);
@@ -836,7 +845,7 @@ export default function App() {
   // Auto-connect and check database on mount (helpful when laptop restarts and dev environment boots)
   useEffect(() => {
     const autoTestConnection = async () => {
-      const testUrl = config.localDbApiUrl || 'http://localhost:8000/api.php';
+      const testUrl = resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php');
       try {
         const res = await fetch(testUrl, { method: 'GET' });
         if (res.ok) {
@@ -875,7 +884,7 @@ export default function App() {
 
   // Gracefully post log data to local PostgreSQL database API and synchronize with Cloud endpoints
   const postLogToLocalPostgres = async (record: WeatherData) => {
-    const url = config.localDbApiUrl || 'http://localhost:8000/api.php';
+    const url = resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php');
     const payload = {
       station_id: config.idStation || 'AWS001',
       timestamp: formatSqlDateTime(record.timestamp),
@@ -1251,7 +1260,7 @@ export default function App() {
     // Post newly configured Moxa IP & Port to host computer's api.php automatically
     const moxaIp = newConfig.serialcom || '192.168.127.254';
     const moxaPort = parseInt(newConfig.baudrate) || 10001;
-    const url = newConfig.localDbApiUrl || 'http://localhost:8000/api.php';
+    const url = resolveLocalApiUrl(newConfig.localDbApiUrl || 'http://localhost:8000/api.php');
 
     try {
       await fetch(url, {
@@ -1561,7 +1570,7 @@ export default function App() {
   // Download real database records from the local api.php
   const fetchRealDatabaseLogs = async (silent = false) => {
     setIsFetchingRealDb(true);
-    const testUrl = config.localDbApiUrl || 'http://localhost:8000/api.php';
+    const testUrl = resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php');
     const fetchUrl = `${testUrl}?get_telemetry_logs=1`;
     
     if (!silent) {
@@ -3881,8 +3890,13 @@ CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
                         <span className="text-xs font-mono text-teal-400 uppercase font-black block">
                           🔌 Auto-create PHP Code (PostgreSQL via PDO):
                         </span>
-                        <div className="text-xs text-slate-500 font-mono">
-                          API URL: <span className="text-white font-bold">{config.localDbApiUrl || 'http://localhost:8000/api.php'}</span>
+                        <div className="text-xs text-slate-400 font-mono">
+                          API URL Config: <span className="text-white font-bold">{config.localDbApiUrl || 'http://localhost:8000/api.php'}</span>
+                          {resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php') !== (config.localDbApiUrl || 'http://localhost:8000/api.php') && (
+                            <span className="text-amber-400 block mt-1">
+                              🔄 Resolved LAN URL: <strong className="underline">{resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php')}</strong>
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -4085,7 +4099,7 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
                         </button>
                         <button 
                           onClick={async () => {
-                            const testUrl = config.localDbApiUrl || 'http://localhost:8000/api.php';
+                            const testUrl = resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php');
                             showToastNotification("🔧 Menguji hubungan ke PostgreSQL...");
                             setDbTestResult({ status: 'loading', message: `Menghubungi endpoint PostgreSQL pada: ${testUrl}...`, details: 'Mengirimkan HTTP GET request ke web server PHP lokal Anda.' });
                             try {
@@ -4859,8 +4873,13 @@ header("Content-Type: application/json; charset=UTF-8");
                           className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-teal-400 rounded outline-none text-left"
                         />
                         <p className="text-xs text-slate-500 font-mono mt-1 leading-tight">
-                          Alamat file <code className="text-slate-400 bg-white/5 px-0.5 rounded">api.php</code> di server PHP standalone atau virtual host Anda. Berguna untuk sinkronisasi otomatis.
+                          Alamat file <code className="text-slate-400 bg-white/5 px-0.5 rounded">api.php</code> di server PHP standalone atau virtual host Anda.
                         </p>
+                        {window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && (
+                          <p className="text-xs text-amber-500 font-mono mt-1 leading-tight">
+                            ℹ️ <strong>LAN Auto-Resolve Aktif:</strong> Karena Anda mengakses dari perangkat lain (<code className="text-amber-400 font-bold">{window.location.hostname}</code>), semua URL <code className="text-slate-400">localhost</code> akan dialihkan ke IP server utama secara otomatis demi menjaga status tetap ONLINE.
+                          </p>
+                        )}
                       </div>
 
                       <button 
