@@ -4429,24 +4429,34 @@ header("Content-Type: application/json; charset=UTF-8");
                    <thead>
                      <tr className="bg-[#050a12] border-b border-[#00f0ff]/20">
                        <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">DateTime</th>
-                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Temp Avg/Min/Max (°C)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Temp Avg (°C)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Temp Min (°C)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Temp Max (°C)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Hum (%)</th>
-                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Rad Avg / Max (W/m²)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Rad Avg (W/m²)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#00f0ff] text-center text-xs">Rad Max (W/m²)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-sky-400 text-center text-xs">Rain (mm)</th>
                        <th className="p-3.5 uppercase font-bold tracking-[0.15em] text-amber-500 text-center text-xs">W-Gust (m/s / kt)</th>
-                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-xs">W-Level Avg/Min/Max (m)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-xs">W-Level Avg (m)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-xs">W-Level Min (m)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-[#3b82f6] text-center text-xs">W-Level Max (m)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-pink-400 text-center text-xs">pH Air</th>
-                       <th className="p-3.5 uppercase font-bold tracking-widest text-teal-400 text-center text-xs">Suhu Air Avg/Min/Max (°C)</th>
-                        <th className="p-3.5 uppercase font-bold tracking-widest text-emerald-400 text-center text-xs">Battery (V)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-teal-400 text-center text-xs">Suhu Air Avg (°C)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-teal-400 text-center text-xs">Suhu Air Min (°C)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-teal-400 text-center text-xs">Suhu Air Max (°C)</th>
+
                        <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Dir (°)</th>
-                       <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Spd Avg/Min/Max (m/s / kt)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Spd Avg (m/s / kt)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Spd Min (m/s)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-amber-500 text-center text-xs">W-Spd Max (m/s)</th>
                        <th className="p-3.5 uppercase font-bold tracking-widest text-slate-400 text-center text-xs">Press (hPa)</th>
+                       <th className="p-3.5 uppercase font-bold tracking-widest text-emerald-400 text-center text-xs">Battery (V)</th>
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-white/5 font-mono">
                      {filteredLogs.length === 0 ? (
                        <tr>
-                         <td colSpan={13} className="p-8 text-center uppercase tracking-widest text-slate-500 text-xs">
+                         <td colSpan={22} className="p-8 text-center uppercase tracking-widest text-slate-500 text-xs">
                            No logged matching rows found. Adjust criteria.
                          </td>
                        </tr>
@@ -4454,28 +4464,30 @@ header("Content-Type: application/json; charset=UTF-8");
                        filteredLogs.map((item, idx) => (
                          <tr key={idx} className="hover:bg-white/5 transition-colors">
                            <td className="p-3 text-center border-r border-white/5 text-slate-300 font-sans">{format(item.timestamp, 'dd-MM-yyyy HH:mm:ss')}</td>
-                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">
-                             {item.temperature.toFixed(1)} / {(item.tempMin !== undefined ? item.tempMin : (item.temperature - 1.5)).toFixed(1)} / {(item.tempMax !== undefined ? item.tempMax : (item.temperature + 1.2)).toFixed(1)}
-                           </td>
+                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.temperature.toFixed(1)}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{(item.tempMin !== undefined ? item.tempMin : (item.temperature - 1.5)).toFixed(1)}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{(item.tempMax !== undefined ? item.tempMax : (item.temperature + 1.2)).toFixed(1)}</td>
                            <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.humidity}%</td>
-                           <td className="p-3 text-center border-r border-white/5 text-[#f59e0b]">{item.solarRadiation} / {item.solarRadiationMax ?? Math.round(item.solarRadiation * 1.15)}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-[#f59e0b]">{item.solarRadiation}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-[#f59e0b]">{item.solarRadiationMax ?? Math.round(item.solarRadiation * 1.15)}</td>
                            <td className="p-3 text-center border-r border-white/5 text-sky-400 font-bold">{(item.rainfall ?? 0.0).toFixed(1)}</td>
                            <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">
                              {item.windGust !== undefined && item.windGust !== null ? `${item.windGust.toFixed(1)} / ${(item.windGust * 1.94384).toFixed(0)}` : "—"}
                            </td>
-                           <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">
-                             {(item.seaLevel / 100).toFixed(3)}m / {((item.seaLevelMin !== undefined ? item.seaLevelMin : (item.seaLevel - 15.5)) / 100).toFixed(3)}m / {((item.seaLevelMax !== undefined ? item.seaLevelMax : (item.seaLevel + 12.3)) / 100).toFixed(3)}m
-                           </td>
+                           <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">{(item.seaLevel / 100).toFixed(3)}m</td>
+                           <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">{((item.seaLevelMin !== undefined ? item.seaLevelMin : (item.seaLevel - 15.5)) / 100).toFixed(3)}m</td>
+                           <td className="p-3 text-center border-r border-white/5 text-sky-400 text-right">{((item.seaLevelMax !== undefined ? item.seaLevelMax : (item.seaLevel + 12.3)) / 100).toFixed(3)}m</td>
                            <td className="p-3 text-center border-r border-white/5 text-pink-400 font-bold">{(item.waterPh ?? 7.80).toFixed(2)}</td>
-                           <td className="p-3 text-center border-r border-white/5 text-teal-400 font-bold">
-                             {item.waterTemp !== undefined ? item.waterTemp.toFixed(1) : "—"} / {item.waterTempMin !== undefined ? item.waterTempMin.toFixed(1) : "—"} / {item.waterTempMax !== undefined ? item.waterTempMax.toFixed(1) : "—"}
-                           </td>
-                            <td className="p-3 text-center border-r border-white/5 text-emerald-400 font-bold">{item.battery !== undefined ? item.battery.toFixed(2) : "12.2"}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-teal-400 font-bold">{item.waterTemp !== undefined ? item.waterTemp.toFixed(1) : "—"}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-teal-400 font-bold">{item.waterTempMin !== undefined ? item.waterTempMin.toFixed(1) : "—"}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-teal-400 font-bold">{item.waterTempMax !== undefined ? item.waterTempMax.toFixed(1) : "—"}</td>
+
                            <td className="p-3 text-center border-r border-white/5 text-[#e0f2fe]">{item.windDirection}°</td>
-                           <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">
-                             {item.windSpeed.toFixed(1)} / {(item.windSpeedMin !== undefined ? item.windSpeedMin : Math.max(0, item.windSpeed - 1.8)).toFixed(1)} / {(item.windSpeedMax !== undefined ? item.windSpeedMax : (item.windSpeed + 2.5)).toFixed(1)} ({(item.windSpeed * 1.94384).toFixed(0)} kt)
-                           </td>
-                           <td className="p-3 text-center text-slate-300 pr-4 text-right">{item.pressure.toFixed(1)}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">{item.windSpeed.toFixed(1)} / {(item.windSpeed * 1.94384).toFixed(0)}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">{(item.windSpeedMin !== undefined ? item.windSpeedMin : Math.max(0, item.windSpeed - 1.8)).toFixed(1)}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-amber-400 font-bold">{(item.windSpeedMax !== undefined ? item.windSpeedMax : (item.windSpeed + 2.5)).toFixed(1)}</td>
+                           <td className="p-3 text-center border-r border-white/5 text-slate-300 text-right">{item.pressure.toFixed(1)}</td>
+                           <td className="p-3 text-center text-emerald-400 font-bold pr-4 text-right">{item.battery !== undefined ? item.battery.toFixed(2) : "12.2"}</td>
                          </tr>
                        ))
                      )}
