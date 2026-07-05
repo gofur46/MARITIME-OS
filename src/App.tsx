@@ -3258,14 +3258,15 @@ export default function App() {
 
             {/* INTERACTIVE CALIBRATION & REFERENCE FOR TIDAL / WATER LEVEL (FULL WIDTH ROW) */}
             <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-[#00f0ff]/30 p-6 rounded-2xl shadow-[0_4px_30px_rgba(0,240,255,0.05)] space-y-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-white/5 pb-3 gap-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-[#00f0ff]/20 pb-3 gap-3">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-[#00f0ff]/10 border border-[#00f0ff]/20 rounded-xl text-[#00f0ff]">
                     <RefreshCw className="w-5 h-5 animate-spin-slow" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-black text-[#00f0ff] uppercase tracking-wider font-mono">
-                      🌊 KALIBRASI &amp; KALKULATOR REFERENSI PASANG SURUT
+                    <h3 className="text-sm font-black text-[#00f0ff] uppercase tracking-wider font-mono flex flex-wrap items-center gap-2">
+                      <span>🧭 SKEMATIK FISIK DERMAGA &amp; SIMULASI PASUT WIDESCREEN</span>
+                      <span className="text-emerald-400 text-[9px] font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded animate-pulse">⛵ KAPAL BERLABUH AKTIF</span>
                     </h3>
                     <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
                       Kalkulator skema instalasi sensor ultrasonik &amp; radar air laut dermaga. Menghitung kedalaman absolut, elevasi pasut, dan jarak pantul sonar.
@@ -3288,16 +3289,8 @@ export default function App() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 gap-6">
-                {/* 1. Skematik Fisik Dermaga & Simulasi Pasut Widescreen (Full Width top) */}
-                <div className="bg-black/30 border border-[#00f0ff]/20 rounded-2xl p-5 flex flex-col justify-between">
-                  <div className="text-xs uppercase font-extrabold text-[#00f0ff] tracking-[0.15em] font-mono border-b border-white/5 pb-2.5 mb-3 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">🧭 SKEMATIK FISIK DERMAGA &amp; SIMULASI PASUT WIDESCREEN</span>
-                    <span className="text-emerald-400 text-[9px] font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded animate-pulse">⛵ KAPAL BERLABUH AKTIF</span>
-                  </div>
-                  
-                  <div className="bg-[#040914] border border-[#00f0ff]/10 rounded-xl p-4 flex justify-center items-center w-full">
-                    <svg viewBox="0 0 700 200" className="w-full h-auto text-[8px] font-mono select-none">
+              <div className="bg-[#040914] border border-[#00f0ff]/10 rounded-xl p-4 flex justify-center items-center w-full">
+                    <svg viewBox="0 0 900 200" className="w-full h-auto text-[8px] font-mono select-none">
                       {/* Gradient for sea depth */}
                       <defs>
                         <linearGradient id="oceanBlueGrad" x1="0" y1="0" x2="0" y2="1">
@@ -3307,8 +3300,8 @@ export default function App() {
                       </defs>
 
                       {/* Seabed Background */}
-                      <rect x="10" y="180" width="680" height="12" fill="#334155" rx="3" stroke="#475569" strokeWidth="0.8" />
-                      <text x="350" y="189" fill="#cbd5e1" textAnchor="middle" className="font-bold text-[7px] tracking-wide">DASAR LAUT / SEABED GEOMETRIC REFERENCE</text>
+                      <rect x="0" y="180" width="900" height="12" fill="#334155" rx="0" stroke="#475569" strokeWidth="0.8" />
+                      <text x="450" y="189" fill="#cbd5e1" textAnchor="middle" className="font-bold text-[7px] tracking-wide">DASAR LAUT / SEABED GEOMETRIC REFERENCE</text>
                       
                       {/* Concrete Pier Piling Structure (Columns supporting the dock) */}
                       <rect x="40" y="45" width="16" height="135" fill="#475569" stroke="#64748b" strokeWidth="0.8" />
@@ -3320,13 +3313,14 @@ export default function App() {
                       <line x1="106" y1="45" x2="106" y2="180" stroke="#475569" strokeWidth="0.8" strokeDasharray="2 2" />
 
                       {/* Dock Platform Structure (Concrete deck on the left) */}
-                      <rect x="15" y="25" width="115" height="20" fill="#1e293b" stroke="#475569" strokeWidth="1" />
+                      <rect x="0" y="25" width="130" height="20" fill="#1e293b" stroke="#475569" strokeWidth="1" />
                       <line x1="130" y1="25" x2="130" y2="180" stroke="#475569" strokeWidth="1.2" strokeDasharray="3 3" />
-                      <text x="72" y="37" fill="#e2e8f0" textAnchor="middle" className="font-extrabold text-[8.5px]">LANTAI DERMAGA</text>
-                      <text x="72" y="47" fill="#94a3b8" textAnchor="middle" className="text-[6.5px]">REF: 0 cm (Top)</text>
+                      <text x="65" y="37" fill="#e2e8f0" textAnchor="middle" className="font-extrabold text-[8.5px]">LANTAI DERMAGA</text>
+                      <text x="65" y="47" fill="#94a3b8" textAnchor="middle" className="text-[6.5px]">REF: 0 cm (Top)</text>
 
                       {/* Yellow & Black Warning Stripes on the Pier edge */}
-                      <rect x="15" y="20" width="115" height="5" fill="#eab308" />
+                      <rect x="0" y="20" width="130" height="5" fill="#eab308" />
+                      <line x1="5" y1="20" x2="10" y2="25" stroke="#000" strokeWidth="1.5" />
                       <line x1="25" y1="20" x2="30" y2="25" stroke="#000" strokeWidth="1.5" />
                       <line x1="45" y1="20" x2="50" y2="25" stroke="#000" strokeWidth="1.5" />
                       <line x1="65" y1="20" x2="70" y2="25" stroke="#000" strokeWidth="1.5" />
@@ -3364,8 +3358,10 @@ export default function App() {
                                   T 430 ${waterY} 
                                   T 530 ${waterY} 
                                   T 630 ${waterY} 
-                                  T 680 ${waterY} 
-                                  L 680 180 
+                                  T 730 ${waterY} 
+                                  T 830 ${waterY} 
+                                  T 900 ${waterY} 
+                                  L 900 180 
                                   L 130 180 Z`}
                               fill="url(#oceanBlueGrad)" 
                               stroke="#0ea5e9" 
@@ -3376,12 +3372,14 @@ export default function App() {
                             <line x1="160" y1={waterY + 15} x2="240" y2={waterY + 15} stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="10 20" opacity="0.4" />
                             <line x1="280" y1={waterY + 35} x2="400" y2={waterY + 35} stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="20 30" opacity="0.3" />
                             <line x1="420" y1={waterY + 20} x2="520" y2={waterY + 20} stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="15 25" opacity="0.3" />
-                            <line x1="540" y1={waterY + 15} x2="650" y2={waterY + 15} stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="10 20" opacity="0.4" />
+                            <line x1="540" y1={waterY + 15} x2="670" y2={waterY + 15} stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="10 20" opacity="0.4" />
+                            <line x1="690" y1={waterY + 25} x2="820" y2={waterY + 25} stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="15 25" opacity="0.3" />
+                            <line x1="840" y1={waterY + 15} x2="895" y2={waterY + 15} stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="10 15" opacity="0.4" />
                             <line x1="200" y1={waterY + 60} x2="350" y2={waterY + 60} stroke="#38bdf8" strokeWidth="0.6" strokeDasharray="30 45" opacity="0.2" />
-                            <line x1="380" y1={waterY + 80} x2="660" y2={waterY + 80} stroke="#38bdf8" strokeWidth="0.5" strokeDasharray="40 60" opacity="0.15" />
+                            <line x1="380" y1={waterY + 80} x2="895" y2={waterY + 80} stroke="#38bdf8" strokeWidth="0.5" strokeDasharray="40 60" opacity="0.15" />
 
                             {/* CONTAINER VESSEL (Floats dynamically at waterY, perfectly spaced in expanded water body!) */}
-                            <g transform={`translate(45, ${waterY - 180})`}>
+                            <g transform={`translate(130, ${waterY - 180})`}>
                               {/* Red Underwater Keel/Hull */}
                               <path d="M 325 172 L 435 172 L 418 181 L 342 181 Z" fill="#dc2626" />
                               {/* Dark Grey Upper Hull */}
@@ -3423,11 +3421,11 @@ export default function App() {
                             </g>
 
                             {/* Mean Sea Level (MSL) line */}
-                            <line x1="130" y1={mslY} x2="680" y2={mslY} stroke="#10b981" strokeWidth="1.2" strokeDasharray="3 3" />
+                            <line x1="130" y1={mslY} x2="900" y2={mslY} stroke="#10b981" strokeWidth="1.2" strokeDasharray="3 3" />
                             <text x="135" y={mslY - 4} fill="#10b981" className="text-[7px] font-bold font-mono">MSL LINE ({calcMslHeight.toFixed(1)}m REF)</text>
 
                             {/* Water Surface label */}
-                            <text x="590" y={waterY - 5} fill="#38bdf8" textAnchor="middle" className="font-bold text-[8px] font-mono">WATER SURFACE ({calcLoggerHeight.toFixed(2)}m)</text>
+                            <text x="790" y={waterY - 5} fill="#38bdf8" textAnchor="middle" className="font-bold text-[8px] font-mono">WATER SURFACE ({calcLoggerHeight.toFixed(2)}m)</text>
 
                             {/* Dimension Lines and Labels */}
                             {/* Total Dock Height H */}
@@ -3437,10 +3435,10 @@ export default function App() {
                             <text x="6" y="102" fill="#94a3b8" transform="rotate(-90 6 102)" textAnchor="middle" className="text-[7.5px] font-bold">H = {calcTotalDepth.toFixed(1)}m</text>
 
                             {/* Logger Height (h_logger) */}
-                            <line x1="665" y1={waterY} x2="665" y2="180" stroke="#f59e0b" strokeWidth="1.2" />
-                            <line x1="662" y1={waterY} x2="668" y2={waterY} stroke="#f59e0b" strokeWidth="1.2" />
-                            <line x1="662" y1="180" x2="668" y2="180" stroke="#f59e0b" strokeWidth="1.2" />
-                            <text x="672" y={(waterY + 180)/2 + 3} fill="#f59e0b" textAnchor="start" className="font-bold text-[7.5px]">h = {calcLoggerHeight.toFixed(2)}m</text>
+                            <line x1="885" y1={waterY} x2="885" y2="180" stroke="#f59e0b" strokeWidth="1.2" />
+                            <line x1="882" y1={waterY} x2="888" y2={waterY} stroke="#f59e0b" strokeWidth="1.2" />
+                            <line x1="882" y1="180" x2="888" y2="180" stroke="#f59e0b" strokeWidth="1.2" />
+                            <text x="878" y={(waterY + 180)/2 + 3} fill="#f59e0b" textAnchor="end" className="font-bold text-[7.5px]">h = {calcLoggerHeight.toFixed(2)}m</text>
 
                             {/* Sensor to surface distance d_air */}
                             <line x1="145" y1="25" x2="145" y2={waterY} stroke="#38bdf8" strokeWidth="1.2" />
@@ -3623,11 +3621,11 @@ export default function App() {
                     </p>
                   </div>
 
-                </div>
               </div>
+            </div>
 
-                {/* TIDE & WATER LEVEL CHART - FULL WIDTH (Fitted right below the calibration parameters row) */}
-                <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-4 shadow-xl col-span-12 mt-1">
+            {/* TIDE & WATER LEVEL CHART - FULL WIDTH (Fitted right below the calibration parameters row) */}
+            <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-6 space-y-4 shadow-xl">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-white/5 gap-2">
                     <div className="space-y-1">
                       <h4 className="text-xs uppercase font-extrabold text-[#00f0ff] tracking-[0.2em] font-mono flex items-center gap-2">
@@ -3645,74 +3643,107 @@ export default function App() {
                         <span className="w-2 h-2 rounded-full bg-[#ec4899]"></span> Elevasi Pasut (MSL Ref) (m)
                       </span>
                       <span className="text-slate-500 font-normal">|</span>
-                      <span className="text-emerald-400 font-bold">MSL: {calcMslHeight.toFixed(2)}m</span>
+                      <span className="text-emerald-400 font-bold mr-1">MSL: {calcMslHeight.toFixed(2)}m</span>
+                      {(() => {
+                        const latestLog = analystLogs[analystLogs.length - 1];
+                        if (!latestLog) return null;
+                        const latestSea = latestLog.seaLevel / 100;
+                        const diff = latestSea - calcMslHeight;
+                        if (diff > 0.05) {
+                          return (
+                            <span className="bg-pink-500/20 text-pink-400 border border-pink-500/30 px-2 py-0.5 rounded font-black tracking-wider text-[9px] animate-pulse">
+                              📈 PASANG (+{diff.toFixed(2)}m)
+                            </span>
+                          );
+                        } else if (diff < -0.05) {
+                          return (
+                            <span className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 px-2 py-0.5 rounded font-black tracking-wider text-[9px] animate-pulse">
+                              📉 SURUT ({diff.toFixed(2)}m)
+                            </span>
+                          );
+                        } else {
+                          return (
+                            <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-black tracking-wider text-[9px]">
+                              🟢 BALANCE
+                            </span>
+                          );
+                        }
+                      })()}
                     </div>
                   </div>
                   
                   <div className="h-[280px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={analystLogs.map(item => ({
-                        ...item,
-                        seaLevelM: parseFloat((item.seaLevel / 100).toFixed(3)),
-                        elevasiPasut: parseFloat(((item.seaLevel / 100) - calcMslHeight).toFixed(3))
-                      }))}>
-                        <defs>
-                          <linearGradient id="colorAnalystSeaLevel" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.25}/>
-                            <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.01}/>
-                          </linearGradient>
-                          <linearGradient id="colorAnalystPasut" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#ec4899" stopOpacity={0.25}/>
-                            <stop offset="100%" stopColor="#ec4899" stopOpacity={0.01}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
-                        <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                        <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} tickFormatter={(val) => val.toFixed(1) + 'm'} />
-                        <Tooltip 
-                          contentStyle={{ backgroundColor: '#0b1424', borderColor: '#38bdf8' }} 
-                          labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')}
-                          formatter={(value: any, name: string) => {
-                            if (name === "seaLevelM") return [`${value.toFixed(3)} m`, 'Tinggi Air (Absolut)'];
-                            if (name === "elevasiPasut") return [`${value.toFixed(3)} m`, 'Elevasi Pasut (MSL Ref)'];
-                            return [value, name];
-                          }}
-                        />
-                        <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'monospace' }} />
-                        <ReferenceLine 
-                          y={calcMslHeight} 
-                          stroke="#10b981" 
-                          strokeDasharray="4 4" 
-                          strokeWidth={1.5}
-                          label={{ 
-                            value: `MSL Air Laut (${calcMslHeight.toFixed(2)}m) ── ▲ PASANG | ▼ SURUT`, 
-                            fill: '#10b981', 
-                            fontSize: 8, 
-                            position: 'insideTopLeft',
-                            fontWeight: 'bold'
-                          }} 
-                        />
-                        <ReferenceLine 
-                          y={0} 
-                          stroke="#ec4899" 
-                          strokeDasharray="4 4" 
-                          strokeWidth={1.5}
-                          label={{ 
-                            value: `MSL Pasut (0.00m) ── ▲ PASANG | ▼ SURUT`, 
-                            fill: '#ec4899', 
-                            fontSize: 8, 
-                            position: 'insideTopRight',
-                            fontWeight: 'bold'
-                          }} 
-                        />
-                        <Area type="monotone" name="Tinggi Air" dataKey="seaLevelM" stroke="#38bdf8" fillOpacity={1} fill="url(#colorAnalystSeaLevel)" strokeWidth={2.5} />
-                        <Area type="monotone" name="Elevasi Pasut" dataKey="elevasiPasut" stroke="#ec4899" fillOpacity={1} fill="url(#colorAnalystPasut)" strokeWidth={2.5} />
-                      </AreaChart>
+                      {(() => {
+                        const seaLevels = analystLogs.map(item => item.seaLevel / 100);
+                        const elevasiPasuts = analystLogs.map(item => (item.seaLevel / 100) - calcMslHeight);
+                        const allValues = seaLevels.length > 0 ? [...seaLevels, ...elevasiPasuts, calcMslHeight, 0] : [0, calcMslHeight];
+                        const minVal = Math.min(...allValues) - 0.25;
+                        const maxVal = Math.max(...allValues) + 0.25;
+                        
+                        return (
+                          <AreaChart data={analystLogs.map(item => ({
+                            ...item,
+                            seaLevelM: parseFloat((item.seaLevel / 100).toFixed(3)),
+                            elevasiPasut: parseFloat(((item.seaLevel / 100) - calcMslHeight).toFixed(3))
+                          }))}>
+                            <defs>
+                              <linearGradient id="colorAnalystSeaLevel" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.25}/>
+                                <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.01}/>
+                              </linearGradient>
+                              <linearGradient id="colorAnalystPasut" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#ec4899" stopOpacity={0.25}/>
+                                <stop offset="100%" stopColor="#ec4899" stopOpacity={0.01}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                            <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                            <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[minVal, maxVal]} tickFormatter={(val) => val.toFixed(1) + 'm'} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#0b1424', borderColor: '#38bdf8' }} 
+                              labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')}
+                              formatter={(value: any, name: string) => {
+                                if (name === "seaLevelM") return [`${value.toFixed(3)} m`, 'Tinggi Air (Absolut)'];
+                                if (name === "elevasiPasut") return [`${value.toFixed(3)} m`, 'Elevasi Pasut (MSL Ref)'];
+                                return [value, name];
+                              }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'monospace' }} />
+                            <ReferenceLine 
+                              y={calcMslHeight} 
+                              stroke="#10b981" 
+                              strokeDasharray="5 5" 
+                              strokeWidth={2}
+                              label={{ 
+                                value: `MSL Air Laut (${calcMslHeight.toFixed(2)}m) ── ▲ PASANG | ▼ SURUT`, 
+                                fill: '#10b981', 
+                                fontSize: 8, 
+                                position: 'insideTopLeft',
+                                fontWeight: 'bold'
+                              }} 
+                            />
+                            <ReferenceLine 
+                              y={0} 
+                              stroke="#ec4899" 
+                              strokeDasharray="5 5" 
+                              strokeWidth={2}
+                              label={{ 
+                                value: `MSL Pasut (0.00m) ── ▲ PASANG | ▼ SURUT`, 
+                                fill: '#ec4899', 
+                                fontSize: 8, 
+                                position: 'insideTopRight',
+                                fontWeight: 'bold'
+                              }} 
+                            />
+                            <Area type="monotone" name="Tinggi Air" dataKey="seaLevelM" stroke="#38bdf8" fillOpacity={1} fill="url(#colorAnalystSeaLevel)" strokeWidth={2.5} />
+                            <Area type="monotone" name="Elevasi Pasut" dataKey="elevasiPasut" stroke="#ec4899" fillOpacity={1} fill="url(#colorAnalystPasut)" strokeWidth={2.5} />
+                          </AreaChart>
+                        );
+                      })()}
                     </ResponsiveContainer>
                   </div>
                 </div>
-              </div>
-            </div>
 
             {/* ROW 1: WIND SPEED FORECAST (LEFT) & WIND ROSE (RIGHT) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
