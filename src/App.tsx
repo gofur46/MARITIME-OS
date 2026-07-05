@@ -2609,10 +2609,10 @@ export default function App() {
               {/* WIND COMPASS PORT-REPRESENTATION (PORT & STD) */}
               <div className="flex justify-center items-center my-6 relative">
                 
-                {/* PORT side panel labels (on the left) */}
+                {/* STARBOARD side panel labels (on the left) */}
                 <div className="absolute left-1 md:left-2 lg:left-0.5 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-2 rounded-xl max-w-[100px] shadow-xl select-none font-sans z-10 scale-90 lg:scale-80 xl:scale-100">
-                  <div className="text-[10px] md:text-xs font-black text-[#00f0ff] uppercase tracking-wider mb-0.5">PORT</div>
-                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kiri / Left</div>
+                  <div className="text-[10px] md:text-xs font-black text-[#22c55e] uppercase tracking-wider mb-0.5">STARBOARD</div>
+                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kanan / Right</div>
                 </div>
 
                 {/* Compass Ring wrapper with dynamic warning colors */}
@@ -2661,13 +2661,13 @@ export default function App() {
                       >
                         <div className="relative w-full h-full flex items-center justify-center">
                           {/* High-contrast thick rectangular block/pier separating PORT and OPEN SEA */}
-                          <div className="absolute h-[246px] w-[18px] bg-gradient-to-r from-cyan-600 via-cyan-400 to-cyan-600 rounded-sm border-2 border-cyan-300 shadow-[0_0_18px_rgba(6,182,212,0.75)]" />
+                          <div className="absolute h-[304px] w-[18px] bg-gradient-to-r from-cyan-600 via-cyan-400 to-cyan-600 rounded-sm border-2 border-cyan-300 shadow-[0_0_18px_rgba(6,182,212,0.75)]" />
                           {/* Inner technical center dashed guide line */}
-                          <div className="absolute h-[246px] w-[2px] bg-white/30 border-l border-dashed border-white/40" />
+                          <div className="absolute h-[304px] w-[2px] bg-white/30 border-l border-dashed border-white/40" />
                           
                           {/* Anchor dock markers at the edges of the line - aligned carefully */}
-                          <div className="absolute top-[12px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
-                          <div className="absolute bottom-[12px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
+                          <div className="absolute top-[10px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
+                          <div className="absolute bottom-[10px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
 
                           {/* Left side region: LAUT LEPAS / OPEN SEA */}
                           <div className="absolute left-[40px] top-[110px] text-[7.5px] uppercase font-black text-emerald-400/60 font-sans tracking-[0.25em] -rotate-90">
@@ -2705,10 +2705,10 @@ export default function App() {
                   );
                 })()}
 
-                {/* STARBOARD side panel labels (on the right) */}
+                {/* PORT side panel labels (on the right) */}
                 <div className="absolute right-1 md:right-2 lg:right-0.5 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-2 rounded-xl max-w-[100px] shadow-xl select-none font-sans z-10 scale-90 lg:scale-80 xl:scale-100">
-                  <div className="text-[10px] md:text-xs font-black text-[#22c55e] uppercase tracking-wider mb-0.5">STARBOARD</div>
-                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kanan / Right</div>
+                  <div className="text-[10px] md:text-xs font-black text-[#ef4444] uppercase tracking-wider mb-0.5">PORT</div>
+                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kiri / Left</div>
                 </div>
 
               </div>
@@ -7069,7 +7069,7 @@ header("Content-Type: application/json; charset=UTF-8");
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] text-slate-400">
                           <div className="space-y-1.5">
                             <strong className="text-white block">1. Kalibrasi Sudut Dermaga (Pier Alignment)</strong>
-                            Sudut dermaga dikonfigurasi melalui menu <span className="text-purple-400">Option</span> (misal: <em>45° Clockwise</em>). Kompas secara dinamis memutar garis lintang hijau yang berlabel <strong className="text-emerald-400">PORT (Kiri)</strong> dan <strong className="text-emerald-400">STARBOARD (Kanan)</strong>. Ini mensimulasikan orientasi lambung kapal saat sedang sandar sejajar dermaga.
+                            Sudut dermaga dikonfigurasi melalui menu <span className="text-purple-400">Option</span> (misal: <em>45° Clockwise</em>). Kompas secara dinamis memutar garis lintang hijau yang berlabel <strong className="text-emerald-400">STARBOARD (Kiri Layar)</strong> dan <strong className="text-rose-400">PORT (Kanan Layar)</strong>. Ini mensimulasikan orientasi lambung kapal saat sedang sandar sejajar dermaga.
                           </div>
                           <div className="space-y-1.5">
                             <strong className="text-white block">2. Penghitungan Relative Wind Angle</strong>
