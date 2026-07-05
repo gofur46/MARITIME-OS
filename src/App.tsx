@@ -539,6 +539,9 @@ export default function App() {
   const [showTelemetryPopup, setShowTelemetryPopup] = useState(false);
   const [isLoadingBmkg, setIsLoadingBmkg] = useState<boolean>(false);
   const [bmkgErrorMsg, setBmkgErrorMsg] = useState<string>('');
+  const [calcTotalDepth, setCalcTotalDepth] = useState<number>(4.0);
+  const [calcLoggerHeight, setCalcLoggerHeight] = useState<number>(1.0);
+  const [calcMslHeight, setCalcMslHeight] = useState<number>(2.0);
   const selectedBmkgRow = (bmkgForecast && selectedForecastIndex !== null && selectedForecastIndex < bmkgForecast.length) 
     ? bmkgForecast[selectedForecastIndex] 
     : (bmkgForecast && bmkgForecast.length > 0 ? bmkgForecast[0] : null);
@@ -4688,6 +4691,184 @@ header("Content-Type: application/json; charset=UTF-8");
                       onChange={(e) => setConfig({ ...config, pierAngle: e.target.value })}
                       className="w-full bg-[#050a12] border border-white/15 font-mono text-sm text-center p-3 text-emerald-400 font-black rounded-lg outline-none cursor-pointer focus:border-emerald-400" 
                     />
+                  </div>
+
+                  <div className="border-t border-white/5 pt-3 space-y-4">
+                    <div className="bg-slate-950/80 border border-[#00f0ff]/20 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                        <span className="text-xs uppercase font-extrabold text-[#00f0ff] flex items-center gap-1.5 font-mono">
+                          🌊 KALIBRASI &amp; REFERENSI PASANG SURUT
+                        </span>
+                        <span className="bg-[#00f0ff]/10 text-[#00f0ff] text-[9px] px-2 py-0.5 rounded font-bold font-mono">
+                          Interactive Reference
+                        </span>
+                      </div>
+                      
+                      <p className="text-[10px] text-slate-400 font-sans leading-relaxed">
+                        Gunakan kalkulator interaktif ini sebagai referensi kalibrasi instalasi fisik sensor ultrasonik/radar air laut Anda di dermaga.
+                      </p>
+
+                      <div className="grid grid-cols-3 gap-2 font-mono text-[10px]">
+                        <div className="space-y-1">
+                          <label className="text-slate-400 block font-bold text-[9px]">TINGGI SENSOR (H)</label>
+                          <div className="relative">
+                            <input 
+                              type="number" 
+                              step="0.1"
+                              min="1"
+                              max="20"
+                              value={calcTotalDepth}
+                              onChange={(e) => setCalcTotalDepth(parseFloat(e.target.value) || 4.0)}
+                              className="w-full bg-black/60 border border-white/10 p-1.5 text-[#00f0ff] font-bold rounded outline-none text-center"
+                            />
+                            <span className="absolute right-1 top-1.5 text-slate-500 text-[8px]">m</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-slate-400 block font-bold text-[9px]">MEAN SEA LEVEL (MSL)</label>
+                          <div className="relative">
+                            <input 
+                              type="number" 
+                              step="0.1"
+                              min="0"
+                              max={calcTotalDepth}
+                              value={calcMslHeight}
+                              onChange={(e) => setCalcMslHeight(parseFloat(e.target.value) || 2.0)}
+                              className="w-full bg-black/60 border border-white/10 p-1.5 text-emerald-400 font-bold rounded outline-none text-center"
+                            />
+                            <span className="absolute right-1 top-1.5 text-slate-500 text-[8px]">m</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-slate-400 block font-bold text-[9px]">LOGGER TINGGI AIR (h)</label>
+                          <div className="relative">
+                            <input 
+                              type="number" 
+                              step="0.1"
+                              min="0"
+                              max={calcTotalDepth}
+                              value={calcLoggerHeight}
+                              onChange={(e) => setCalcLoggerHeight(Math.min(calcTotalDepth, parseFloat(e.target.value) || 0))}
+                              className="w-full bg-black/60 border border-[#f59e0b]/30 p-1.5 text-[#f59e0b] font-bold rounded outline-none text-center"
+                            />
+                            <span className="absolute right-1 top-1.5 text-slate-500 text-[8px]">m</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Slider Input for quick simulation */}
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[9px] font-mono text-slate-500">
+                          <span>0 m (Seabed)</span>
+                          <span>Simulasi Logger: <strong className="text-[#f59e0b]">{calcLoggerHeight.toFixed(2)} m</strong></span>
+                          <span>{calcTotalDepth.toFixed(1)} m (Penuh)</span>
+                        </div>
+                        <input 
+                          type="range"
+                          min="0"
+                          max={calcTotalDepth}
+                          step="0.05"
+                          value={calcLoggerHeight}
+                          onChange={(e) => setCalcLoggerHeight(parseFloat(e.target.value))}
+                          className="w-full accent-[#f59e0b] h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Live Calculation Outcomes */}
+                      <div className="grid grid-cols-2 gap-2 font-mono text-[11px] bg-black/40 p-2.5 rounded border border-white/5">
+                        <div className="space-y-1">
+                          <span className="text-slate-500 text-[9px] block">📏 JARAK SENSOR KE AIR (d):</span>
+                          <span className="text-sky-400 font-bold">
+                            {Math.max(0, calcTotalDepth - calcLoggerHeight).toFixed(2)} m
+                          </span>
+                          <span className="text-[8px] text-slate-400 block leading-tight">
+                            (Sensor dermaga ke air)
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-slate-500 text-[9px] block">📈 ELEVASI PASUT (MSL REF):</span>
+                          <span className={`font-bold ${(calcLoggerHeight - calcMslHeight) > 0.5 ? 'text-pink-400' : (calcLoggerHeight - calcMslHeight) < -0.5 ? 'text-cyan-400' : 'text-emerald-400'}`}>
+                            {(calcLoggerHeight - calcMslHeight) >= 0 ? '+' : ''}{(calcLoggerHeight - calcMslHeight).toFixed(2)} m
+                          </span>
+                          <span className="text-[8px] text-slate-400 block leading-tight">
+                            {(calcLoggerHeight - calcMslHeight) > 0.5 ? '🌊 PASANG TINGGI' : (calcLoggerHeight - calcMslHeight) < -0.5 ? '📉 SURUT RENDAH' : '🟢 KONDISI NORMAL'}
+                          </span>
+                        </div>
+                        <div className="space-y-1 col-span-2 border-t border-white/5 pt-1.5 mt-1.5">
+                          <span className="text-slate-500 text-[9px] block">🏗️ KEDUDUKAN AIR TERHADAP LANTAI DERMAGA (0 cm):</span>
+                          <span className="text-rose-400 font-bold">
+                            -{Math.max(0, calcTotalDepth - calcLoggerHeight).toFixed(2)} m <span className="text-slate-400 font-normal text-[10px]">(di bawah lantai dermaga)</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* SVG Schematic Visualization of the Physical System */}
+                      <div className="bg-[#050c18] border border-white/5 rounded-lg p-2 flex justify-center items-center">
+                        <svg width="270" height="150" className="font-mono text-[8px]">
+                          {/* Seabed Background */}
+                          <rect x="10" y="135" width="250" height="10" fill="#1e293b" rx="2" />
+                          <text x="135" y="143" fill="#64748b" textAnchor="middle" className="font-bold text-[7px]">DESAIN FISIK DASAR LAUT (SEABED)</text>
+                          
+                          {/* Dock Platform Structure (Left Side) */}
+                          <rect x="20" y="20" width="50" height="15" fill="#334155" />
+                          <line x1="70" y1="20" x2="70" y2="135" stroke="#475569" strokeWidth="1" strokeDasharray="3 3" />
+                          <text x="45" y="30" fill="#cbd5e1" textAnchor="middle" className="font-bold">DERMAGA</text>
+                          <text x="45" y="42" fill="#94a3b8" textAnchor="middle" className="text-[7px]">REF: 0 cm</text>
+                          
+                          {/* Ultrasonic Sensor Icon */}
+                          <rect x="62" y="32" width="12" height="6" fill="#10b981" rx="1" />
+                          <line x1="68" y1="38" x2="68" y2="45" stroke="#10b981" strokeWidth="1" />
+                          <path d="M64 45 Q68 50 72 45" stroke="#10b981" strokeWidth="1" fill="none" strokeDasharray="2 2" className="animate-pulse" />
+                          <text x="80" y="38" fill="#10b981" className="text-[7px]">SENSOR</text>
+
+                          {(() => {
+                            const pixelRange = 90; // max height in pixels inside drawing
+                            const bottomY = 130;
+                            const totalD = calcTotalDepth || 4.0;
+                            const logH = Math.max(0, Math.min(totalD, calcLoggerHeight));
+                            const mslH = Math.max(0, Math.min(totalD, calcMslHeight));
+                            
+                            const waterHeightPx = (logH / totalD) * pixelRange;
+                            const waterY = bottomY - waterHeightPx;
+                            const mslY = bottomY - (mslH / totalD) * pixelRange;
+                            
+                            return (
+                              <>
+                                {/* Blue Water Body */}
+                                <rect x="120" y={waterY} width="110" height={waterHeightPx} fill="#0ea5e9" fillOpacity="0.25" stroke="#0ea5e9" strokeWidth="1.5" />
+                                
+                                {/* Mean Sea Level (MSL) line */}
+                                <line x1="110" y1={mslY} x2="240" y2={mslY} stroke="#10b981" strokeWidth="1" strokeDasharray="3 3" />
+                                <text x="112" y={mslY - 3} fill="#10b981" className="text-[6px] font-bold">MSL ({calcMslHeight.toFixed(1)}m)</text>
+
+                                {/* Water Surface label */}
+                                <text x="175" y={waterY - 4} fill="#38bdf8" textAnchor="middle" className="font-bold text-[7px]">PERMUKAAN AIR</text>
+
+                                {/* Dimension Lines and Labels */}
+                                {/* Total Dock Height H */}
+                                <line x1="15" y1="20" x2="15" y2="130" stroke="#64748b" strokeWidth="1" />
+                                <line x1="12" y1="20" x2="18" y2="20" stroke="#64748b" strokeWidth="1" />
+                                <line x1="12" y1="130" x2="18" y2="130" stroke="#64748b" strokeWidth="1" />
+                                <text x="10" y="75" fill="#94a3b8" transform="rotate(-90 10 75)" textAnchor="middle" className="text-[7px] font-bold">H = {calcTotalDepth.toFixed(1)} m</text>
+
+                                {/* Logger Height (h_logger) */}
+                                <line x1="240" y1={waterY} x2="240" y2="130" stroke="#f59e0b" strokeWidth="1" />
+                                <line x1="237" y1={waterY} x2="243" y2={waterY} stroke="#f59e0b" strokeWidth="1" />
+                                <line x1="237" y1="130" x2="243" y2="130" stroke="#f59e0b" strokeWidth="1" />
+                                <text x="246" y={(waterY + 130)/2 + 2} fill="#f59e0b" textAnchor="start" className="font-bold text-[7px]">h = {calcLoggerHeight.toFixed(1)} m</text>
+
+                                {/* Sensor to surface distance d_air */}
+                                <line x1="100" y1="20" x2="100" y2={waterY} stroke="#38bdf8" strokeWidth="1" />
+                                <line x1="97" y1="20" x2="103" y2="20" stroke="#38bdf8" strokeWidth="1" />
+                                <line x1="97" y1={waterY} x2="103" y2={waterY} stroke="#38bdf8" strokeWidth="1" />
+                                <text x="105" y={(20 + waterY)/2 + 2} fill="#38bdf8" textAnchor="start" className="font-bold text-[7px]">d = {(calcTotalDepth - calcLoggerHeight).toFixed(1)} m</text>
+                              </>
+                            );
+                          })()}
+                        </svg>
+                      </div>
+
+                    </div>
                   </div>
 
                   <div className="border-t border-white/5 pt-3">
