@@ -3288,228 +3288,16 @@ export default function App() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-                {/* Column 1 & 2 combined for better responsive density layout: lg:col-span-5 */}
-                <div className="lg:col-span-5 flex flex-col gap-4">
-                  {/* Part 1: Parameters & Persistent Save Button */}
-                  <div className="bg-black/40 border border-white/5 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between border-b border-white/5 pb-1">
-                      <div className="text-[10px] uppercase font-bold text-[#00f0ff]/80 tracking-wider font-mono">
-                        🛠️ 1. Parameter Kalibrasi Dermaga
-                      </div>
-                      
-                      {/* Live saved status badge */}
-                      {calcTotalDepth === parseFloat(localStorage.getItem('tide_total_depth') || '4.0') && 
-                       calcMslHeight === parseFloat(localStorage.getItem('tide_msl_height') || '2.0') ? (
-                        <span className="text-[9px] text-emerald-400 font-mono font-bold flex items-center gap-1 bg-emerald-500/5 px-2 py-0.5 rounded border border-emerald-500/10">
-                          <Check className="w-3 h-3" /> KONFIGURASI AKTIF
-                        </span>
-                      ) : (
-                        <span className="text-[9px] text-amber-400 font-mono font-bold flex items-center gap-1 bg-amber-500/5 px-2 py-0.5 rounded border border-amber-500/10">
-                          ⚠️ BELUM DISIMPAN
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-slate-400 block font-bold text-[9px] uppercase">Tinggi Sensor (H)</label>
-                        <span className="text-[8px] text-slate-500 block leading-none">(Dermaga ke dasar)</span>
-                        <div className="relative mt-1">
-                          <input 
-                            type="number" 
-                            step="0.1"
-                            min="1"
-                            max="50"
-                            value={calcTotalDepth}
-                            onChange={(e) => {
-                              const val = e.target.value === '' ? 4.0 : parseFloat(e.target.value);
-                              setCalcTotalDepth(isNaN(val) ? 4.0 : val);
-                            }}
-                            className="w-full bg-black/80 border border-white/10 p-2 text-[#00f0ff] font-bold rounded-lg outline-none text-center font-mono text-xs focus:border-[#00f0ff]"
-                          />
-                          <span className="absolute right-2 top-2 text-slate-500 text-[10px] font-mono">m</span>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-1">
-                        <label className="text-slate-400 block font-bold text-[9px] uppercase">Mean Sea Level (MSL)</label>
-                        <span className="text-[8px] text-slate-500 block leading-none">(Tinggi rata-rata pasut)</span>
-                        <div className="relative mt-1">
-                          <input 
-                            type="number" 
-                            step="0.1"
-                            min="0"
-                            max={calcTotalDepth}
-                            value={calcMslHeight}
-                            onChange={(e) => {
-                              const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                              setCalcMslHeight(isNaN(val) ? 0 : val);
-                            }}
-                            className="w-full bg-black/80 border border-white/10 p-2 text-emerald-400 font-bold rounded-lg outline-none text-center font-mono text-xs focus:border-emerald-400"
-                          />
-                          <span className="absolute right-2 top-2 text-slate-500 text-[10px] font-mono">m</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Quick Presets for MSL */}
-                    <div className="space-y-1 bg-black/30 p-2 rounded-lg border border-white/5">
-                      <span className="text-[8px] text-slate-500 font-mono uppercase font-bold block mb-1">Set Cepat Nilai MSL:</span>
-                      <div className="grid grid-cols-3 gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setCalcMslHeight(0)}
-                          className="px-1.5 py-1 text-[8px] bg-slate-900 hover:bg-slate-800 border border-white/10 rounded font-mono text-slate-300 font-bold text-center transition-colors cursor-pointer"
-                        >
-                          📍 Set 0m
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setCalcMslHeight(calcTotalDepth)}
-                          className="px-1.5 py-1 text-[8px] bg-slate-900 hover:bg-slate-800 border border-[#00f0ff]/20 rounded font-mono text-[#00f0ff] font-bold text-center transition-colors cursor-pointer"
-                        >
-                          📍 Set = H ({calcTotalDepth.toFixed(1)}m)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setCalcMslHeight(Math.max(0, calcTotalDepth - calcLoggerHeight))}
-                          className="px-1.5 py-1 text-[8px] bg-slate-900 hover:bg-slate-800 border border-sky-500/20 rounded font-mono text-sky-400 font-bold text-center transition-colors cursor-pointer"
-                        >
-                          📍 Set = d ({(calcTotalDepth - calcLoggerHeight).toFixed(1)}m)
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* SAVE BUTTON */}
-                    <div className="pt-1">
-                      <button
-                        onClick={() => {
-                          localStorage.setItem('tide_total_depth', calcTotalDepth.toString());
-                          localStorage.setItem('tide_msl_height', calcMslHeight.toString());
-                          setIsTideConfigSaved(true);
-                          setTimeout(() => setIsTideConfigSaved(false), 3000);
-                        }}
-                        className={`w-full py-2 px-3 rounded-lg font-mono font-black text-xs transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer border ${
-                          isTideConfigSaved 
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
-                            : (calcTotalDepth === parseFloat(localStorage.getItem('tide_total_depth') || '4.0') && 
-                               calcMslHeight === parseFloat(localStorage.getItem('tide_msl_height') || '2.0'))
-                              ? 'bg-slate-950 hover:bg-slate-900 text-slate-300 border-white/10'
-                              : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.1)]'
-                        }`}
-                      >
-                        {isTideConfigSaved ? (
-                          <>
-                            <CheckCircle className="w-4 h-4 text-emerald-400 animate-bounce" />
-                            BERHASIL DISIMPAN KE PENYIMPANAN LOKAL!
-                          </>
-                        ) : (
-                          <>
-                            <Save className="w-4 h-4" />
-                            SIMPAN PARAMETER REFERENSI (H &amp; MSL)
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    <div className="space-y-1 border-t border-white/5 pt-3">
-                      <label className="text-slate-400 block font-bold text-[9px] uppercase">Logger Tinggi Air (h)</label>
-                      <span className="text-[8px] text-slate-500 block leading-none">(Nilai sensor dari dasar / simulasi)</span>
-                      <div className="relative mt-1">
-                        <input 
-                          type="number" 
-                          step="0.05"
-                          min="0"
-                          max={calcTotalDepth}
-                          value={calcLoggerHeight}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                            setCalcLoggerHeight(isNaN(val) ? 0 : Math.min(calcTotalDepth, val));
-                          }}
-                          className="w-full bg-black/80 border border-[#f59e0b]/40 p-2 text-[#f59e0b] font-bold rounded-lg outline-none text-center font-mono text-xs focus:border-[#f59e0b]"
-                        />
-                        <span className="absolute right-2 top-2 text-slate-500 text-[10px] font-mono">m</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5 border-t border-white/5 pt-2">
-                      <div className="flex justify-between text-[9px] font-mono text-slate-500">
-                        <span>0.0m (Dasar)</span>
-                        <span>Geser untuk simulasi pasang surut: <strong className="text-[#f59e0b]">{calcLoggerHeight.toFixed(2)}m</strong></span>
-                        <span>{calcTotalDepth.toFixed(1)}m (Lantai)</span>
-                      </div>
-                      <input 
-                        type="range"
-                        min="0"
-                        max={calcTotalDepth}
-                        step="0.02"
-                        value={calcLoggerHeight}
-                        onChange={(e) => setCalcLoggerHeight(parseFloat(e.target.value))}
-                        className="w-full accent-[#f59e0b] h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Part 2: Computations & Metrics */}
-                  <div className="bg-black/40 border border-white/5 rounded-xl p-4 flex flex-col justify-between space-y-3">
-                    <div className="text-[10px] uppercase font-bold text-[#00f0ff]/80 tracking-wider font-mono border-b border-white/5 pb-1">
-                      📊 2. Hasil Perhitungan &amp; Metrik
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-2.5 font-mono text-xs">
-                      <div className="bg-slate-900/50 p-2 rounded-lg border border-white/5 flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <span className="text-slate-400 text-[9px] block uppercase">📏 Jarak Sensor ke Air (d)</span>
-                          <span className="text-sky-300 font-bold text-sm">{(calcTotalDepth - calcLoggerHeight).toFixed(2)} m</span>
-                        </div>
-                        <span className="text-[9px] text-slate-500 font-bold bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded">Sonar Delay</span>
-                      </div>
-
-                      <div className="bg-slate-900/50 p-2 rounded-lg border border-white/5 flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <span className="text-slate-400 text-[9px] block uppercase">📈 Elevasi Pasut (MSL Ref)</span>
-                          <span className={`font-black text-sm ${(calcLoggerHeight - calcMslHeight) > 0.5 ? 'text-pink-400 animate-pulse' : (calcLoggerHeight - calcMslHeight) < -0.5 ? 'text-cyan-400' : 'text-emerald-400'}`}>
-                            {(calcLoggerHeight - calcMslHeight) >= 0 ? '+' : ''}{(calcLoggerHeight - calcMslHeight).toFixed(2)} m
-                          </span>
-                        </div>
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded border ${
-                          (calcLoggerHeight - calcMslHeight) > 0.5 
-                            ? 'bg-pink-500/10 text-pink-400 border-pink-500/20' 
-                            : (calcLoggerHeight - calcMslHeight) < -0.5 
-                              ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' 
-                              : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                        }`}>
-                          {(calcLoggerHeight - calcMslHeight) > 0.5 ? 'Pasang Tinggi' : (calcLoggerHeight - calcMslHeight) < -0.5 ? 'Surut Rendah' : 'Normal'}
-                        </span>
-                      </div>
-
-                      <div className="bg-slate-900/50 p-2 rounded-lg border border-white/5">
-                        <span className="text-slate-400 text-[9px] block uppercase">🏗️ Jarak Air ke Lantai Dermaga</span>
-                        <div className="flex justify-between items-center mt-0.5">
-                          <span className="text-rose-400 font-bold text-sm">
-                            -{Math.max(0, calcTotalDepth - calcLoggerHeight).toFixed(2)} m
-                          </span>
-                          <span className="text-[9px] text-slate-400 font-normal">Di bawah dermaga</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-[#0b1424] p-2 rounded-lg border border-[#00f0ff]/10 text-[9.5px] leading-relaxed text-slate-300 font-sans">
-                      💡 <strong>Tips Kalibrasi:</strong> Tinggi sensor adalah <strong>{calcTotalDepth.toFixed(1)}m</strong>. Jika nilai radar <strong>{calcLoggerHeight.toFixed(2)}m</strong>, permukaan berada <strong>{(calcTotalDepth - calcLoggerHeight).toFixed(2)}m di bawah lantai dermaga</strong>.
-                    </div>
-                  </div>
-                </div>
-
-                {/* Column 3: Widescreen, highly attractive Physical Schematic Draw (lg:col-span-7) */}
-                <div className="lg:col-span-7 bg-black/40 border border-[#00f0ff]/10 rounded-xl p-4 flex flex-col justify-between">
-                  <div className="text-[10px] uppercase font-bold text-[#00f0ff]/80 tracking-wider font-mono border-b border-white/5 pb-1 mb-2 flex items-center justify-between">
-                    <span>🧭 3. Skematik Fisik Dermaga &amp; Simulasi Pasut Widescreen</span>
-                    <span className="text-[#38bdf8] text-[9px] font-bold animate-pulse">⛵ KAPAL BERLABUH AKTIF</span>
+              <div className="grid grid-cols-1 gap-6">
+                {/* 1. Skematik Fisik Dermaga & Simulasi Pasut Widescreen (Full Width top) */}
+                <div className="bg-black/30 border border-[#00f0ff]/20 rounded-2xl p-5 flex flex-col justify-between">
+                  <div className="text-xs uppercase font-extrabold text-[#00f0ff] tracking-[0.15em] font-mono border-b border-white/5 pb-2.5 mb-3 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">🧭 SKEMATIK FISIK DERMAGA &amp; SIMULASI PASUT WIDESCREEN</span>
+                    <span className="text-emerald-400 text-[9px] font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded animate-pulse">⛵ KAPAL BERLABUH AKTIF</span>
                   </div>
                   
-                  <div className="bg-[#050c18] border border-white/10 rounded-lg p-2.5 flex justify-center items-center h-full min-h-[220px]">
-                    <svg width="100%" height="220" viewBox="0 0 600 200" className="font-mono text-[8px] w-full">
+                  <div className="bg-[#040914] border border-[#00f0ff]/10 rounded-xl p-4 flex justify-center items-center w-full">
+                    <svg viewBox="0 0 700 200" className="w-full h-auto text-[8px] font-mono select-none">
                       {/* Gradient for sea depth */}
                       <defs>
                         <linearGradient id="oceanBlueGrad" x1="0" y1="0" x2="0" y2="1">
@@ -3519,26 +3307,26 @@ export default function App() {
                       </defs>
 
                       {/* Seabed Background */}
-                      <rect x="10" y="180" width="580" height="12" fill="#1e293b" rx="2" />
-                      <text x="300" y="189" fill="#64748b" textAnchor="middle" className="font-bold text-[7px] tracking-wide">DASAR LAUT / SEABED DESIGN REFERENCE</text>
+                      <rect x="10" y="180" width="680" height="12" fill="#334155" rx="3" stroke="#475569" strokeWidth="0.8" />
+                      <text x="350" y="189" fill="#cbd5e1" textAnchor="middle" className="font-bold text-[7px] tracking-wide">DASAR LAUT / SEABED GEOMETRIC REFERENCE</text>
                       
                       {/* Concrete Pier Piling Structure (Columns supporting the dock) */}
-                      <rect x="35" y="45" width="20" height="135" fill="#1e293b" opacity="0.4" />
-                      <line x1="35" y1="45" x2="35" y2="180" stroke="#475569" strokeWidth="0.8" strokeDasharray="2 2" />
-                      <line x1="55" y1="45" x2="55" y2="180" stroke="#475569" strokeWidth="0.8" strokeDasharray="2 2" />
+                      <rect x="40" y="45" width="16" height="135" fill="#475569" stroke="#64748b" strokeWidth="0.8" />
+                      <line x1="40" y1="45" x2="40" y2="180" stroke="#475569" strokeWidth="0.8" strokeDasharray="2 2" />
+                      <line x1="56" y1="45" x2="56" y2="180" stroke="#475569" strokeWidth="0.8" strokeDasharray="2 2" />
 
-                      <rect x="85" y="45" width="20" height="135" fill="#1e293b" opacity="0.4" />
-                      <line x1="85" y1="45" x2="85" y2="180" stroke="#475569" strokeWidth="0.8" strokeDasharray="2 2" />
-                      <line x1="105" y1="45" x2="105" y2="180" stroke="#475569" strokeWidth="0.8" strokeDasharray="2 2" />
+                      <rect x="90" y="45" width="16" height="135" fill="#475569" stroke="#64748b" strokeWidth="0.8" />
+                      <line x1="90" y1="45" x2="90" y2="180" stroke="#475569" strokeWidth="0.8" strokeDasharray="2 2" />
+                      <line x1="106" y1="45" x2="106" y2="180" stroke="#475569" strokeWidth="0.8" strokeDasharray="2 2" />
 
                       {/* Dock Platform Structure (Concrete deck on the left) */}
-                      <rect x="15" y="25" width="115" height="20" fill="#334155" />
-                      <line x1="130" y1="25" x2="130" y2="180" stroke="#475569" strokeWidth="1" strokeDasharray="3 3" />
-                      <text x="72" y="37" fill="#cbd5e1" textAnchor="middle" className="font-bold text-[9px]">LANTAI DERMAGA</text>
-                      <text x="72" y="47" fill="#94a3b8" textAnchor="middle" className="text-[7px]">REF: 0 cm (Top)</text>
+                      <rect x="15" y="25" width="115" height="20" fill="#1e293b" stroke="#475569" strokeWidth="1" />
+                      <line x1="130" y1="25" x2="130" y2="180" stroke="#475569" strokeWidth="1.2" strokeDasharray="3 3" />
+                      <text x="72" y="37" fill="#e2e8f0" textAnchor="middle" className="font-extrabold text-[8.5px]">LANTAI DERMAGA</text>
+                      <text x="72" y="47" fill="#94a3b8" textAnchor="middle" className="text-[6.5px]">REF: 0 cm (Top)</text>
 
                       {/* Yellow & Black Warning Stripes on the Pier edge */}
-                      <rect x="15" y="20" width="115" height="5" fill="#f59e0b" />
+                      <rect x="15" y="20" width="115" height="5" fill="#eab308" />
                       <line x1="25" y1="20" x2="30" y2="25" stroke="#000" strokeWidth="1.5" />
                       <line x1="45" y1="20" x2="50" y2="25" stroke="#000" strokeWidth="1.5" />
                       <line x1="65" y1="20" x2="70" y2="25" stroke="#000" strokeWidth="1.5" />
@@ -3550,10 +3338,10 @@ export default function App() {
                       <rect x="110" y="45" width="15" height="8" fill="#10b981" rx="1.5" />
                       <line x1="117.5" y1="53" x2="117.5" y2="60" stroke="#10b981" strokeWidth="1.5" />
                       {/* Concentric soundwaves pulsing downwards */}
-                      <path d="M112 62 Q117.5 67 123 62" stroke="#10b981" strokeWidth="1" fill="none" strokeDasharray="1 1" className="animate-pulse" />
-                      <path d="M108 67 Q117.5 74 127 67" stroke="#10b981" strokeWidth="0.8" fill="none" opacity="0.6" strokeDasharray="2 1" />
-                      <path d="M104 72 Q117.5 81 131 72" stroke="#10b981" strokeWidth="0.5" fill="none" opacity="0.3" strokeDasharray="3 1" />
-                      <text x="130" y="52" fill="#10b981" className="text-[7px] font-black font-mono">SENSOR LIVE</text>
+                      <path d="M112 62 Q117.5 67 123 62" stroke="#10b981" strokeWidth="1.2" fill="none" className="animate-pulse" />
+                      <path d="M108 67 Q117.5 74 127 67" stroke="#10b981" strokeWidth="1" fill="none" opacity="0.7" strokeDasharray="2 1" />
+                      <path d="M104 72 Q117.5 81 131 72" stroke="#10b981" strokeWidth="0.8" fill="none" opacity="0.4" strokeDasharray="3 1" />
+                      <text x="132" y="52" fill="#10b981" className="text-[7px] font-black font-mono">SENSOR LIVE</text>
 
                       {(() => {
                         const pixelRange = 155; // vertical height inside viewport
@@ -3575,8 +3363,9 @@ export default function App() {
                                   T 330 ${waterY} 
                                   T 430 ${waterY} 
                                   T 530 ${waterY} 
-                                  T 590 ${waterY} 
-                                  L 590 180 
+                                  T 630 ${waterY} 
+                                  T 680 ${waterY} 
+                                  L 680 180 
                                   L 130 180 Z`}
                               fill="url(#oceanBlueGrad)" 
                               stroke="#0ea5e9" 
@@ -3587,11 +3376,12 @@ export default function App() {
                             <line x1="160" y1={waterY + 15} x2="240" y2={waterY + 15} stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="10 20" opacity="0.4" />
                             <line x1="280" y1={waterY + 35} x2="400" y2={waterY + 35} stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="20 30" opacity="0.3" />
                             <line x1="420" y1={waterY + 20} x2="520" y2={waterY + 20} stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="15 25" opacity="0.3" />
+                            <line x1="540" y1={waterY + 15} x2="650" y2={waterY + 15} stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="10 20" opacity="0.4" />
                             <line x1="200" y1={waterY + 60} x2="350" y2={waterY + 60} stroke="#38bdf8" strokeWidth="0.6" strokeDasharray="30 45" opacity="0.2" />
-                            <line x1="380" y1={waterY + 80} x2="560" y2={waterY + 80} stroke="#38bdf8" strokeWidth="0.5" strokeDasharray="40 60" opacity="0.15" />
+                            <line x1="380" y1={waterY + 80} x2="660" y2={waterY + 80} stroke="#38bdf8" strokeWidth="0.5" strokeDasharray="40 60" opacity="0.15" />
 
-                            {/* CONTAINER VESSEL (Floats dynamically at waterY!) */}
-                            <g transform={`translate(0, ${waterY - 180})`}>
+                            {/* CONTAINER VESSEL (Floats dynamically at waterY, perfectly spaced in expanded water body!) */}
+                            <g transform={`translate(45, ${waterY - 180})`}>
                               {/* Red Underwater Keel/Hull */}
                               <path d="M 325 172 L 435 172 L 418 181 L 342 181 Z" fill="#dc2626" />
                               {/* Dark Grey Upper Hull */}
@@ -3633,11 +3423,11 @@ export default function App() {
                             </g>
 
                             {/* Mean Sea Level (MSL) line */}
-                            <line x1="130" y1={mslY} x2="580" y2={mslY} stroke="#10b981" strokeWidth="1.2" strokeDasharray="3 3" />
+                            <line x1="130" y1={mslY} x2="680" y2={mslY} stroke="#10b981" strokeWidth="1.2" strokeDasharray="3 3" />
                             <text x="135" y={mslY - 4} fill="#10b981" className="text-[7px] font-bold font-mono">MSL LINE ({calcMslHeight.toFixed(1)}m REF)</text>
 
                             {/* Water Surface label */}
-                            <text x="500" y={waterY - 5} fill="#38bdf8" textAnchor="middle" className="font-bold text-[8px] font-mono">WATER SURFACE ({calcLoggerHeight.toFixed(2)}m)</text>
+                            <text x="590" y={waterY - 5} fill="#38bdf8" textAnchor="middle" className="font-bold text-[8px] font-mono">WATER SURFACE ({calcLoggerHeight.toFixed(2)}m)</text>
 
                             {/* Dimension Lines and Labels */}
                             {/* Total Dock Height H */}
@@ -3647,10 +3437,10 @@ export default function App() {
                             <text x="6" y="102" fill="#94a3b8" transform="rotate(-90 6 102)" textAnchor="middle" className="text-[7.5px] font-bold">H = {calcTotalDepth.toFixed(1)}m</text>
 
                             {/* Logger Height (h_logger) */}
-                            <line x1="585" y1={waterY} x2="585" y2="180" stroke="#f59e0b" strokeWidth="1.2" />
-                            <line x1="582" y1={waterY} x2="588" y2={waterY} stroke="#f59e0b" strokeWidth="1.2" />
-                            <line x1="582" y1="180" x2="588" y2="180" stroke="#f59e0b" strokeWidth="1.2" />
-                            <text x="590" y={(waterY + 180)/2 + 3} fill="#f59e0b" textAnchor="start" className="font-bold text-[7.5px]">h = {calcLoggerHeight.toFixed(2)}m</text>
+                            <line x1="665" y1={waterY} x2="665" y2="180" stroke="#f59e0b" strokeWidth="1.2" />
+                            <line x1="662" y1={waterY} x2="668" y2={waterY} stroke="#f59e0b" strokeWidth="1.2" />
+                            <line x1="662" y1="180" x2="668" y2="180" stroke="#f59e0b" strokeWidth="1.2" />
+                            <text x="672" y={(waterY + 180)/2 + 3} fill="#f59e0b" textAnchor="start" className="font-bold text-[7.5px]">h = {calcLoggerHeight.toFixed(2)}m</text>
 
                             {/* Sensor to surface distance d_air */}
                             <line x1="145" y1="25" x2="145" y2={waterY} stroke="#38bdf8" strokeWidth="1.2" />
@@ -3661,6 +3451,264 @@ export default function App() {
                         );
                       })()}
                     </svg>
+                  </div>
+
+                  {/* 2. Parameter Kalibrasi Segaris Kesamping (Inline Horizontal Row di bawah skematik) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 border-t border-white/5 pt-4">
+                  
+                  {/* Col 1: Parameter H & MSL */}
+                  <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2.5 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between border-b border-white/5 pb-1 mb-2">
+                        <span className="text-[9px] uppercase font-bold text-[#00f0ff] tracking-wider font-mono">
+                          🛠️ 1. Parameter H &amp; MSL
+                        </span>
+                        {calcTotalDepth === parseFloat(localStorage.getItem('tide_total_depth') || '4.0') && 
+                         calcMslHeight === parseFloat(localStorage.getItem('tide_msl_height') || '2.0') ? (
+                          <span className="text-[8px] text-emerald-400 font-mono font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">AKTIF</span>
+                        ) : (
+                          <span className="text-[8px] text-amber-400 font-mono font-bold bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">EDITED</span>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-0.5">
+                          <label className="text-slate-400 block font-bold text-[8px] uppercase">Sensor H (m)</label>
+                          <input 
+                            type="number" 
+                            step="0.1"
+                            min="1"
+                            max="50"
+                            value={calcTotalDepth}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? 4.0 : parseFloat(e.target.value);
+                              setCalcTotalDepth(isNaN(val) ? 4.0 : val);
+                            }}
+                            className="w-full bg-black/60 border border-white/10 p-1.5 text-[#00f0ff] font-bold rounded-lg outline-none text-center font-mono text-xs focus:border-[#00f0ff]"
+                          />
+                        </div>
+                        <div className="space-y-0.5">
+                          <label className="text-slate-400 block font-bold text-[8px] uppercase">MSL Ref (m)</label>
+                          <input 
+                            type="number" 
+                            step="0.1"
+                            min="0"
+                            max={calcTotalDepth}
+                            value={calcMslHeight}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                              setCalcMslHeight(isNaN(val) ? 0 : val);
+                            }}
+                            className="w-full bg-black/60 border border-white/10 p-1.5 text-emerald-400 font-bold rounded-lg outline-none text-center font-mono text-xs focus:border-emerald-400"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => setCalcMslHeight(0)}
+                        className="px-1 py-1 text-[8px] bg-slate-900/80 hover:bg-slate-800 border border-white/5 rounded font-mono text-slate-300 font-bold text-center transition-colors cursor-pointer truncate"
+                      >
+                        📍 0m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCalcMslHeight(calcTotalDepth)}
+                        className="px-1 py-1 text-[8px] bg-slate-900/80 hover:bg-slate-800 border border-white/5 rounded font-mono text-[#00f0ff] font-bold text-center transition-colors cursor-pointer truncate"
+                      >
+                        📍 H
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCalcMslHeight(Math.max(0, calcTotalDepth - calcLoggerHeight))}
+                        className="px-1 py-1 text-[8px] bg-slate-900/80 hover:bg-slate-800 border border-white/5 rounded font-mono text-sky-400 font-bold text-center transition-colors cursor-pointer truncate"
+                      >
+                        📍 d
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Col 2: Simulasi Sensor & Save Button */}
+                  <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-center border-b border-white/5 pb-1 mb-1.5">
+                        <span className="text-[9px] uppercase font-bold text-[#f59e0b] tracking-wider font-mono">
+                          🔄 2. Simulasi Pasut
+                        </span>
+                        <span className="text-[10px] text-[#f59e0b] font-bold font-mono bg-[#f59e0b]/5 px-2 py-0.5 rounded border border-[#f59e0b]/10">
+                          h = {calcLoggerHeight.toFixed(2)}m
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <input 
+                          type="range"
+                          min="0"
+                          max={calcTotalDepth}
+                          step="0.02"
+                          value={calcLoggerHeight}
+                          onChange={(e) => setCalcLoggerHeight(parseFloat(e.target.value))}
+                          className="w-full accent-[#f59e0b] h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <div className="flex justify-between text-[7px] font-mono text-slate-500">
+                          <span>0m (Dasar)</span>
+                          <span>{calcTotalDepth.toFixed(1)}m (Lantai)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        localStorage.setItem('tide_total_depth', calcTotalDepth.toString());
+                        localStorage.setItem('tide_msl_height', calcMslHeight.toString());
+                        setIsTideConfigSaved(true);
+                        setTimeout(() => setIsTideConfigSaved(false), 3000);
+                      }}
+                      className={`w-full py-1.5 px-2 rounded-lg font-mono font-black text-[9px] transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer border ${
+                        isTideConfigSaved 
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                          : (calcTotalDepth === parseFloat(localStorage.getItem('tide_total_depth') || '4.0') && 
+                             calcMslHeight === parseFloat(localStorage.getItem('tide_msl_height') || '2.0'))
+                            ? 'bg-slate-950 hover:bg-slate-900 text-slate-300 border-white/10'
+                            : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/40 animate-pulse'
+                      }`}
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      {isTideConfigSaved ? 'TERSIPAN!' : 'SIMPAN PARAMETER'}
+                    </button>
+                  </div>
+
+                  {/* Col 3: Hasil & Metrik */}
+                  <div className="bg-black/40 border border-white/5 rounded-xl p-3.5 space-y-2 flex flex-col justify-between">
+                    <div className="text-[9px] uppercase font-bold text-[#00f0ff]/80 tracking-wider font-mono border-b border-white/5 pb-1">
+                      📊 3. Hasil &amp; Metrik
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-1 font-mono text-[9px]">
+                      <div className="bg-slate-900/50 p-1 rounded border border-white/5 flex flex-col justify-center items-center text-center">
+                        <span className="text-slate-500 text-[6.5px] block uppercase leading-none mb-1 truncate w-full">Sonar (d)</span>
+                        <span className="text-sky-300 font-bold text-[10px] leading-none">{(calcTotalDepth - calcLoggerHeight).toFixed(2)}m</span>
+                      </div>
+                      <div className="bg-slate-900/50 p-1 rounded border border-white/5 flex flex-col justify-center items-center text-center">
+                        <span className="text-slate-500 text-[6.5px] block uppercase leading-none mb-1 truncate w-full">Pasut (MSL)</span>
+                        <span className={`font-black text-[10px] leading-none ${
+                          (calcLoggerHeight - calcMslHeight) > 0.5 ? 'text-pink-400' : (calcLoggerHeight - calcMslHeight) < -0.5 ? 'text-cyan-400' : 'text-emerald-400'
+                        }`}>
+                          {(calcLoggerHeight - calcMslHeight) >= 0 ? '+' : ''}{(calcLoggerHeight - calcMslHeight).toFixed(2)}m
+                        </span>
+                      </div>
+                      <div className="bg-slate-900/50 p-1 rounded border border-white/5 flex flex-col justify-center items-center text-center">
+                        <span className="text-slate-500 text-[6.5px] block uppercase leading-none mb-1 truncate w-full">Ke Lantai</span>
+                        <span className="text-rose-400 font-bold text-[10px] leading-none">-{Math.max(0, calcTotalDepth - calcLoggerHeight).toFixed(2)}m</span>
+                      </div>
+                    </div>
+
+                    <div className="text-[8px] leading-tight text-slate-400 flex items-center gap-1">
+                      <span>Status:</span>
+                      <strong className={`font-bold ${
+                        (calcLoggerHeight - calcMslHeight) > 0.5 ? 'text-pink-400' : (calcLoggerHeight - calcMslHeight) < -0.5 ? 'text-cyan-400' : 'text-emerald-400'
+                      }`}>
+                        {(calcLoggerHeight - calcMslHeight) > 0.5 ? 'Pasang Tinggi' : (calcLoggerHeight - calcMslHeight) < -0.5 ? 'Surut Rendah' : 'Normal'}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Col 4: Info & Panduan */}
+                  <div className="bg-black/40 border border-[#00f0ff]/10 rounded-xl p-3 flex flex-col justify-center text-[9px] leading-relaxed text-slate-300 font-sans">
+                    <div className="font-bold text-[#00f0ff] uppercase text-[8px] tracking-wider mb-0.5 font-mono">💡 INFO KALIBRASI DERMAGA</div>
+                    <p className="text-slate-400 text-[8.5px] leading-snug">
+                      Tinggi dermaga ke dasar laut <strong>H = {calcTotalDepth.toFixed(1)}m</strong>. Mean Sea Level (MSL) dihitung rata-rata pasut (<strong>{calcMslHeight.toFixed(1)}m</strong>). Deviasi dari MSL menunjukkan elevasi pasut aktif.
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+
+                {/* TIDE & WATER LEVEL CHART - FULL WIDTH (Fitted right below the calibration parameters row) */}
+                <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-4 shadow-xl col-span-12 mt-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-white/5 gap-2">
+                    <div className="space-y-1">
+                      <h4 className="text-xs uppercase font-extrabold text-[#00f0ff] tracking-[0.2em] font-mono flex items-center gap-2">
+                        📈 HISTORI ELEVASI PASUT &amp; WATER LEVEL 24 JAM TERAKHIR (FULL WIDTH)
+                      </h4>
+                      <p className="text-[10px] text-slate-400 font-sans">
+                        Grafik korelasi tinggi absolut permukaan air laut dengan garis Mean Sea Level (MSL Ref: <strong className="text-emerald-400">{calcMslHeight.toFixed(2)}m</strong>) untuk menentukan kondisi pasang surut pelabuhan.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 font-mono text-[9px] bg-black/30 px-3 py-1.5 rounded-lg border border-white/5">
+                      <span className="flex items-center gap-1.5 text-[#38bdf8] font-bold">
+                        <span className="w-2 h-2 rounded-full bg-[#38bdf8]"></span> Tinggi Air Absolut (m)
+                      </span>
+                      <span className="flex items-center gap-1.5 text-[#ec4899] font-bold">
+                        <span className="w-2 h-2 rounded-full bg-[#ec4899]"></span> Elevasi Pasut (MSL Ref) (m)
+                      </span>
+                      <span className="text-slate-500 font-normal">|</span>
+                      <span className="text-emerald-400 font-bold">MSL: {calcMslHeight.toFixed(2)}m</span>
+                    </div>
+                  </div>
+                  
+                  <div className="h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={analystLogs.map(item => ({
+                        ...item,
+                        seaLevelM: parseFloat((item.seaLevel / 100).toFixed(3)),
+                        elevasiPasut: parseFloat(((item.seaLevel / 100) - calcMslHeight).toFixed(3))
+                      }))}>
+                        <defs>
+                          <linearGradient id="colorAnalystSeaLevel" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.25}/>
+                            <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.01}/>
+                          </linearGradient>
+                          <linearGradient id="colorAnalystPasut" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#ec4899" stopOpacity={0.25}/>
+                            <stop offset="100%" stopColor="#ec4899" stopOpacity={0.01}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                        <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                        <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['auto', 'auto']} tickFormatter={(val) => val.toFixed(1) + 'm'} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#0b1424', borderColor: '#38bdf8' }} 
+                          labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')}
+                          formatter={(value: any, name: string) => {
+                            if (name === "seaLevelM") return [`${value.toFixed(3)} m`, 'Tinggi Air (Absolut)'];
+                            if (name === "elevasiPasut") return [`${value.toFixed(3)} m`, 'Elevasi Pasut (MSL Ref)'];
+                            return [value, name];
+                          }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'monospace' }} />
+                        <ReferenceLine 
+                          y={calcMslHeight} 
+                          stroke="#10b981" 
+                          strokeDasharray="4 4" 
+                          strokeWidth={1.5}
+                          label={{ 
+                            value: `MSL Air Laut (${calcMslHeight.toFixed(2)}m) ── ▲ PASANG | ▼ SURUT`, 
+                            fill: '#10b981', 
+                            fontSize: 8, 
+                            position: 'insideTopLeft',
+                            fontWeight: 'bold'
+                          }} 
+                        />
+                        <ReferenceLine 
+                          y={0} 
+                          stroke="#ec4899" 
+                          strokeDasharray="4 4" 
+                          strokeWidth={1.5}
+                          label={{ 
+                            value: `MSL Pasut (0.00m) ── ▲ PASANG | ▼ SURUT`, 
+                            fill: '#ec4899', 
+                            fontSize: 8, 
+                            position: 'insideTopRight',
+                            fontWeight: 'bold'
+                          }} 
+                        />
+                        <Area type="monotone" name="Tinggi Air" dataKey="seaLevelM" stroke="#38bdf8" fillOpacity={1} fill="url(#colorAnalystSeaLevel)" strokeWidth={2.5} />
+                        <Area type="monotone" name="Elevasi Pasut" dataKey="elevasiPasut" stroke="#ec4899" fillOpacity={1} fill="url(#colorAnalystPasut)" strokeWidth={2.5} />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
               </div>
@@ -4033,80 +4081,6 @@ export default function App() {
                       <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[6.0, 9.0]} />
                       <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#f472b6' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
                       <Area type="monotone" dataKey="waterPh" stroke="#f472b6" fillOpacity={1} fill="url(#colorPh)" strokeWidth={2.5} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-            </div>
-
-            {/* ROW 4: SOLAR RADIATION, RAINFALL, BATTERY VOLTAGE */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              
-              {/* Solar Radiation Area Chart */}
-              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3 shadow-xl">
-                <div className="text-xs uppercase font-extrabold text-yellow-500 tracking-[0.2em] font-sans pb-2 border-b border-white/5 flex items-center justify-between">
-                  <span>📈 SOLAR RADIATION (W/m²)</span>
-                  <span className="text-[10px] font-mono text-slate-500">SUNLIGHT</span>
-                </div>
-                <div className="h-[210px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={analystLogs}>
-                      <defs>
-                        <linearGradient id="colorSolar" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#eab308" stopOpacity={0.4}/>
-                          <stop offset="100%" stopColor="#eab308" stopOpacity={0.01}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
-                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 'auto']} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#eab308' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
-                      <Area type="monotone" dataKey="solarRadiation" stroke="#eab308" fillOpacity={1} fill="url(#colorSolar)" strokeWidth={2.5} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Rainfall Bar Chart */}
-              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3 shadow-xl">
-                <div className="text-xs uppercase font-extrabold text-sky-400 tracking-[0.2em] font-sans pb-2 border-b border-white/5 flex items-center justify-between">
-                  <span>📊 RAINFALL INTENSITY / HUJAN (mm)</span>
-                  <span className="text-[10px] font-mono text-slate-500">ACCUMULATION</span>
-                </div>
-                <div className="h-[210px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={analystLogs}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
-                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 'auto']} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#38bdf8' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
-                      <Bar dataKey="rainfall" name="Rainfall (mm)" fill="#38bdf8" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Battery Voltage Area Chart */}
-              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-3 shadow-xl">
-                <div className="text-xs uppercase font-extrabold text-emerald-400 tracking-[0.2em] font-sans pb-2 border-b border-white/5 flex items-center justify-between">
-                  <span>📈 SYSTEM BATTERY VOLTAGE (V)</span>
-                  <span className="text-[10px] font-mono text-slate-500">HEALTH INDICATOR</span>
-                </div>
-                <div className="h-[210px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={analystLogs}>
-                      <defs>
-                        <linearGradient id="colorBatt" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.4}/>
-                          <stop offset="100%" stopColor="#10b981" stopOpacity={0.01}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
-                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[10, 15]} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#10b981' }} labelFormatter={(val) => format(val, 'dd/MM/yyyy HH:mm')} />
-                      <Area type="monotone" dataKey="battery" stroke="#10b981" fillOpacity={1} fill="url(#colorBatt)" strokeWidth={2.5} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -6629,6 +6603,34 @@ header("Content-Type: application/json; charset=UTF-8");
                       <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[0, 'auto']} />
                       <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#f59e0b' }} labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} formatter={(value: any) => [value + ' W/m²', 'Solar Radiation']} />
                       <Area type="monotone" dataKey="solarRadiation" stroke="#f59e0b" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupSolar)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Chart 8: System Battery Voltage */}
+              <div className="bg-[#0b1424]/90 border border-white/10 rounded-3xl p-6 space-y-4 shadow-xl relative">
+                <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-[#10b981]/50 rounded-tl-xl" />
+                <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                  <span className="text-sm font-black text-[#10b981] tracking-wider font-sans uppercase flex items-center gap-2">
+                    🔋 8. System Battery Voltage / Tegangan Baterai Logger (V)
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded uppercase font-bold">HEALTH INDICATOR</span>
+                </div>
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={history.slice(-144)} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorPopupBatt" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.25}/>
+                          <stop offset="100%" stopColor="#10b981" stopOpacity={0.01}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                      <XAxis dataKey="timestamp" tickFormatter={(val) => format(val, 'HH:mm')} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} domain={[10, 15]} tickFormatter={(v) => v.toFixed(1) + ' V'} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0b1424', borderColor: '#10b981' }} labelFormatter={(label) => format(label, 'dd-MM-yyyy HH:mm:ss')} formatter={(value: any) => [value + ' V', 'Battery Voltage']} />
+                      <Area type="monotone" dataKey="battery" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPopupBatt)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
