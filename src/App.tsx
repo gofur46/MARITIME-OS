@@ -477,6 +477,19 @@ export const BMKG_PORTS_LIST: BmkgPortOption[] = [
 
 const resolveLocalApiUrl = (urlStr: string) => {
   if (!urlStr) return urlStr;
+  
+  // If it's a Moxa Daemon URL (running on port 8080)
+  if (urlStr.includes(':8080') || urlStr.includes('8080')) {
+    // Connect to the port 3000 Express Socket.IO server directly!
+    return window.location.origin;
+  }
+  
+  // If it's a Local DB API URL (running on port 8000/api.php)
+  if (urlStr.includes('api.php') || urlStr.includes(':8000')) {
+    // Route through the local Express server proxy
+    return window.location.origin + '/api/local-db';
+  }
+
   const currentHost = window.location.hostname;
   if (currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
     return urlStr.replace(/(localhost|127\.0\.0\.1)/g, currentHost);
@@ -728,34 +741,7 @@ export default function App() {
 
     // Dynamically resolve daemon address depending on the client hostname or API configuration
     const getDaemonUrl = () => {
-      // If user has explicitly saved a daemon URL, always respect that first (resolved dynamically)!
-      if (config.moxaDaemonUrl) {
-        return resolveLocalApiUrl(config.moxaDaemonUrl);
-      }
-
-      const currentHost = window.location.hostname;
-      
-      // If accessed via a remote local network IP (e.g. http://192.168.1.50:3000)
-      if (currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
-        return `http://${currentHost}:8080`;
-      }
-
-      // If we are in AI Studio / Cloud preview container
-      if (currentHost.includes('run.app') || currentHost.includes('google.com') || currentHost.includes('aistudio')) {
-        return 'http://localhost:8080';
-      }
-      
-      // Fallback: check config.localDbApiUrl host
-      try {
-        const apiParts = new URL(resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php'));
-        if (apiParts.hostname && apiParts.hostname !== 'localhost' && apiParts.hostname !== '127.0.0.1') {
-          return `http://${apiParts.hostname}:8080`;
-        }
-      } catch (e) {
-        // ignore
-      }
-      
-      return 'http://localhost:8080';
+      return window.location.origin;
     };
 
     const daemonUrl = getDaemonUrl();

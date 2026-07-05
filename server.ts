@@ -4,6 +4,9 @@ import fs from "fs";
 import { exec } from "child_process";
 import fetch from "node-fetch";
 import { createServer as createViteServer } from "vite";
+import { createServer as createHttpServer } from "http";
+import { Server as SocketIOServer } from "socket.io";
+import { io as ioClient } from "socket.io-client";
 
 const app = express();
 const PORT = 3000;
@@ -496,6 +499,48 @@ app.get("/api/bmkg", async (req, res) => {
 // JSON Middleware for Updater
 app.use(express.json());
 
+// Transparent PostgreSQL API Proxy for api.php
+app.all("/api/local-db", async (req, res) => {
+  const targetUrl = "http://localhost:8000/api.php";
+  
+  // Reconstruct query parameters
+  const queryParams = new URLSearchParams(req.query as any).toString();
+  const fullUrl = queryParams ? `${targetUrl}?${queryParams}` : targetUrl;
+  
+  try {
+    const fetchOptions: any = {
+      method: req.method,
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': req.headers['user-agent'] || 'Server-Proxy',
+      }
+    };
+    
+    if (req.method === 'POST') {
+      fetchOptions.headers['Content-Type'] = 'application/json';
+      fetchOptions.body = JSON.stringify(req.body);
+    }
+    
+    console.log(`[DB Proxy] Forwarding ${req.method} request to ${fullUrl}`);
+    const apiRes = await fetch(fullUrl, fetchOptions);
+    
+    // Read response text/json
+    const responseText = await apiRes.text();
+    
+    // Copy content-type or default to json/text
+    const contentType = apiRes.headers.get('content-type') || 'application/json';
+    res.setHeader('content-type', contentType);
+    res.status(apiRes.status).send(responseText);
+  } catch (err: any) {
+    console.error(`[DB Proxy] Error forwarding request to ${fullUrl}:`, err.message || err);
+    res.status(502).json({
+      status: 'error',
+      message: 'Failed to communicate with local PostgreSQL database API.',
+      details: err.message || String(err)
+    });
+  }
+});
+
 // GitHub Automatic Update Manager State (Skenario 1 - Professional Pipeline)
 interface UpdaterState {
   status: "idle" | "checking" | "updating" | "success" | "error";
@@ -779,6 +824,78 @@ app.post("/api/updater/install", (req, res) => {
 });
 
 // Vite middleware & Static Files Setup
+const httpServer = createHttpServer(app);
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+// Local variables to hold the latest moxa daemon status and raw messages
+let lastMoxaStatus: any = {
+  connected: false,
+  moxa_ip: '192.168.1.254',
+  moxa_port: 4001,
+  state: 'OFFLINE',
+  last_seen: '-',
+  error: 'Waiting for daemon connection'
+};
+
+// Create a connection to the local Moxa Daemon on port 8080
+const MOXA_DAEMON_URL = "http://localhost:8080";
+console.log(`[Proxy] Initializing background listener to local Moxa Daemon on ${MOXA_DAEMON_URL}...`);
+const localMoxaSocket = ioClient(MOXA_DAEMON_URL, {
+  transports: ['websocket', 'polling'],
+  reconnection: true,
+  reconnectionDelay: 5000,
+  reconnectionAttempts: Infinity
+});
+
+localMoxaSocket.on("connect", () => {
+  console.log("✅ [Proxy] Connected to local Moxa Daemon on port 8080");
+});
+
+localMoxaSocket.on("statusUpdate", (status: any) => {
+  if (status) {
+    lastMoxaStatus = status;
+    // Broadcast status to all port 3000 web clients
+    io.emit("statusUpdate", status);
+  }
+});
+
+localMoxaSocket.on("rawTelemetry", (raw: any) => {
+  if (raw) {
+    // Broadcast raw sentences to all port 3000 web clients
+    io.emit("rawTelemetry", raw);
+  }
+});
+
+localMoxaSocket.on("dataUpdate", (parsedRecord: any) => {
+  if (parsedRecord) {
+    // Broadcast parsed telemetry to all port 3000 web clients
+    io.emit("dataUpdate", parsedRecord);
+  }
+});
+
+localMoxaSocket.on("disconnect", () => {
+  console.warn("⚠️ [Proxy] Disconnected from local Moxa Daemon");
+  lastMoxaStatus.connected = false;
+  lastMoxaStatus.state = 'OFFLINE';
+  lastMoxaStatus.error = 'Daemon Offline (Port 8080)';
+  io.emit("statusUpdate", lastMoxaStatus);
+});
+
+localMoxaSocket.on("connect_error", () => {
+  // Silent standby
+});
+
+io.on("connection", (socket) => {
+  console.log(`[Server] Client connected: ${socket.id}`);
+  // Immediately provide last known status to prevent UI flickering or disconnected states
+  socket.emit("statusUpdate", lastMoxaStatus);
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     // Development mode
@@ -798,7 +915,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`[Server] Core Server listening on http://localhost:${PORT}`);
   });
 }
