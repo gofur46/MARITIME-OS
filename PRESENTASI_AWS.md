@@ -22,7 +22,7 @@ Dokumen ini disusun sebagai panduan lengkap slide demi slide untuk mempermudah A
     *   **Cuaca Ekstrem Tak Terduga:** Risiko angin kencang (*wind shear*) dan gelombang tinggi yang membahayakan proses bersandar (*vessel berthing*).
     *   **Ketiadaan Data Real-Time:** Keterlambatan respons operasional akibat pemantauan cuaca konvensional yang bersifat periodik atau manual.
     *   **Risiko Kerusakan Aset:** Korosi lambung kapal dan struktur dermaga akibat keasaman air laut (pH) yang tidak terpantau.
-    *   **Kepatuhan Regulasi:** Tuntutan penyediaan data cuaca valid untuk pelaporan harian ke otoritas pelabuhan dan BMKG.
+    *   **Konektivitas Rentan:** Gangguan cuaca buruk yang berisiko memutuskan komunikasi data dari stasiun AWS lapangan ke ruang kendali utama.
 *   **Rekomendasi Visual:** Foto aktivitas bongkar muat kapal kargo di bawah kondisi cuaca buruk/berangin, disandingkan dengan infografis tantangan operasional.
 *   **Poin Pembicaraan (Narasi Anda):**
     > *"Dalam operasional pelabuhan sehari-hari, keselamatan adalah prioritas mutlak. Angin kencang yang tiba-tiba atau gelombang tinggi dapat menyebabkan benturan keras kapal pada struktur dermaga saat proses bersandar (*berthing*). Tanpa data yang bersifat real-time, keputusan menunda atau mengizinkan kapal bersandar hanya mengandalkan insting. Ditambah lagi, polusi industri yang memengaruhi pH air laut seringkali merusak lambung kapal secara perlahan tanpa kita sadari. Itulah mengapa kita membutuhkan sistem monitoring otomatis yang tangguh."*
@@ -55,14 +55,40 @@ Dokumen ini disusun sebagai panduan lengkap slide demi slide untuk mempermudah A
 
 ---
 
-#### SLIDE 5: SISTEM PERINGATAN DINI (DYNAMIC HAZARD EWS)
+#### SLIDE 5: PEMANTAUAN PASANG SURUT (WATER LEVEL) & GELOMBANG
+*   **Judul Slide:** Pemantauan Pasang Surut & Tinggi Gelombang (Oceanography)
+*   **Poin Utama Slide:**
+    *   **Pengukuran Ketinggian Air (Tide Level):** Mengukur permukaan air laut dalam centimeter dan menampilkannya dalam meter secara akurat.
+    *   **Mean Sea Level (MSL) Calibration:** Menghitung deviasi pasut harian secara dinamis terhadap nilai referensi MSL yang diatur pada panel Settings.
+    *   **Mitigasi Kapal Kandas (Grounding Mitigation):** Memberikan peringatan pendangkalan jika ketinggian air laut surut mendekati batas draf kapal.
+    *   **Tinggi Gelombang (Wave Height):** Memonitor tinggi gelombang secara kontinu dengan ambang krisis waspada &ge; `1.2 m`.
+*   **Rekomendasi Visual:** Grafik representasi level pasang surut air laut dinamis dengan garis referensi MSL dan visualisasi tinggi gelombang laut.
+*   **Poin Pembicaraan (Narasi Anda):**
+    > *"Selanjutnya, mari kita bahas salah satu fitur oseanografi utama kita: Pemantauan Pasang Surut (Water Level) dan Tinggi Gelombang. Sensor fisik di dermaga mengukur ketinggian air laut dalam centimeter dan menampilkannya dalam meter secara presisi. Data pasut ini dibandingkan secara real-time dengan MSL (Mean Sea Level) referensi yang dikalibrasi di Tab Settings, sehingga deviasi air pasang surut diketahui secara akurat untuk memitigasi kapal kandas harian (*grounding mitigation*). Selain itu, tinggi gelombang laut dipantau konstan dengan ambang batas bahaya 1.2 meter."*
+
+---
+
+#### SLIDE 6: SISTEM FAILSAFE PUTUS KONEKSI & LOCK DASHBOARD
+*   **Judul Slide:** Failsafe Deteksi Putus Koneksi & Lock Dashboard Offline
+*   **Poin Utama Slide:**
+    *   **Deteksi Keaktifan (isLiveActive State):** Memonitor laju data sensor secara asinkron. Jika terhenti lebih dari beberapa detik, status beralih menjadi OFFLINE.
+    *   **Dashboard Lock (Offline Lock):** Memblokir interaksi dan mengaburkan antarmuka widget dengan filter blur & opacity 30% ketika koneksi offline.
+    *   **Pencegahan Stale Data:** Mencegah operator membaca atau mengambil keputusan berdasarkan data usang yang salah dan membahayakan kapal.
+    *   **Retry Loop Persisten:** Background listener terus-menerus melakukan rekoneksi ke MOXA NPort setiap 5 detik tanpa crash.
+*   **Rekomendasi Visual:** Desain banner merah peringatan "AWS OFFLINE" dan tampilan mockup widget yang terkunci dan ter-blur secara elegan.
+*   **Poin Pembicaraan (Narasi Anda):**
+    > *"Keandalan sistem kami diperkuat oleh sistem pengaman putusnya koneksi. Jika sensor AWS lapangan terputus karena gangguan fisik, badai, atau pemadaman listrik, status keaktifan langsung dideteksi terputus. Seketika, fitur pengunci dashboard otomatis mengaburkan tampilan widget dan memblokir seluruh interaksi klik. Mengapa ini penting? Untuk mencegah operator mengambil keputusan taktis berbahaya berdasarkan data usang (*stale data*) yang tidak lagi terupdate secara real-time. Sementara itu, jembatan konektor di latar belakang secara gigih mencoba menghubungkan kembali sistem setiap 5 detik."*
+
+---
+
+#### SLIDE 7: SISTEM PERINGATAN DINI (DYNAMIC HAZARD EWS)
 *   **Judul Slide:** Sistem Peringatan Dini (EWS) Otomatis
 *   **Poin Utama Slide:**
     *   **Logika Krisis Cerdas (Multi-Hazard EWS):**
-        *   🔴 **SIAGA 1 (Double Hazard):** Aktif otomatis jika Kecepatan Angin $\ge$ 12.0 m/s DAN Tinggi Gelombang $\ge$ 1.2 m.
-        *   🟡 **WARNING ANGIN KENCANG:** Aktif jika Kecepatan Angin $\ge$ 12.0 m/s (Kondisi gelombang aman).
-        *   🟡 **WARNING GELOMBANG TINGGI:** Aktif jika Tinggi Gelombang $\ge$ 1.2 m (Kondisi angin aman).
-        *   🟢 **OPERASI AMAN & NORMAL:** Semua parameter berada di bawah ambang batas bahaya.
+        *   🔴 **SIAGA 1 (Double Hazard):** Aktif otomatis jika Kecepatan Angin &ge; 12.0 m/s DAN Tinggi Gelombang &ge; 1.2 m secara bersamaan.
+        *   🟡 **WARNING ANGIN KENCANG:** Aktif jika Kecepatan Angin &ge; 12.0 m/s (Kondisi gelombang aman).
+        *   🟡 **WARNING GELOMBANG TINGGI:** Aktif jika Tinggi Gelombang &ge; 1.2 m (Kondisi angin aman).
+        *   ...
     *   **Intervensi Cepat:** Memberikan keputusan instan bagi otoritas untuk menghentikan sementara aktivitas bongkar muat demi keselamatan kru.
 *   **Rekomendasi Visual:** Komparasi visual kartu alert EWS saat kondisi **SIAGA 1** (Merah menyala), **WARNING** (Kuning), dan **NORMAL** (Hijau tenang).
 *   **Poin Pembicaraan (Narasi Anda):**
@@ -70,19 +96,7 @@ Dokumen ini disusun sebagai panduan lengkap slide demi slide untuk mempermudah A
 
 ---
 
-#### SLIDE 6: FITUR ANALISIS TREN & RADAR BADAI (TAB ANALYST)
-*   **Judul Slide:** Prakiraan Cuaca, Tren Data & Radar Badai
-*   **Poin Utama Slide:**
-    *   **Prakiraan Tren Interaktif:** Grafik garis dinamis yang memetakan arah perubahan tinggi ombak, angin, dan pasang surut dalam 24 jam ke depan.
-    *   **Storm & Gale Threat Radar:** Visualisasi berbentuk radar taktis melingkar untuk memantau badai regional, melacak potensi angin ribut, dan menentukan tingkat ancaman badai.
-    *   **Integrasi Prakiraan BMKG:** Sinkronisasi berkala dengan data prakiraan BMKG Maritim resmi daerah Banten, Jakarta, dan sekitarnya sebagai pembanding instrumen lokal.
-*   **Rekomendasi Visual:** Screenshot visualisasi *Storm Radar* berwarna hijau neon militer dan grafik tren Recharts dari Tab Analyst.
-*   **Poin Pembicaraan (Narasi Anda):**
-    > *"Pada Tab Analyst, kami menghadirkan visualisasi radar taktis berbentuk radar laut militer untuk melacak potensi badai tropis di sekitar pelabuhan. Dilengkapi dengan grafik prakiraan tren interaktif, petugas dapat memproyeksikan kondisi pasang surut (*tide*) dan tinggi gelombang beberapa jam ke depan. Untuk memperkaya keakurasian, sistem ini juga mengintegrasikan data prakiraan resmi langsung dari BMKG Maritim secara otomatis."*
-
----
-
-#### SLIDE 7: KONEKTIVITAS TANGGUH & INTEGRASI MOXA TCP/IP
+#### SLIDE 8: KONEKTIVITAS TANGGUH & INTEGRASI MOXA TCP/IP
 *   **Judul Slide:** Konektivitas Fleksibel & Integrasi Perangkat MOXA NPort
 *   **Poin Utama Slide:**
     *   **Multi-Connection Protocol:** Mendukung komunikasi data langsung via Serial COM Port hardware maupun jaringan TCP/IP.
@@ -95,7 +109,7 @@ Dokumen ini disusun sebagai panduan lengkap slide demi slide untuk mempermudah A
 
 ---
 
-#### SLIDE 8: ARSITEKTUR LAYANAN LATAR BELAKANG & AUTO-RECOVERY
+#### SLIDE 9: ARSITEKTUR LAYANAN LATAR BELAKANG & AUTO-RECOVERY
 *   **Judul Slide:** Arsitektur 3 Windows Services (Zero-Operator Maintenance)
 *   **Poin Utama Slide:**
     *   **Instalasi Windows Service via NSSM (Non-Sucking Service Manager):**
@@ -110,12 +124,12 @@ Dokumen ini disusun sebagai panduan lengkap slide demi slide untuk mempermudah A
 
 ---
 
-#### SLIDE 9: BASIS DATA POSTGRESQL & FITUR HISTORI (TAB DATABASE)
+#### SLIDE 10: BASIS DATA POSTGRESQL & FITUR HISTORI (TAB DATABASE)
 *   **Judul Slide:** Manajemen Data Historis Berkinerja Tinggi
 *   **Poin Utama Slide:**
     *   **PostgreSQL Engine:** Menggunakan basis data relasional kelas enterprise yang terkenal sangat cepat dan stabil dalam menangani jutaan rekaman data sensor.
     *   **Ledger Historis:** Tabel komprehensif yang menampilkan seluruh sejarah pencatatan parameter cuaca per menit secara rapi.
-    *   **Pencarian & Filter Tangktis:** Memudahkan petugas mencari tren cuaca pada tanggal tertentu, jam tertentu, atau mencari berdasarkan ID stasiun.
+    *   **Pencarian & Filter Taktis:** Memudahkan petugas mencari tren cuaca pada tanggal tertentu, jam tertentu, atau mencari berdasarkan ID stasiun.
     *   **Ekspor CSV Sekali Klik:** Memungkinkan ekspor laporan data mentah terstandarisasi untuk keperluan analisis lanjut atau pelaporan ke BMKG.
 *   **Rekomendasi Visual:** Tangkapan layar dari Tab Database, memperlihatkan baris data log yang detail dan tombol ekspor CSV yang siap ditekan.
 *   **Poin Pembicaraan (Narasi Anda):**
@@ -123,7 +137,7 @@ Dokumen ini disusun sebagai panduan lengkap slide demi slide untuk mempermudah A
 
 ---
 
-#### SLIDE 10: KESIMPULAN & NILAI INVESTASI STRATEGIS
+#### SLIDE 11: KESIMPULAN & NILAI INVESTASI STRATEGIS
 *   **Judul Slide:** Nilai Strategis Implementasi Maritime OS
 *   **Poin Utama Slide:**
     *   **Menekan Angka Kecelakaan Kerja:** Mitigasi dini benturan kapal atau kerusakan dermaga saat bongkar muat.

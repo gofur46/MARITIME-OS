@@ -37,13 +37,13 @@
   </script>
   <style>
     body {
-      background-color: #0b0f19;
+      background-color: #060913;
       color: #f8fafc;
       overflow: hidden;
     }
     .slide {
       display: none;
-      height: calc(100vh - 120px);
+      height: calc(100vh - 140px);
       opacity: 0;
       transition: opacity 0.4s ease-in-out;
     }
@@ -53,33 +53,36 @@
     }
     /* Glow effects */
     .glow-cyan {
-      box-shadow: 0 0 25px rgba(0, 240, 255, 0.25);
+      box-shadow: 0 0 35px rgba(0, 240, 255, 0.3);
     }
     .glow-emerald {
-      box-shadow: 0 0 25px rgba(16, 185, 129, 0.25);
+      box-shadow: 0 0 35px rgba(16, 185, 129, 0.3);
     }
     .glow-red {
-      box-shadow: 0 0 25px rgba(239, 68, 68, 0.35);
+      box-shadow: 0 0 45px rgba(239, 68, 68, 0.4);
+    }
+    .glow-amber {
+      box-shadow: 0 0 35px rgba(245, 158, 11, 0.3);
     }
     /* Pulsing animation */
     @keyframes pulse-ring {
-      0% { transform: scale(0.95); opacity: 1; }
-      50% { transform: scale(1.05); opacity: 0.5; }
-      100% { transform: scale(0.95); opacity: 1; }
+      0% { transform: scale(0.97); opacity: 1; }
+      50% { transform: scale(1.03); opacity: 0.6; }
+      100% { transform: scale(0.97); opacity: 1; }
     }
     .pulse-glow {
-      animation: pulse-ring 2s infinite ease-in-out;
+      animation: pulse-ring 2.5s infinite ease-in-out;
     }
     /* Custom scrollbar for presenter notes */
     .custom-scroll::-webkit-scrollbar {
-      width: 6px;
+      width: 8px;
     }
     .custom-scroll::-webkit-scrollbar-track {
-      background: rgba(30, 41, 59, 0.5);
+      background: rgba(30, 41, 59, 0.3);
     }
     .custom-scroll::-webkit-scrollbar-thumb {
       background: rgba(0, 240, 255, 0.3);
-      border-radius: 3px;
+      border-radius: 4px;
     }
     .custom-scroll::-webkit-scrollbar-thumb:hover {
       background: rgba(0, 240, 255, 0.6);
@@ -89,24 +92,24 @@
 <body class="font-sans antialiased min-h-screen flex flex-col justify-between">
 
   <!-- TOP HEADER -->
-  <header class="px-8 py-4 border-b border-slate-800 bg-slate-950/70 backdrop-blur flex justify-between items-center z-10">
-    <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-brand-cyan to-blue-600 flex items-center justify-center shadow-lg shadow-brand-cyan/20">
-        <i data-lucide="anchor" class="text-slate-950 w-6 h-6 stroke-[2.5]"></i>
+  <header class="px-10 py-5 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md flex justify-between items-center z-10">
+    <div class="flex items-center gap-4">
+      <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-cyan to-blue-600 flex items-center justify-center shadow-lg shadow-brand-cyan/25">
+        <i data-lucide="anchor" class="text-slate-950 w-7 h-7 stroke-[2.5]"></i>
       </div>
       <div>
-        <h1 class="font-display font-bold text-lg tracking-wide text-white flex items-center gap-2">
-          MARITIME OS <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-brand-cyan/15 text-brand-cyan border border-brand-cyan/20">COMMAND DECK</span>
+        <h1 class="font-display font-black text-xl tracking-wide text-white flex items-center gap-2">
+          MARITIME OS <span class="text-[11px] font-mono px-2.5 py-0.5 rounded bg-brand-cyan/15 text-brand-cyan border border-brand-cyan/20">DECK PRESENTASI</span>
         </h1>
-        <p class="text-xs text-slate-400 font-medium">Automatic Weather Station & Port Telemetry Solution</p>
+        <p class="text-xs text-slate-400 font-semibold tracking-wide">Automatic Weather Station & Port Telemetry Solution</p>
       </div>
     </div>
-    <div class="flex items-center gap-4">
-      <div class="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-md border border-slate-800 text-xs text-slate-300 font-mono">
-        <span class="w-2 h-2 rounded-full bg-brand-emerald animate-pulse"></span>
+    <div class="flex items-center gap-5">
+      <div class="flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-lg border border-slate-800 text-xs text-slate-300 font-mono">
+        <span class="w-2.5 h-2.5 rounded-full bg-brand-emerald animate-pulse"></span>
         SYSTEM READY
       </div>
-      <button id="toggle-notes-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-1.5 rounded-lg border border-slate-700 text-xs font-semibold transition-all">
+      <button id="toggle-notes-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-5 py-2 rounded-lg border border-slate-700 text-xs font-semibold transition-all">
         <i data-lucide="message-square" class="w-4 h-4"></i>
         <span>Tampilkan Catatan (S)</span>
       </button>
@@ -114,77 +117,77 @@
   </header>
 
   <!-- MAIN SLIDES CONTAINER -->
-  <main class="flex-grow flex items-center justify-center px-6 md:px-12 relative overflow-hidden">
+  <main class="flex-grow flex items-center justify-center px-8 md:px-16 relative overflow-hidden">
     
     <!-- SLIDE 1: JUDUL -->
     <div class="slide active w-full flex-col justify-center items-center text-center max-w-5xl" id="slide-1">
-      <div class="mb-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-cyan/10 border border-brand-cyan/30 text-brand-cyan text-xs font-semibold tracking-wider uppercase">
-        <i data-lucide="activity" class="w-3.5 h-3.5"></i> Live Demonstration Deck
+      <div class="mb-4 inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-brand-cyan/10 border border-brand-cyan/30 text-brand-cyan text-sm font-semibold tracking-wider uppercase">
+        <i data-lucide="activity" class="w-4 h-4"></i> Live Demonstration Deck
       </div>
-      <h2 class="font-display text-5xl md:text-6xl font-extrabold tracking-tight text-white mb-6 leading-tight">
+      <h2 class="font-display text-5xl md:text-7xl font-extrabold tracking-tight text-white mb-6 leading-tight">
         Sistem Monitoring <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-cyan via-blue-400 to-brand-emerald">Meteorologi Maritim</span> & Telemetri Port
       </h2>
-      <p class="text-lg md:text-xl text-slate-300 max-w-3xl mb-10 leading-relaxed font-light">
-        Integrasi cerdas sensor Automatic Weather Station (AWS), Oseanografi, dan kualitas air untuk navigasi aman, berthing presisi, serta efisiensi operasional pelabuhan kelas dunia.
+      <p class="text-xl md:text-2xl text-slate-300 max-w-4xl mb-12 leading-relaxed font-light">
+        Integrasi cerdas sensor Automatic Weather Station (AWS), Oseanografi, Pasang Surut Air Laut, dan kualitas air untuk navigasi aman, berthing presisi, serta efisiensi operasional pelabuhan kelas dunia.
       </p>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-3xl text-left">
-        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 flex items-center gap-3">
-          <div class="p-2 rounded bg-brand-cyan/10 text-brand-cyan"><i data-lucide="compass" class="w-5 h-5"></i></div>
-          <div><p class="text-[10px] text-slate-400 font-bold uppercase">Real-Time Engine</p><p class="text-sm font-semibold text-white">0s Latency Feed</p></div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-4xl text-left">
+        <div class="bg-slate-900/60 p-5 rounded-2xl border border-slate-800/80 flex items-center gap-4">
+          <div class="p-3 rounded-lg bg-brand-cyan/10 text-brand-cyan"><i data-lucide="compass" class="w-6 h-6"></i></div>
+          <div><p class="text-xs text-slate-400 font-bold uppercase tracking-wider">Real-Time Engine</p><p class="text-base font-bold text-white">0s Latency Live Feed</p></div>
         </div>
-        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 flex items-center gap-3">
-          <div class="p-2 rounded bg-brand-emerald/10 text-brand-emerald"><i data-lucide="database" class="w-5 h-5"></i></div>
-          <div><p class="text-[10px] text-slate-400 font-bold uppercase">Database Ledger</p><p class="text-sm font-semibold text-white">PostgreSQL Enterprise</p></div>
+        <div class="bg-slate-900/60 p-5 rounded-2xl border border-slate-800/80 flex items-center gap-4">
+          <div class="p-3 rounded-lg bg-brand-emerald/10 text-brand-emerald"><i data-lucide="database" class="w-6 h-6"></i></div>
+          <div><p class="text-xs text-slate-400 font-bold uppercase tracking-wider">Database Ledger</p><p class="text-base font-bold text-white">PostgreSQL Enterprise</p></div>
         </div>
-        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 flex items-center gap-3">
-          <div class="p-2 rounded bg-brand-amber/10 text-brand-amber"><i data-lucide="link" class="w-5 h-5"></i></div>
-          <div><p class="text-[10px] text-slate-400 font-bold uppercase">Hardware Link</p><p class="text-sm font-semibold text-white">MOXA NPort TCP/IP</p></div>
+        <div class="bg-slate-900/60 p-5 rounded-2xl border border-slate-800/80 flex items-center gap-4">
+          <div class="p-3 rounded-lg bg-brand-amber/10 text-brand-amber"><i data-lucide="link" class="w-6 h-6"></i></div>
+          <div><p class="text-xs text-slate-400 font-bold uppercase tracking-wider">Hardware Link</p><p class="text-base font-bold text-white">MOXA NPort TCP/IP</p></div>
         </div>
       </div>
     </div>
 
     <!-- SLIDE 2: TANTANGAN -->
     <div class="slide w-full flex-col justify-center max-w-5xl" id="slide-2">
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-10 items-center">
         <div class="md:col-span-5">
-          <div class="text-brand-red text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-brand-red animate-pulse"></span> OPERATIONAL GAP
+          <div class="text-brand-red text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-brand-red animate-pulse"></span> OPERATIONAL CHALLENGES
           </div>
-          <h2 class="font-display text-4xl font-extrabold text-white tracking-tight mb-4 leading-tight">
+          <h2 class="font-display text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-5 leading-tight">
             Tantangan Kritis Pelabuhan Modern
           </h2>
-          <p class="text-slate-400 leading-relaxed text-sm mb-6">
-            Pelabuhan kargo dan dermaga berskala industri terus beroperasi 24 jam di tengah dinamika alam yang rentan berubah secara ekstrem dan destruktif.
+          <p class="text-slate-300 leading-relaxed text-base mb-8">
+            Pelabuhan kargo dan dermaga berskala industri terus beroperasi 24 jam di tengah dinamika alam pelabuhan yang rentan berubah secara ekstrem dan destruktif. Kegagalan mitigasi dapat berujung fatal.
           </p>
-          <div class="p-4 bg-brand-red/10 border border-brand-red/30 rounded-xl">
-            <p class="text-xs font-bold text-brand-red uppercase mb-1 flex items-center gap-1">
-              <i data-lucide="alert-triangle" class="w-4 h-4"></i> Dampak Kegagalan Deteksi Dini:
+          <div class="p-5 bg-brand-red/10 border border-brand-red/30 rounded-2xl">
+            <p class="text-sm font-bold text-brand-red uppercase mb-2 flex items-center gap-1.5">
+              <i data-lucide="alert-triangle" class="w-5 h-5 animate-bounce"></i> Dampak Kegagalan Deteksi Dini:
             </p>
-            <p class="text-xs text-slate-300 leading-relaxed">
-              Benturan keras badan kapal pada fender dermaga, korosi struktural tak terpantau akibat pH air ekstrem, serta risiko tinggi kecelakaan kerja kru pelabuhan.
+            <p class="text-sm text-slate-300 leading-relaxed">
+              Kandasnya lambung kapal (*vessel grounding*) karena fluktuasi air laut tidak terpantau, benturan keras kapal pada dermaga karena angin kencang (*wind shear*), serta kerusakan lambung oleh air laut korosif (pH tidak terpantau).
             </p>
           </div>
         </div>
-        <div class="md:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="p-5 bg-slate-900/50 rounded-xl border border-slate-800 flex flex-col gap-3">
-            <div class="w-10 h-10 rounded-lg bg-orange-500/10 text-orange-500 flex items-center justify-center"><i data-lucide="wind" class="w-6 h-6"></i></div>
-            <h3 class="font-bold text-white text-base">Cuaca Ekstrem Tiba-tiba</h3>
-            <p class="text-xs text-slate-400 leading-relaxed">Hembusan angin kencang (gale force winds) yang menyulitkan kapal bermanuver saat bersandar.</p>
+        <div class="md:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div class="p-6 bg-slate-900/50 rounded-2xl border border-slate-800 flex flex-col gap-4">
+            <div class="w-12 h-12 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center"><i data-lucide="wind" class="w-7 h-7"></i></div>
+            <h3 class="font-bold text-white text-lg">Cuaca Ekstrem Mendadak</h3>
+            <p class="text-sm text-slate-400 leading-relaxed">Angin kencang (*gale force*) di area dermaga menyulitkan bermanuver kapal saat bersandar.</p>
           </div>
-          <div class="p-5 bg-slate-900/50 rounded-xl border border-slate-800 flex flex-col gap-3">
-            <div class="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center"><i data-lucide="waves" class="w-6 h-6"></i></div>
-            <h3 class="font-bold text-white text-base">Dinamika Pasang Surut</h3>
-            <p class="text-xs text-slate-400 leading-relaxed">Ketidakpastian fluktuasi air laut (tide level) yang memicu grounding lambung kapal.</p>
+          <div class="p-6 bg-slate-900/50 rounded-2xl border border-slate-800 flex flex-col gap-4">
+            <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center"><i data-lucide="waves" class="w-7 h-7"></i></div>
+            <h3 class="font-bold text-white text-lg">Dinamika Air Pasang Surut</h3>
+            <p class="text-sm text-slate-400 leading-relaxed">Ketidakpastian ketinggian air laut (*tide level*) memicu risiko tinggi kapal kandas (*grounding*).</p>
           </div>
-          <div class="p-5 bg-slate-900/50 rounded-xl border border-slate-800 flex flex-col gap-3">
-            <div class="w-10 h-10 rounded-lg bg-teal-500/10 text-teal-500 flex items-center justify-center"><i data-lucide="droplet" class="w-6 h-6"></i></div>
-            <h3 class="font-bold text-white text-base">Korosifitas Air Laut</h3>
-            <p class="text-xs text-slate-400 leading-relaxed">Fluktuasi tingkat keasaman (pH) dan suhu air yang memicu korosi parah kapal dan dermaga.</p>
+          <div class="p-6 bg-slate-900/50 rounded-2xl border border-slate-800 flex flex-col gap-4">
+            <div class="w-12 h-12 rounded-xl bg-teal-500/10 text-teal-500 flex items-center justify-center"><i data-lucide="droplet" class="w-7 h-7"></i></div>
+            <h3 class="font-bold text-white text-lg">Korosifitas Air Laut</h3>
+            <p class="text-sm text-slate-400 leading-relaxed">Ketidakstabilan keasaman (pH) merusak lapisan pelindung lambung kapal secara perlahan.</p>
           </div>
-          <div class="p-5 bg-slate-900/50 rounded-xl border border-slate-800 flex flex-col gap-3">
-            <div class="w-10 h-10 rounded-lg bg-brand-cyan/10 text-brand-cyan flex items-center justify-center"><i data-lucide="alert-octagon" class="w-6 h-6"></i></div>
-            <h3 class="font-bold text-white text-base">Keterlambatan Respons</h3>
-            <p class="text-xs text-slate-400 leading-relaxed">Pemantauan manual berisiko tinggi terlambat merespons ancaman cuaca buruk yang mendadak.</p>
+          <div class="p-6 bg-slate-900/50 rounded-2xl border border-slate-800 flex flex-col gap-4">
+            <div class="w-12 h-12 rounded-xl bg-brand-cyan/10 text-brand-cyan flex items-center justify-center"><i data-lucide="wifi-off" class="w-7 h-7"></i></div>
+            <h3 class="font-bold text-white text-lg">Gangguan Koneksi Alat</h3>
+            <p class="text-sm text-slate-400 leading-relaxed">Risiko putusnya komunikasi data dari stasiun AWS ke pusat kendali karena cuaca buruk.</p>
           </div>
         </div>
       </div>
@@ -192,97 +195,97 @@
 
     <!-- SLIDE 3: SOLUSI -->
     <div class="slide w-full flex-col justify-center max-w-5xl" id="slide-3">
-      <div class="text-center mb-8">
-        <div class="text-brand-cyan text-xs font-bold uppercase tracking-widest mb-1">THE SYSTEM ARCHITECTURE</div>
-        <h2 class="font-display text-4xl font-extrabold text-white">Solusi Terintegrasi Maritime OS</h2>
+      <div class="text-center mb-10">
+        <div class="text-brand-cyan text-xs font-bold uppercase tracking-widest mb-2">THE SYSTEM ARCHITECTURE</div>
+        <h2 class="font-display text-4xl md:text-5xl font-extrabold text-white">Solusi Terintegrasi Maritime OS</h2>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-stretch relative">
-        <div class="p-6 bg-slate-900/60 rounded-xl border border-slate-800 flex flex-col items-center text-center relative">
-          <div class="w-12 h-12 rounded-full bg-brand-cyan/10 text-brand-cyan flex items-center justify-center mb-4 border border-brand-cyan/20"><i data-lucide="cloud-sun" class="w-6 h-6"></i></div>
-          <h3 class="font-bold text-white mb-2">1. AWS Hardware</h3>
-          <p class="text-xs text-slate-400 leading-relaxed">Sensor fisik di lapangan mengukur angin, gelombang, suhu, curah hujan, solar, dan pH air.</p>
+        <div class="p-6 bg-slate-900/60 rounded-2xl border border-slate-800 flex flex-col items-center text-center relative">
+          <div class="w-14 h-14 rounded-full bg-brand-cyan/10 text-brand-cyan flex items-center justify-center mb-5 border border-brand-cyan/20"><i data-lucide="cloud-sun" class="w-7 h-7"></i></div>
+          <h3 class="font-bold text-white text-lg mb-2">1. AWS Hardware</h3>
+          <p class="text-sm text-slate-400 leading-relaxed">Sensor fisik lapangan mengukur angin, gelombang, suhu, curah hujan, solar, dan pH air secara mekanis.</p>
         </div>
-        <div class="p-6 bg-slate-900/60 rounded-xl border border-slate-800 flex flex-col items-center text-center relative">
-          <div class="w-12 h-12 rounded-full bg-brand-amber/10 text-brand-amber flex items-center justify-center mb-4 border border-brand-amber/20"><i data-lucide="shuffle" class="w-6 h-6"></i></div>
-          <h3 class="font-bold text-white mb-2">2. MOXA Gateway</h3>
-          <p class="text-xs text-slate-400 leading-relaxed">Mengonversi transmisi Serial RS232/485 AWS menjadi TCP/IP tangguh melalui jaringan.</p>
+        <div class="p-6 bg-slate-900/60 rounded-2xl border border-slate-800 flex flex-col items-center text-center relative">
+          <div class="w-14 h-14 rounded-full bg-brand-amber/10 text-brand-amber flex items-center justify-center mb-5 border border-brand-amber/20"><i data-lucide="shuffle" class="w-7 h-7"></i></div>
+          <h3 class="font-bold text-white text-lg mb-2">2. MOXA Gateway</h3>
+          <p class="text-sm text-slate-400 leading-relaxed">Mengubah transmisi Serial RS485 AWS menjadi sinyal TCP/IP tangguh melalui jaringan intranet pelabuhan.</p>
         </div>
-        <div class="p-6 bg-slate-900/60 rounded-xl border border-slate-800 flex flex-col items-center text-center relative">
-          <div class="w-12 h-12 rounded-full bg-brand-emerald/10 text-brand-emerald flex items-center justify-center mb-4 border border-brand-emerald/20"><i data-lucide="server" class="w-6 h-6"></i></div>
-          <h3 class="font-bold text-white mb-2">3. PostgreSQL Core</h3>
-          <p class="text-xs text-slate-400 leading-relaxed">Penyimpanan basis data berkinerja tinggi, menjamin integritas log historis per menit.</p>
+        <div class="p-6 bg-slate-900/60 rounded-2xl border border-slate-800 flex flex-col items-center text-center relative">
+          <div class="w-14 h-14 rounded-full bg-brand-emerald/10 text-brand-emerald flex items-center justify-center mb-5 border border-brand-emerald/20"><i data-lucide="server" class="w-7 h-7"></i></div>
+          <h3 class="font-bold text-white text-lg mb-2">3. PostgreSQL Core</h3>
+          <p class="text-sm text-slate-400 leading-relaxed">Penyimpanan basis data relasional berkecepatan tinggi, memastikan data tercatat rapi per menit.</p>
         </div>
-        <div class="p-6 bg-slate-900/60 rounded-xl border border-slate-800 flex flex-col items-center text-center relative">
-          <div class="w-12 h-12 rounded-full bg-brand-cyan/20 text-brand-cyan flex items-center justify-center mb-4 border border-brand-cyan/40 glow-cyan"><i data-lucide="layout-dashboard" class="w-6 h-6"></i></div>
-          <h3 class="font-bold text-white mb-2">4. Command Console</h3>
-          <p class="text-xs text-slate-400 leading-relaxed">Visualisasi asinkron modern 360° yang dapat diakses operator melalui Web Dashboard.</p>
+        <div class="p-6 bg-slate-900/60 rounded-2xl border border-slate-800 flex flex-col items-center text-center relative">
+          <div class="w-14 h-14 rounded-full bg-brand-cyan/20 text-brand-cyan flex items-center justify-center mb-5 border border-brand-cyan/40 glow-cyan"><i data-lucide="layout-dashboard" class="w-7 h-7"></i></div>
+          <h3 class="font-bold text-white text-lg mb-2">4. Command Console</h3>
+          <p class="text-sm text-slate-400 leading-relaxed">Visualisasi asinkron modern 360 derajat yang diakses oleh operator di ruang kendali utama.</p>
         </div>
       </div>
-      <div class="mt-8 p-4 bg-slate-900 border border-slate-800 rounded-lg text-center max-w-2xl mx-auto">
-        <p class="text-xs font-mono text-slate-400">
-          <span class="text-brand-emerald">✔ Fully Automatic</span> &bull; <span class="text-brand-cyan">✔ Dual-Protocol Support</span> &bull; <span class="text-brand-amber">✔ Low Latency (< 1s)</span>
+      <div class="mt-10 p-5 bg-slate-900 border border-slate-800 rounded-xl text-center max-w-3xl mx-auto">
+        <p class="text-sm font-mono text-slate-300">
+          <span class="text-brand-emerald font-bold">✔ Fully Automatic</span> &bull; <span class="text-brand-cyan font-bold">✔ Dual-Protocol Support</span> &bull; <span class="text-brand-amber font-bold">✔ Low Latency (< 1s)</span>
         </p>
       </div>
     </div>
 
     <!-- SLIDE 4: DASHBOARD REAL-TIME -->
     <div class="slide w-full flex-col justify-center max-w-5xl" id="slide-4">
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-10 items-center">
         <div class="md:col-span-5">
-          <div class="text-brand-cyan text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5">
-            <i data-lucide="monitor" class="w-3.5 h-3.5"></i> MAIN VISUAL INTELLIGENCE
+          <div class="text-brand-cyan text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5">
+            <i data-lucide="monitor" class="w-4 h-4"></i> MAIN VISUAL INTELLIGENCE
           </div>
-          <h2 class="font-display text-4xl font-extrabold text-white tracking-tight mb-4 leading-tight">
+          <h2 class="font-display text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-5 leading-tight">
             Dashboard Real-Time Console
           </h2>
-          <p class="text-slate-400 leading-relaxed text-sm mb-6">
-            Pusat kendali visual satu layar (*single-pane console*) yang ergonomis, dirancang khusus untuk kenyamanan operator 24/7.
+          <p class="text-slate-300 leading-relaxed text-base mb-8">
+            Pusat kendali visual satu layar (*single-pane console*) ergonomis bertema gelap (*dark mode*) intensitas tinggi demi menjaga konsentrasi operator ruang kontrol 24/7.
           </p>
-          <ul class="space-y-3.5">
-            <li class="flex items-start gap-2.5 text-xs text-slate-300">
-              <i data-lucide="check-circle-2" class="w-4 h-4 text-brand-cyan shrink-0 mt-0.5"></i>
-              <span><strong>Kompas Dermaga Interaktif:</strong> Representasi spasial arah datang angin relatif terhadap sudut orientasi dermaga (*Pier Angle*).</span>
+          <ul class="space-y-4 text-base">
+            <li class="flex items-start gap-3 text-slate-300">
+              <i data-lucide="check-circle-2" class="w-5 h-5 text-brand-cyan shrink-0 mt-0.5"></i>
+              <span><strong>Vessel Wind Compass:</strong> Memetakan arah datang angin relatif terhadap sudut dermaga (*Pier Angle*) secara spasial 360°.</span>
             </li>
-            <li class="flex items-start gap-2.5 text-xs text-slate-300">
-              <i data-lucide="check-circle-2" class="w-4 h-4 text-brand-cyan shrink-0 mt-0.5"></i>
-              <span><strong>Parameter Komprehensif:</strong> Menyatukan pembacaan angin, tinggi gelombang, pasang air laut, suhu, kelembapan, curah hujan, hingga pH air laut.</span>
+            <li class="flex items-start gap-3 text-slate-300">
+              <i data-lucide="check-circle-2" class="w-5 h-5 text-brand-cyan shrink-0 mt-0.5"></i>
+              <span><strong>Dynamic Alarm Ring:</strong> Frame kompas memancarkan denyut merah berpendar otomatis jika cuaca berstatus kritis.</span>
             </li>
-            <li class="flex items-start gap-2.5 text-xs text-slate-300">
-              <i data-lucide="check-circle-2" class="w-4 h-4 text-brand-cyan shrink-0 mt-0.5"></i>
-              <span><strong>Vector Compass Tracker:</strong> Menelusuri fluktuasi arah hembusan angin 24 jam terakhir dalam grafik koordinat polar sirkular.</span>
+            <li class="flex items-start gap-3 text-slate-300">
+              <i data-lucide="check-circle-2" class="w-5 h-5 text-brand-cyan shrink-0 mt-0.5"></i>
+              <span><strong>Chrono Flow Sequence:</strong> Log visual melingkar melacak rotasi hembusan angin terakhir secara kronologis.</span>
             </li>
           </ul>
         </div>
         <div class="md:col-span-7 flex justify-center">
-          <div class="w-full max-w-md bg-slate-900 border border-slate-800 p-6 rounded-2xl glow-cyan relative">
-            <div class="absolute top-4 right-4 flex items-center gap-1 text-[10px] text-brand-cyan font-mono bg-brand-cyan/10 border border-brand-cyan/20 px-2 py-0.5 rounded">
-              <span class="w-1.5 h-1.5 rounded-full bg-brand-cyan animate-ping"></span> VISUAL DEMO
+          <div class="w-full max-w-md bg-slate-900 border border-slate-800 p-8 rounded-2xl glow-cyan relative">
+            <div class="absolute top-4 right-4 flex items-center gap-1.5 text-xs text-brand-cyan font-mono bg-brand-cyan/10 border border-brand-cyan/20 px-3 py-1 rounded">
+              <span class="w-2 h-2 rounded-full bg-brand-cyan animate-ping"></span> LIVE SIMULATION
             </div>
             <!-- Mockup Compass -->
-            <div class="flex flex-col items-center">
-              <div class="w-48 h-48 rounded-full border-4 border-dashed border-slate-700 flex items-center justify-center relative mb-4">
-                <div class="absolute inset-2 rounded-full border border-slate-800 flex items-center justify-center">
-                  <div class="w-32 h-32 rounded-full border border-brand-cyan/20 flex flex-col items-center justify-center bg-slate-950">
-                    <span class="text-2xl font-black text-white font-mono">11.4 <span class="text-xs">m/s</span></span>
-                    <span class="text-[9px] font-mono text-brand-cyan">NE (45°)</span>
+            <div class="flex flex-col items-center py-4">
+              <div class="w-52 h-52 rounded-full border-4 border-dashed border-slate-700 flex items-center justify-center relative mb-5">
+                <div class="absolute inset-2.5 rounded-full border border-slate-800 flex items-center justify-center">
+                  <div class="w-36 h-36 rounded-full border border-brand-cyan/20 flex flex-col items-center justify-center bg-slate-950">
+                    <span class="text-3xl font-black text-white font-mono">11.4 <span class="text-sm">m/s</span></span>
+                    <span class="text-xs font-mono text-brand-cyan">TIMUR LAUT (45°)</span>
                   </div>
                 </div>
                 <!-- Needle -->
-                <div class="absolute w-1.5 h-full top-0 left-1/2 -ml-[3px] transform rotate-[45deg] flex flex-col justify-between py-1">
-                  <div class="w-3 h-3 bg-brand-red rounded-full shadow-lg shadow-brand-red/50 -ml-[3px]"></div>
-                  <div class="w-1.5 h-1.5 bg-slate-500 rounded-full"></div>
+                <div class="absolute w-2 h-full top-0 left-1/2 -ml-[4px] transform rotate-[45deg] flex flex-col justify-between py-1">
+                  <div class="w-4 h-4 bg-brand-red rounded-full shadow-lg shadow-brand-red/50 -ml-[4px]"></div>
+                  <div class="w-2 h-2 bg-slate-500 rounded-full"></div>
                 </div>
                 <!-- Dock mockup -->
-                <div class="absolute w-3 h-20 bg-slate-600/80 rounded border border-slate-500 transform rotate-[135deg] left-[25%] top-[25%] flex items-center justify-center text-[7px] text-white font-bold">PIER</div>
+                <div class="absolute w-4 h-24 bg-slate-600/80 rounded border border-slate-500 transform rotate-[135deg] left-[25%] top-[25%] flex items-center justify-center text-[8px] text-white font-bold">PIER</div>
               </div>
-              <div class="grid grid-cols-2 gap-3 w-full">
-                <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-center">
-                  <p class="text-[9px] text-slate-400 font-bold uppercase">Pasang Surut</p>
-                  <p class="text-sm font-extrabold text-[#3b82f6] font-mono">1.450 m</p>
+              <div class="grid grid-cols-2 gap-4 w-full">
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center">
+                  <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">Pasang Surut</p>
+                  <p class="text-lg font-extrabold text-[#3b82f6] font-mono">1.450 m</p>
                 </div>
-                <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-center">
-                  <p class="text-[9px] text-slate-400 font-bold uppercase">pH Air Laut</p>
-                  <p class="text-sm font-extrabold text-brand-emerald font-mono">7.82 pH</p>
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center">
+                  <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">pH Air Laut</p>
+                  <p class="text-lg font-extrabold text-brand-emerald font-mono">7.82 pH</p>
                 </div>
               </div>
             </div>
@@ -291,183 +294,275 @@
       </div>
     </div>
 
-    <!-- SLIDE 5: EARLY WARNING SYSTEM -->
+    <!-- SLIDE 5: WATER LEVEL (PASUT) & GELOMBANG -->
     <div class="slide w-full flex-col justify-center max-w-5xl" id="slide-5">
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-10 items-center">
         <div class="md:col-span-5">
-          <div class="text-brand-red text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5">
-            <i data-lucide="shield-alert" class="w-4 h-4 animate-bounce"></i> PROACTIVE RISK PROTECTION
+          <div class="text-brand-cyan text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5">
+            <i data-lucide="waves" class="w-4 h-4"></i> OCEANOGRAPHY & WATER LEVEL
           </div>
-          <h2 class="font-display text-4xl font-extrabold text-white tracking-tight mb-4 leading-tight">
-            Early Warning System (EWS) Cerdas
+          <h2 class="font-display text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-5 leading-tight">
+            Pemantauan Pasang Surut & Tinggi Gelombang
           </h2>
-          <p class="text-slate-400 leading-relaxed text-sm mb-6">
-            Menerapkan algoritma penilai risiko ganda (*Dual-Hazard Risk Assessment*) untuk mendeteksi bahaya pelayaran secara instan.
+          <p class="text-slate-300 leading-relaxed text-base mb-8">
+            Fitur oseanografi krusial untuk mencegah terjadinya kapal kandas (*grounding mitigation*) akibat pendangkalan laut ekstrem dan hantaman gelombang tinggi di dermaga.
           </p>
-          <div class="space-y-4">
-            <div class="flex gap-3 items-start">
-              <span class="w-6 h-6 rounded-full bg-brand-red/10 text-brand-red flex items-center justify-center shrink-0 font-bold text-xs">A</span>
-              <div>
-                <h4 class="text-sm font-bold text-white mb-0.5">Dual-Hazard Alert (SIAGA 1)</h4>
-                <p class="text-xs text-slate-400">Aktif otomatis apabila Kecepatan Angin &ge; 12.0 m/s DAN Tinggi Gelombang &ge; 1.2 m secara bersamaan.</p>
-              </div>
-            </div>
-            <div class="flex gap-3 items-start">
-              <span class="w-6 h-6 rounded-full bg-brand-amber/10 text-brand-amber flex items-center justify-center shrink-0 font-bold text-xs">B</span>
-              <div>
-                <h4 class="text-sm font-bold text-white mb-0.5">Single-Hazard Warning</h4>
-                <p class="text-xs text-slate-400">Peringatan khusus (Angin Kencang saja atau Gelombang Tinggi saja) untuk instruksi mitigasi spesifik.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="md:col-span-7 flex flex-col gap-4">
-          <!-- SIAGA 1 CARD -->
-          <div class="bg-red-950/40 border-2 border-brand-red/50 p-5 rounded-2xl flex items-center gap-4 glow-red pulse-glow">
-            <div class="w-12 h-12 rounded-full bg-brand-red/20 text-brand-red flex items-center justify-center animate-ping shrink-0">
-              <i data-lucide="alert-triangle" class="w-6 h-6"></i>
-            </div>
-            <div>
-              <div class="flex items-center gap-2 mb-1">
-                <span class="px-2 py-0.5 bg-brand-red text-slate-950 text-[10px] font-black rounded uppercase tracking-wider">SIAGA 1 (CRITICAL DECK ACCIDENT)</span>
-              </div>
-              <h3 class="text-base font-bold text-white mb-1">Peringatan Multi-Bahaya Aktif</h3>
-              <p class="text-xs text-slate-300 leading-relaxed">Angin Kencang (14.2 m/s) & Gelombang Tinggi (1.45m). Hentikan sementara semua aktivitas sandar kapal dan pemuatan!</p>
-            </div>
-          </div>
-          <!-- SAFE CARD -->
-          <div class="bg-emerald-950/20 border border-brand-emerald/30 p-4 rounded-xl flex items-center gap-3 opacity-60">
-            <div class="w-8 h-8 rounded-full bg-brand-emerald/10 text-brand-emerald flex items-center justify-center shrink-0">
-              <i data-lucide="check-circle-2" class="w-5 h-5"></i>
-            </div>
-            <div>
-              <h4 class="text-xs font-bold text-white">Status Operasi Normal</h4>
-              <p class="text-[11px] text-slate-400">Seluruh parameter cuaca di bawah ambang batas bahaya.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- SLIDE 6: TREN & RADAR BADAI -->
-    <div class="slide w-full flex-col justify-center max-w-5xl" id="slide-6">
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
-        <div class="md:col-span-5">
-          <div class="text-brand-emerald text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5">
-            <i data-lucide="radar" class="w-4 h-4"></i> PREDICTIVE ANALYSIS & WEATHER RADAR
-          </div>
-          <h2 class="font-display text-4xl font-extrabold text-white tracking-tight mb-4 leading-tight">
-            Analisis Tren & Radar Badai Taktis
-          </h2>
-          <p class="text-slate-400 leading-relaxed text-sm mb-4">
-            Menggabungkan data cuaca lokal dan satelit prakiraan eksternal untuk melacak potensi ancaman cuaca beberapa jam ke depan.
-          </p>
-          <ul class="space-y-3 font-medium text-xs text-slate-300">
-            <li class="flex items-center gap-2">
-              <span class="w-1.5 h-1.5 rounded-full bg-brand-emerald"></span>
-              <span><strong>Storm & Gale Threat Radar:</strong> Grafik radar menyapu dinamis untuk memetakan kecepatan angin kritis melingkar.</span>
+          <ul class="space-y-4 text-base">
+            <li class="flex items-start gap-3 text-slate-300">
+              <i data-lucide="check-circle-2" class="w-5 h-5 text-[#3b82f6] shrink-0 mt-0.5"></i>
+              <span><strong>Pengukuran Ketinggian (Sea Level):</strong> Sensor mengukur level air dalam satuan centimeter dan dikonversi ke meter secara presisi (`1.450 m`).</span>
             </li>
-            <li class="flex items-center gap-2">
-              <span class="w-1.5 h-1.5 rounded-full bg-brand-emerald"></span>
-              <span><strong>Integrasi Prakiraan BMKG:</strong> Sinkronisasi data resmi BMKG Maritim Banten & Jakarta secara periodik.</span>
+            <li class="flex items-start gap-3 text-slate-300">
+              <i data-lucide="check-circle-2" class="w-5 h-5 text-[#3b82f6] shrink-0 mt-0.5"></i>
+              <span><strong>Mean Sea Level (MSL):</strong> Menghitung deviasi pasut secara dinamis terhadap nilai referensi MSL yang dikalibrasi di Tab Settings.</span>
             </li>
-            <li class="flex items-center gap-2">
-              <span class="w-1.5 h-1.5 rounded-full bg-brand-emerald"></span>
-              <span><strong>Wave & Tide Predictor:</strong> Memproyeksikan pergerakan air pasang surut pelabuhan.</span>
+            <li class="flex items-start gap-3 text-slate-300">
+              <i data-lucide="check-circle-2" class="w-5 h-5 text-[#3b82f6] shrink-0 mt-0.5"></i>
+              <span><strong>Tinggi Gelombang (Wave Height):</strong> Memantau gelombang fisik air laut dengan ambang krisis waspada &ge; `1.2 m` secara terus-menerus.</span>
             </li>
           </ul>
         </div>
         <div class="md:col-span-7 flex justify-center">
-          <!-- Mockup Storm Radar -->
-          <div class="w-full max-w-sm bg-slate-950 border border-slate-800 p-6 rounded-2xl flex flex-col items-center relative glow-emerald">
-            <h4 class="text-[10px] font-mono text-brand-emerald mb-2 uppercase tracking-widest">TACTICAL GALE RADAR SENSOR</h4>
-            <div class="w-44 h-44 rounded-full border border-brand-emerald/20 flex items-center justify-center relative bg-slate-900/40 mb-3 overflow-hidden">
-              <!-- Radial Lines -->
-              <div class="absolute inset-0 border border-brand-emerald/10 rounded-full scale-75"></div>
-              <div class="absolute inset-0 border border-brand-emerald/15 rounded-full scale-50"></div>
-              <div class="absolute inset-0 border border-brand-emerald/10 rounded-full scale-25"></div>
-              <!-- Crosshair Lines -->
-              <div class="absolute top-0 bottom-0 left-1/2 w-[1px] bg-brand-emerald/20"></div>
-              <div class="absolute left-0 right-0 top-1/2 h-[1px] bg-brand-emerald/20"></div>
-              <!-- Radar Sweep representation -->
-              <div class="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-brand-emerald/10 transform rotate-45"></div>
-              <!-- Threat Dot -->
-              <div class="absolute w-2 h-2 rounded-full bg-brand-red top-[30%] left-[65%] shadow-lg shadow-brand-red/80 animate-ping"></div>
-              <div class="absolute w-2 h-2 rounded-full bg-brand-red top-[30%] left-[65%] shadow-lg shadow-brand-red/80"></div>
-              <!-- Text tag -->
-              <span class="absolute top-[20%] left-[70%] text-[8px] font-bold font-mono text-brand-red bg-slate-950/80 px-1 rounded">WIND SHIELD</span>
+          <div class="w-full max-w-md bg-slate-900 border border-slate-800 p-8 rounded-2xl relative glow-cyan">
+            <h3 class="text-sm font-mono text-slate-400 mb-4 uppercase tracking-wider flex items-center gap-1">
+              <i data-lucide="activity" class="w-4 h-4 text-[#3b82f6]"></i> MONITORING LEVEL AIR PASUT PELABUHAN
+            </h3>
+            
+            <!-- Graphic Wave & Tide Mockup -->
+            <div class="bg-slate-950 p-6 rounded-xl border border-slate-800 flex flex-col gap-6 mb-4">
+              <!-- Tide Level -->
+              <div>
+                <div class="flex justify-between text-xs font-mono text-slate-400 mb-1.5">
+                  <span>KETINGGIAN AIR AKTUAL (TIDE)</span>
+                  <span class="text-blue-400 font-bold">NORMAL TIDE</span>
+                </div>
+                <div class="flex items-end gap-3">
+                  <span class="text-3xl font-black text-white font-mono">1.450 <span class="text-base font-normal text-slate-400">m</span></span>
+                  <span class="text-xs text-blue-400 font-mono mb-1.5">(145.0 cm)</span>
+                </div>
+                <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden mt-2">
+                  <div class="bg-blue-500 h-full rounded-full" style="width: 65%"></div>
+                </div>
+              </div>
+              
+              <!-- MSL Comparison -->
+              <div class="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800/80">
+                <div>
+                  <span class="text-[10px] font-mono text-slate-400 block mb-1">MSL REFERENSI (SETTING)</span>
+                  <span class="text-base font-bold text-slate-200 font-mono">1.210 m</span>
+                </div>
+                <div>
+                  <span class="text-[10px] font-mono text-slate-400 block mb-1">DEVIASI PASANG SURUT</span>
+                  <span class="text-base font-bold text-emerald-400 font-mono">+0.240 m</span>
+                </div>
+              </div>
+
+              <!-- Wave Height -->
+              <div class="pt-4 border-t border-slate-800/80">
+                <div class="flex justify-between text-xs font-mono text-slate-400 mb-1">
+                  <span>TINGGI GELOMBANG LAUT (WAVE)</span>
+                  <span class="text-emerald-400 font-bold">AMAN (&lt; 1.2m)</span>
+                </div>
+                <div class="flex items-end gap-2">
+                  <span class="text-2xl font-black text-[#00f0ff] font-mono">0.420 <span class="text-xs font-normal text-slate-400">m</span></span>
+                </div>
+              </div>
             </div>
-            <div class="flex justify-between items-center w-full text-[10px] font-mono border-t border-slate-800 pt-3">
-              <span class="text-slate-400">RANGE: <span class="text-white">12 NM</span></span>
-              <span class="text-brand-emerald">SCANNING ACTIVE</span>
+            
+            <p class="text-xs text-slate-400 leading-relaxed font-mono">
+              *Tinggi gelombang di atas 1.2m memicu status WARNING. Air di bawah 0.50m memicu grounding warning untuk kapal draf dalam.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: DISCONNECTION WARNING & LOCK -->
+    <div class="slide w-full flex-col justify-center max-w-5xl" id="slide-6">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-10 items-center">
+        <div class="md:col-span-5">
+          <div class="text-brand-amber text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5">
+            <i data-lucide="shield-alert" class="w-4 h-4 animate-pulse"></i> SAFETY FAILSAFE SYSTEM
+          </div>
+          <h2 class="font-display text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-5 leading-tight">
+            Failsafe Putus Koneksi & Lock Dashboard
+          </h2>
+          <p class="text-slate-300 leading-relaxed text-base mb-8">
+            Sistem pengaman cerdas untuk mencegah operator mengambil tindakan berdasarkan data usang (*stale data*) ketika stasiun AWS di luar lapangan terputus dari server.
+          </p>
+          <ul class="space-y-4 text-base">
+            <li class="flex items-start gap-3 text-slate-300">
+              <i data-lucide="alert-circle" class="w-5 h-5 text-brand-red shrink-0 mt-0.5"></i>
+              <span><strong>Deteksi Keaktifan (isLiveActive):</strong> Jika aliran data sensor terhenti selama beberapa detik, status otomatis beralih menjadi OFFLINE.</span>
+            </li>
+            <li class="flex items-start gap-3 text-slate-300">
+              <i data-lucide="lock" class="w-5 h-5 text-brand-amber shrink-0 mt-0.5"></i>
+              <span><strong>Dashboard Lock (Offline Lock):</strong> Seluruh antarmuka dikunci secara visual (kabur/blur, opacity 30% & pointer-events-none) untuk mencegah salah input.</span>
+            </li>
+            <li class="flex items-start gap-3 text-slate-300">
+              <i data-lucide="refresh-cw" class="w-5 h-5 text-brand-cyan shrink-0 mt-0.5 animate-spin"></i>
+              <span><strong>Auto Reconnect Loop:</strong> Listener di latar belakang terus-menerus melakukan rekoneksi otomatis setiap 5 detik hingga stasiun AWS terhubung kembali.</span>
+            </li>
+          </ul>
+        </div>
+        <div class="md:col-span-7 flex justify-center">
+          <div class="w-full max-w-md bg-slate-900 border border-slate-800 p-8 rounded-2xl relative glow-amber">
+            <div class="absolute top-4 right-4 flex items-center gap-1.5 text-xs text-brand-red font-mono bg-brand-red/10 border border-brand-red/20 px-3 py-1 rounded">
+              <span class="w-2 h-2 rounded-full bg-brand-red animate-ping"></span> FAILSAFE TRIGGERED
+            </div>
+            
+            <h3 class="text-sm font-mono text-slate-400 mb-4 uppercase tracking-wider flex items-center gap-1">
+              <i data-lucide="lock" class="w-4 h-4 text-brand-amber"></i> SIMULASI PROTEKSI LOCK
+            </h3>
+            
+            <!-- Warning Alert Box -->
+            <div class="bg-red-950/30 border border-brand-red/50 p-5 rounded-xl mb-6 flex items-start gap-3.5">
+              <i data-lucide="wifi-off" class="w-6 h-6 text-brand-red shrink-0 mt-1"></i>
+              <div>
+                <h4 class="text-sm font-extrabold text-white">AWS OFFLINE & KONEKSI TERPUTUS</h4>
+                <p class="text-xs text-slate-300 leading-relaxed mt-1">Aliran data telemetri terhenti. Seluruh tampilan widget dikunci dan dilindungi untuk menghindari pembacaan data kedaluwarsa.</p>
+              </div>
+            </div>
+
+            <!-- Blurred Dashboard Widget Mockup -->
+            <div class="relative rounded-xl border border-slate-800 bg-slate-950/40 p-5 pointer-events-none opacity-30 filter blur-[2px]">
+              <div class="flex justify-between items-center mb-3">
+                <span class="text-xs font-bold text-white">SUHU UDARA (TEMP)</span>
+                <span class="text-xs font-bold text-slate-500">STALE</span>
+              </div>
+              <p class="text-2xl font-bold text-[#00f0ff] font-mono">29.4 °C</p>
+            </div>
+            
+            <div class="mt-4 p-3 bg-slate-950 rounded-lg border border-slate-800 text-center">
+              <p class="text-xs text-brand-amber font-mono font-bold animate-pulse">
+                ⏳ DAEMON RECONNECTING IN BACKGROUND (RETRY EVERY 5s)...
+              </p>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- SLIDE 7: KONEKTIVITAS TANGGUH -->
+    <!-- SLIDE 7: EARLY WARNING SYSTEM -->
     <div class="slide w-full flex-col justify-center max-w-5xl" id="slide-7">
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-10 items-center">
         <div class="md:col-span-5">
-          <div class="text-brand-amber text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5">
-            <i data-lucide="cpu" class="w-4 h-4"></i> INDUSTRIAL RELIABILITY
+          <div class="text-brand-red text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5">
+            <i data-lucide="shield-alert" class="w-5 h-5 animate-bounce"></i> PROACTIVE RISK PROTECTION
           </div>
-          <h2 class="font-display text-4xl font-extrabold text-white tracking-tight mb-4 leading-tight">
-            Integrasi MOXA NPort & Konektivitas
+          <h2 class="font-display text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-5 leading-tight">
+            Early Warning System (EWS) Cerdas
           </h2>
-          <p class="text-slate-400 leading-relaxed text-sm mb-4">
-            Sistem dirancang sebagai **TCP Client** tangguh yang memantau aliran data serial stasiun cuaca dari unit pemancar **MOXA NPort** (TCP Server).
+          <p class="text-slate-300 leading-relaxed text-base mb-8">
+            Menerapkan algoritma penilai risiko ganda (*Dual-Hazard Risk Assessment*) untuk mendeteksi bahaya pelayaran secara instan.
           </p>
-          <div class="space-y-3 text-xs">
-            <div class="bg-slate-900/70 p-3 rounded-lg border border-slate-800 flex items-center gap-3">
-              <div class="text-brand-emerald shrink-0"><i data-lucide="refresh-cw" class="w-5 h-5 animate-spin"></i></div>
+          <div class="space-y-5">
+            <div class="flex gap-4 items-start">
+              <span class="w-7 h-7 rounded-full bg-brand-red/15 text-brand-red flex items-center justify-center shrink-0 font-bold text-sm">A</span>
               <div>
-                <h4 class="font-bold text-white">Auto-Reconnect Daemon</h4>
-                <p class="text-slate-400 text-[11px]">Daemon melakukan rekoneksi berkala setiap 5 detik jika terjadi kegagalan jaringan atau listrik padam.</p>
+                <h4 class="text-base font-bold text-white mb-1">Dual-Hazard Alert (SIAGA 1)</h4>
+                <p class="text-sm text-slate-400">Aktif otomatis apabila Kecepatan Angin &ge; 12.0 m/s DAN Tinggi Gelombang &ge; 1.2 m secara bersamaan.</p>
               </div>
             </div>
-            <div class="bg-slate-900/70 p-3 rounded-lg border border-slate-800 flex items-center gap-3">
-              <div class="text-brand-cyan shrink-0"><i data-lucide="sliders" class="w-5 h-5"></i></div>
+            <div class="flex gap-4 items-start">
+              <span class="w-7 h-7 rounded-full bg-brand-amber/15 text-brand-amber flex items-center justify-center shrink-0 font-bold text-sm">B</span>
+              <div>
+                <h4 class="text-base font-bold text-white mb-1">Single-Hazard Warning</h4>
+                <p class="text-sm text-slate-400">Peringatan khusus (Angin Kencang saja atau Gelombang Tinggi saja) untuk instruksi mitigasi yang tertarget.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="md:col-span-7 flex flex-col gap-5">
+          <!-- SIAGA 1 CARD -->
+          <div class="bg-red-950/45 border-2 border-brand-red/50 p-6 rounded-2xl flex items-center gap-5 glow-red pulse-glow">
+            <div class="w-14 h-14 rounded-full bg-brand-red/20 text-brand-red flex items-center justify-center animate-ping shrink-0">
+              <i data-lucide="alert-triangle" class="w-7 h-7"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="px-2.5 py-0.5 bg-brand-red text-slate-950 text-xs font-black rounded uppercase tracking-wider">SIAGA 1 (CRITICAL COMDEX ACCIDENT)</span>
+              </div>
+              <h3 class="text-lg font-bold text-white mb-1">Peringatan Multi-Bahaya Aktif</h3>
+              <p class="text-sm text-slate-200 leading-relaxed">Angin Kencang (14.2 m/s) & Gelombang Tinggi (1.45m). Hentikan semua aktivitas bersandar kapal dan pemuatan kontainer!</p>
+            </div>
+          </div>
+          <!-- SAFE CARD -->
+          <div class="bg-emerald-950/20 border border-brand-emerald/30 p-5 rounded-2xl flex items-center gap-4 opacity-70">
+            <div class="w-10 h-10 rounded-full bg-brand-emerald/10 text-brand-emerald flex items-center justify-center shrink-0">
+              <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-white">Status Operasi Normal</h4>
+              <p class="text-xs text-slate-400">Seluruh parameter cuaca saat ini berada di bawah ambang batas bahaya.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 8: KONEKTIVITAS TANGGUH -->
+    <div class="slide w-full flex-col justify-center max-w-5xl" id="slide-8">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-10 items-center">
+        <div class="md:col-span-5">
+          <div class="text-brand-amber text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5">
+            <i data-lucide="cpu" class="w-4 h-4"></i> INDUSTRIAL RELIABILITY
+          </div>
+          <h2 class="font-display text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-5 leading-tight">
+            Integrasi MOXA NPort & Konektivitas
+          </h2>
+          <p class="text-slate-300 leading-relaxed text-base mb-6">
+            Aplikasi dirancang sebagai **TCP Client** handal yang secara aktif melakukan jabat tangan data dengan hardware gateway **MOXA NPort** (TCP Server).
+          </p>
+          <div class="space-y-4 text-sm">
+            <div class="bg-slate-900/70 p-4 rounded-xl border border-slate-800 flex items-center gap-4">
+              <div class="text-brand-emerald shrink-0"><i data-lucide="refresh-cw" class="w-6 h-6 animate-spin"></i></div>
+              <div>
+                <h4 class="font-bold text-white">Auto-Reconnect Daemon</h4>
+                <p class="text-slate-400 text-xs mt-0.5">Daemon melakukan rekoneksi berkala setiap 5 detik jika terjadi kegagalan jaringan atau listrik padam.</p>
+              </div>
+            </div>
+            <div class="bg-slate-900/70 p-4 rounded-xl border border-slate-800 flex items-center gap-4">
+              <div class="text-brand-cyan shrink-0"><i data-lucide="sliders" class="w-6 h-6"></i></div>
               <div>
                 <h4 class="font-bold text-white">Kanal Sensor Dapat Dikonfigurasi</h4>
-                <p class="text-slate-400 text-[11px]">Memetakan urutan data sensor fisik ke dalam visualisasi antarmuka secara dinamis di menu pengaturan.</p>
+                <p class="text-slate-400 text-xs mt-0.5">Memetakan urutan data sensor fisik ke dalam visualisasi antarmuka secara dinamis di menu pengaturan.</p>
               </div>
             </div>
           </div>
         </div>
         <div class="md:col-span-7 flex justify-center">
           <!-- Flow Illustration -->
-          <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 w-full max-w-md relative">
-            <h4 class="text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-4">DIAGRAM TRANSMISI DATA HARDWARE</h4>
+          <div class="bg-slate-900 p-8 rounded-2xl border border-slate-800 w-full max-w-md relative">
+            <h4 class="text-xs font-mono text-slate-400 uppercase tracking-widest mb-5">DIAGRAM TRANSMISI DATA HARDWARE</h4>
             
-            <div class="flex flex-col gap-4">
-              <div class="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <div class="flex items-center gap-2">
-                  <span class="p-1.5 bg-slate-800 rounded text-slate-300"><i data-lucide="satellite-dish" class="w-4 h-4"></i></span>
-                  <span class="text-xs font-bold text-white">Sensor AWS Lapangan</span>
+            <div class="flex flex-col gap-5">
+              <div class="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800">
+                <div class="flex items-center gap-3">
+                  <span class="p-2 bg-slate-800 rounded-lg text-slate-300"><i data-lucide="satellite-dish" class="w-5 h-5"></i></span>
+                  <span class="text-sm font-bold text-white">Sensor AWS Lapangan</span>
                 </div>
-                <span class="text-[9px] font-mono text-slate-400">SERIAL RS485</span>
+                <span class="text-xs font-mono text-slate-400">SERIAL RS485</span>
               </div>
 
-              <div class="flex justify-center py-1"><i data-lucide="arrow-down" class="text-brand-amber w-5 h-5"></i></div>
+              <div class="flex justify-center"><i data-lucide="arrow-down" class="text-brand-amber w-6 h-6"></i></div>
 
-              <div class="flex justify-between items-center bg-brand-amber/5 p-3 rounded-xl border border-brand-amber/20">
-                <div class="flex items-center gap-2">
-                  <span class="p-1.5 bg-brand-amber/10 rounded text-brand-amber"><i data-lucide="cpu" class="w-4 h-4"></i></span>
-                  <span class="text-xs font-bold text-white">Gateway MOXA NPort</span>
+              <div class="flex justify-between items-center bg-brand-amber/5 p-4 rounded-xl border border-brand-amber/20">
+                <div class="flex items-center gap-3">
+                  <span class="p-2 bg-brand-amber/10 rounded-lg text-brand-amber"><i data-lucide="cpu" class="w-5 h-5"></i></span>
+                  <span class="text-sm font-bold text-white">Gateway MOXA NPort</span>
                 </div>
-                <span class="text-[9px] font-mono text-brand-amber font-bold">MODE: TCP SERVER</span>
+                <span class="text-xs font-mono text-brand-amber font-bold">MODE: TCP SERVER</span>
               </div>
 
-              <div class="flex justify-center py-1"><i data-lucide="arrow-down" class="text-brand-cyan w-5 h-5"></i></div>
+              <div class="flex justify-center"><i data-lucide="arrow-down" class="text-brand-cyan w-6 h-6"></i></div>
 
-              <div class="flex justify-between items-center bg-brand-cyan/5 p-3 rounded-xl border border-brand-cyan/20">
-                <div class="flex items-center gap-2">
-                  <span class="p-1.5 bg-brand-cyan/10 rounded text-brand-cyan"><i data-lucide="server" class="w-4 h-4"></i></span>
-                  <span class="text-xs font-bold text-white">Maritime OS Dashboard</span>
+              <div class="flex justify-between items-center bg-brand-cyan/5 p-4 rounded-xl border border-brand-cyan/20">
+                <div class="flex items-center gap-3">
+                  <span class="p-2 bg-brand-cyan/10 rounded-lg text-brand-cyan"><i data-lucide="server" class="w-5 h-5"></i></span>
+                  <span class="text-sm font-bold text-white">Maritime OS Dashboard</span>
                 </div>
-                <span class="text-[9px] font-mono text-brand-emerald font-bold">CLIENT CONNECTED</span>
+                <span class="text-xs font-mono text-brand-emerald font-bold">CLIENT CONNECTED</span>
               </div>
             </div>
           </div>
@@ -475,245 +570,246 @@
       </div>
     </div>
 
-    <!-- SLIDE 8: 3 WINDOWS SERVICES -->
-    <div class="slide w-full flex-col justify-center max-w-5xl" id="slide-8">
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+    <!-- SLIDE 9: 3 WINDOWS SERVICES -->
+    <div class="slide w-full flex-col justify-center max-w-5xl" id="slide-9">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-10 items-center">
         <div class="md:col-span-5">
-          <div class="text-brand-cyan text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5">
+          <div class="text-brand-cyan text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5">
             <i data-lucide="settings-2" class="w-4 h-4"></i> ZERO-MAINTENANCE INFRASTRUCTURE
           </div>
-          <h2 class="font-display text-4xl font-extrabold text-white tracking-tight mb-4 leading-tight">
+          <h2 class="font-display text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-5 leading-tight">
             Arsitektur 3 Windows Services
           </h2>
-          <p class="text-slate-400 leading-relaxed text-sm mb-6">
+          <p class="text-slate-300 leading-relaxed text-base mb-8">
             Menjamin keandalan sistem tanpa intervensi operator (*zero-operator maintenance*) menggunakan otomatisasi layanan sistem Windows (*NSSM Windows Services*).
           </p>
-          <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl">
-            <p class="text-xs font-bold text-brand-cyan uppercase mb-1 flex items-center gap-1">
-              <i data-lucide="zap" class="w-4 h-4"></i> Skenario Auto-Recovery Listrik Padam:
+          <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl">
+            <p class="text-xs font-bold text-brand-cyan uppercase mb-2 flex items-center gap-1.5">
+              <i data-lucide="zap" class="w-5 h-5"></i> Skenario Auto-Recovery Listrik Padam:
             </p>
-            <p class="text-xs text-slate-300 leading-relaxed">
+            <p class="text-sm text-slate-300 leading-relaxed">
               Jika komputer server pelabuhan restart, ketiga service akan otomatis berjalan seketika saat Windows booting tanpa membutuhkan login pengguna manual.
             </p>
           </div>
         </div>
-        <div class="md:col-span-7 grid grid-cols-1 gap-3">
+        <div class="md:col-span-7 grid grid-cols-1 gap-4">
           <!-- SERVICE 1 -->
-          <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center font-mono font-bold text-sm">01</div>
+          <div class="bg-slate-900/60 p-5 rounded-xl border border-slate-800/80 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center font-mono font-bold text-base">01</div>
               <div>
-                <h3 class="text-sm font-bold text-white">AWS Port Marine (Visual Dashboard)</h3>
-                <p class="text-xs text-slate-400">Menyajikan dashboard visual komando kepada operator di Port 3000.</p>
+                <h3 class="text-base font-bold text-white">AWS Port Marine (Visual Dashboard)</h3>
+                <p class="text-xs text-slate-400 mt-0.5">Menyajikan dashboard visual komando kepada operator di Port 3000.</p>
               </div>
             </div>
-            <span class="px-2 py-1 bg-brand-emerald/10 text-brand-emerald text-[10px] font-mono border border-brand-emerald/20 rounded">ACTIVE (AUTO)</span>
+            <span class="px-3 py-1 bg-brand-emerald/10 text-brand-emerald text-xs font-mono border border-brand-emerald/20 rounded-md">ACTIVE (AUTO)</span>
           </div>
           <!-- SERVICE 2 -->
-          <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center font-mono font-bold text-sm">02</div>
+          <div class="bg-slate-900/60 p-5 rounded-xl border border-slate-800/80 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-mono font-bold text-base">02</div>
               <div>
-                <h3 class="text-sm font-bold text-white">AWS PHP Bridge Service</h3>
-                <p class="text-xs text-slate-400">Jembatan API asinkron berkecepatan tinggi ke port database PostgreSQL.</p>
+                <h3 class="text-base font-bold text-white">AWS PHP Bridge Service</h3>
+                <p class="text-xs text-slate-400 mt-0.5">Jembatan API asinkron berkecepatan tinggi ke port database PostgreSQL.</p>
               </div>
             </div>
-            <span class="px-2 py-1 bg-brand-emerald/10 text-brand-emerald text-[10px] font-mono border border-brand-emerald/20 rounded">ACTIVE (AUTO)</span>
+            <span class="px-3 py-1 bg-brand-emerald/10 text-brand-emerald text-xs font-mono border border-brand-emerald/20 rounded-md">ACTIVE (AUTO)</span>
           </div>
           <!-- SERVICE 3 -->
-          <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center font-mono font-bold text-sm">03</div>
+          <div class="bg-slate-900/60 p-5 rounded-xl border border-slate-800/80 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center font-mono font-bold text-base">03</div>
               <div>
-                <h3 class="text-sm font-bold text-white">AWS Moxa TCP Listener</h3>
-                <p class="text-xs text-slate-400">Secara konstan menarik stream data mentah dari MOXA NPort tanpa jeda.</p>
+                <h3 class="text-base font-bold text-white">AWS Moxa TCP Listener</h3>
+                <p class="text-xs text-slate-400 mt-0.5">Secara konstan menarik stream data mentah dari MOXA NPort tanpa jeda.</p>
               </div>
             </div>
-            <span class="px-2 py-1 bg-brand-emerald/10 text-brand-emerald text-[10px] font-mono border border-brand-emerald/20 rounded">ACTIVE (AUTO)</span>
+            <span class="px-3 py-1 bg-brand-emerald/10 text-brand-emerald text-xs font-mono border border-brand-emerald/20 rounded-md">ACTIVE (AUTO)</span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- SLIDE 9: POSTGRESQL & HISTORI -->
-    <div class="slide w-full flex-col justify-center max-w-5xl" id="slide-9">
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+    <!-- SLIDE 10: POSTGRESQL & HISTORI -->
+    <div class="slide w-full flex-col justify-center max-w-5xl" id="slide-10">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-10 items-center">
         <div class="md:col-span-5">
-          <div class="text-brand-emerald text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5">
+          <div class="text-brand-emerald text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5">
             <i data-lucide="database" class="w-4 h-4"></i> ROBUST DATA STORE
           </div>
-          <h2 class="font-display text-4xl font-extrabold text-white tracking-tight mb-4 leading-tight">
+          <h2 class="font-display text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-5 leading-tight">
             Basis Data PostgreSQL & Histori Log
           </h2>
-          <p class="text-slate-400 leading-relaxed text-sm mb-6">
+          <p class="text-slate-300 leading-relaxed text-base mb-8">
             Meninggalkan keterbatasan file teks manual, Maritime OS didukung oleh **Database PostgreSQL** kelas enterprise yang sanggup mengelola jutaan pencatatan secara stabil.
           </p>
-          <ul class="space-y-3.5">
-            <li class="flex items-start gap-2.5 text-xs text-slate-300">
-              <i data-lucide="search" class="w-4 h-4 text-brand-emerald shrink-0 mt-0.5"></i>
+          <ul class="space-y-4 text-base">
+            <li class="flex items-start gap-3 text-slate-300">
+              <i data-lucide="search" class="w-5 h-5 text-brand-emerald shrink-0 mt-0.5"></i>
               <span><strong>Pencarian & Filter Taktis:</strong> Memudahkan penelusuran data historis berdasarkan rentang tanggal atau stasiun pemancar tertentu.</span>
             </li>
-            <li class="flex items-start gap-2.5 text-xs text-slate-300">
-              <i data-lucide="download" class="w-4 h-4 text-brand-emerald shrink-0 mt-0.5"></i>
+            <li class="flex items-start gap-3 text-slate-300">
+              <i data-lucide="download" class="w-5 h-5 text-brand-emerald shrink-0 mt-0.5"></i>
               <span><strong>Ekspor CSV Sekali Klik:</strong> Mengunduh laporan instan untuk kebutuhan analisis lanjutan di Excel atau diserahkan ke pihak BMKG/Syahbandar.</span>
             </li>
-            <li class="flex items-start gap-2.5 text-xs text-slate-300">
-              <i data-lucide="shield" class="w-4 h-4 text-brand-emerald shrink-0 mt-0.5"></i>
+            <li class="flex items-start gap-3 text-slate-300">
+              <i data-lucide="shield" class="w-5 h-5 text-brand-emerald shrink-0 mt-0.5"></i>
               <span><strong>Integritas Data Terjamin:</strong> Log orisinal tersimpan rapi untuk pertanggungjawaban hukum (misalnya klaim asuransi akibat kerusakan lambung kapal).</span>
             </li>
           </ul>
         </div>
         <div class="md:col-span-7 flex justify-center">
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl w-full max-w-md relative glow-emerald">
-            <h4 class="text-[10px] font-mono text-slate-400 uppercase tracking-widest mb-3 flex justify-between items-center">
+          <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md relative glow-emerald">
+            <h4 class="text-xs font-mono text-slate-400 uppercase tracking-widest mb-4 flex justify-between items-center">
               <span>POSTGRESQL TABLE SNEAKPEEK</span>
               <span class="text-brand-emerald text-xs font-bold">CONNECTED</span>
             </h4>
-            <div class="overflow-x-auto text-[10px] font-mono text-slate-300">
+            <div class="overflow-x-auto text-[11px] font-mono text-slate-300">
               <table class="w-full text-left">
                 <thead>
                   <tr class="border-b border-slate-800 text-slate-400">
-                    <th class="pb-2">Timestamp</th>
-                    <th class="pb-2">Wind (m/s)</th>
-                    <th class="pb-2">Wave (m)</th>
-                    <th class="pb-2">pH</th>
-                    <th class="pb-2">Temp (°C)</th>
+                    <th class="pb-3">Timestamp</th>
+                    <th class="pb-3">Wind (m/s)</th>
+                    <th class="pb-3">Tide (m)</th>
+                    <th class="pb-3">pH</th>
+                    <th class="pb-3">Temp (°C)</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-800/50">
                   <tr>
-                    <td class="py-2 text-slate-400">06/07 05:40:00</td>
-                    <td class="py-2 text-[#00f0ff]">4.2</td>
-                    <td class="py-2">0.42</td>
-                    <td class="py-2 text-brand-emerald">7.82</td>
-                    <td class="py-2">28.4</td>
+                    <td class="py-3 text-slate-400">06/07 05:40:00</td>
+                    <td class="py-3 text-[#00f0ff]">4.2</td>
+                    <td class="py-3 text-[#3b82f6]">1.45</td>
+                    <td class="py-3 text-brand-emerald">7.82</td>
+                    <td class="py-3">28.4</td>
                   </tr>
                   <tr>
-                    <td class="py-2 text-slate-400">06/07 05:39:00</td>
-                    <td class="py-2 text-[#00f0ff]">4.5</td>
-                    <td class="py-2">0.45</td>
-                    <td class="py-2 text-brand-emerald">7.81</td>
-                    <td class="py-2">28.5</td>
+                    <td class="py-3 text-slate-400">06/07 05:39:00</td>
+                    <td class="py-3 text-[#00f0ff]">4.5</td>
+                    <td class="py-3 text-[#3b82f6]">1.45</td>
+                    <td class="py-3 text-brand-emerald">7.81</td>
+                    <td class="py-3">28.5</td>
                   </tr>
                   <tr>
-                    <td class="py-2 text-slate-400">06/07 05:38:00</td>
-                    <td class="py-2 text-[#00f0ff]">12.8 🔴</td>
-                    <td class="py-2 text-brand-red font-bold">1.25</td>
-                    <td class="py-2 text-brand-emerald">7.82</td>
-                    <td class="py-2">28.2</td>
+                    <td class="py-3 text-slate-400">06/07 05:38:00</td>
+                    <td class="py-3 text-brand-red font-bold">12.8 🔴</td>
+                    <td class="py-3 text-brand-red font-bold">1.25</td>
+                    <td class="py-3 text-brand-emerald">7.82</td>
+                    <td class="py-3">28.2</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <div class="mt-4 flex justify-end gap-2 text-[10px]">
-              <span class="px-2 py-1 bg-slate-950 border border-slate-800 rounded text-slate-400">Page 1 of 4,210</span>
-              <button class="px-2 py-1 bg-brand-emerald/10 hover:bg-brand-emerald/20 text-brand-emerald border border-brand-emerald/20 rounded font-bold transition-all flex items-center gap-1"><i data-lucide="download" class="w-3 h-3"></i> Export CSV</button>
+            <div class="mt-5 flex justify-end gap-3 text-xs">
+              <span class="px-2.5 py-1 bg-slate-950 border border-slate-800 rounded text-slate-400">Page 1 of 4,210</span>
+              <button class="px-3 py-1 bg-brand-emerald/10 hover:bg-brand-emerald/20 text-brand-emerald border border-brand-emerald/20 rounded font-bold transition-all flex items-center gap-1.5"><i data-lucide="download" class="w-4 h-4"></i> Export CSV</button>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- SLIDE 10: STRATEGIS -->
-    <div class="slide w-full flex-col justify-center items-center text-center max-w-5xl" id="slide-10">
-      <div class="mb-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-emerald/15 border border-brand-emerald/30 text-brand-emerald text-xs font-semibold uppercase tracking-wider">
-        <i data-lucide="award" class="w-4 h-4 animate-bounce"></i> STRATEGIC VALUE PROPOSITION
+    <!-- SLIDE 11: STRATEGIS -->
+    <div class="slide w-full flex-col justify-center items-center text-center max-w-5xl" id="slide-11">
+      <div class="mb-5 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-emerald/15 border border-brand-emerald/30 text-brand-emerald text-sm font-semibold uppercase tracking-wider">
+        <i data-lucide="award" class="w-5 h-5 animate-bounce"></i> STRATEGIC VALUE PROPOSITION
       </div>
-      <h2 class="font-display text-4xl md:text-5xl font-extrabold tracking-tight text-white mb-6 leading-tight">
+      <h2 class="font-display text-4xl md:text-6xl font-extrabold tracking-tight text-white mb-6 leading-tight">
         Nilai Investasi Strategis Maritime OS
       </h2>
-      <p class="text-sm md:text-base text-slate-300 max-w-2xl mb-10 leading-relaxed font-light">
+      <p class="text-base md:text-xl text-slate-300 max-w-3xl mb-12 leading-relaxed font-light">
         Aplikasi ini bertindak sebagai fondasi utama menuju digitalisasi pelabuhan pintar (**Smart Port**) yang modern, aman, dan mematuhi regulasi internasional.
       </p>
       
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 w-full max-w-4xl text-left">
-        <div class="p-5 bg-slate-900/60 rounded-xl border border-slate-800/80">
-          <div class="p-2 w-max rounded-lg bg-brand-red/10 text-brand-red mb-3"><i data-lucide="heart" class="w-5 h-5"></i></div>
-          <h4 class="font-bold text-white text-sm mb-1">Zero-Incident Goal</h4>
-          <p class="text-xs text-slate-400 leading-relaxed">Menekan angka kecelakaan bersandar kapal dan menjaga keselamatan pekerja pelabuhan.</p>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-5 w-full max-w-5xl text-left">
+        <div class="p-6 bg-slate-900/60 rounded-2xl border border-slate-800/80">
+          <div class="p-3 w-max rounded-xl bg-brand-red/10 text-brand-red mb-4"><i data-lucide="heart" class="w-6 h-6"></i></div>
+          <h4 class="font-bold text-white text-base mb-2">Zero-Incident Goal</h4>
+          <p class="text-sm text-slate-400 leading-relaxed">Menekan angka kecelakaan bersandar kapal dan menjaga keselamatan pekerja pelabuhan.</p>
         </div>
-        <div class="p-5 bg-slate-900/60 rounded-xl border border-slate-800/80">
-          <div class="p-2 w-max rounded-lg bg-brand-cyan/10 text-brand-cyan mb-3"><i data-lucide="clock" class="w-5 h-5"></i></div>
-          <h4 class="font-bold text-white text-sm mb-1">Optimasi Waktu Berthing</h4>
-          <p class="text-xs text-slate-400 leading-relaxed">Menentukan keputusan bersandar secara presisi berbasis data kecepatan angin real-time.</p>
+        <div class="p-6 bg-slate-900/60 rounded-2xl border border-slate-800/80">
+          <div class="p-3 w-max rounded-xl bg-brand-cyan/10 text-brand-cyan mb-4"><i data-lucide="clock" class="w-6 h-6"></i></div>
+          <h4 class="font-bold text-white text-base mb-2">Optimasi Waktu Berthing</h4>
+          <p class="text-sm text-slate-400 leading-relaxed">Menentukan keputusan bersandar secara presisi berbasis data kecepatan angin real-time.</p>
         </div>
-        <div class="p-5 bg-slate-900/60 rounded-xl border border-slate-800/80">
-          <div class="p-2 w-max rounded-lg bg-brand-emerald/10 text-brand-emerald mb-3"><i data-lucide="scale" class="w-5 h-5"></i></div>
-          <h4 class="font-bold text-white text-sm mb-1">Integritas Hukum</h4>
-          <p class="text-xs text-slate-400 leading-relaxed">Penyediaan data historis valid untuk melindugi pelabuhan dari klaim asuransi.</p>
+        <div class="p-6 bg-slate-900/60 rounded-2xl border border-slate-800/80">
+          <div class="p-3 w-max rounded-xl bg-brand-emerald/10 text-brand-emerald mb-4"><i data-lucide="scale" class="w-6 h-6"></i></div>
+          <h4 class="font-bold text-white text-base mb-2">Integritas Hukum</h4>
+          <p class="text-sm text-slate-400 leading-relaxed">Penyediaan data historis valid untuk melindugi pelabuhan dari klaim asuransi.</p>
         </div>
-        <div class="p-5 bg-slate-900/60 rounded-xl border border-slate-800/80">
-          <div class="p-2 w-max rounded-lg bg-brand-amber/10 text-brand-amber mb-3"><i data-lucide="ship" class="w-5 h-5"></i></div>
-          <h4 class="font-bold text-white text-sm mb-1">Smart Port Standard</h4>
-          <p class="text-xs text-slate-400 leading-relaxed">Memenuhi kriteria tata kelola pelabuhan modern berbasis sistem digital terintegrasi.</p>
+        <div class="p-6 bg-slate-900/60 rounded-2xl border border-slate-800/80">
+          <div class="p-3 w-max rounded-xl bg-brand-amber/10 text-brand-amber mb-4"><i data-lucide="ship" class="w-6 h-6"></i></div>
+          <h4 class="font-bold text-white text-base mb-2">Smart Port Standard</h4>
+          <p class="text-sm text-slate-400 leading-relaxed">Memenuhi kriteria tata kelola pelabuhan modern berbasis sistem digital terintegrasi.</p>
         </div>
       </div>
 
-      <div class="mt-12 text-center text-slate-400 font-mono text-xs">
+      <div class="mt-12 text-center text-slate-400 font-mono text-sm">
         <p>Terima kasih atas perhatian Anda. Sesi tanya jawab kini dibuka.</p>
       </div>
     </div>
 
     <!-- PREV / NEXT NAV BUTTONS -->
     <div class="absolute left-4 z-10">
-      <button id="prev-btn" class="w-12 h-12 rounded-full bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center transition-all shadow-lg">
-        <i data-lucide="chevron-left" class="w-6 h-6"></i>
+      <button id="prev-btn" class="w-14 h-14 rounded-full bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center transition-all shadow-lg">
+        <i data-lucide="chevron-left" class="w-7 h-7"></i>
       </button>
     </div>
     <div class="absolute right-4 z-10">
-      <button id="next-btn" class="w-12 h-12 rounded-full bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center transition-all shadow-lg glow-cyan">
-        <i data-lucide="chevron-right" class="w-6 h-6 text-brand-cyan"></i>
+      <button id="next-btn" class="w-14 h-14 rounded-full bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center transition-all shadow-lg glow-cyan">
+        <i data-lucide="chevron-right" class="w-7 h-7 text-brand-cyan"></i>
       </button>
     </div>
 
   </main>
 
   <!-- PRESENTER NOTES DRAWER -->
-  <div id="notes-panel" class="hidden h-40 bg-slate-950 border-t border-slate-800 px-8 py-4 relative z-10 shadow-inner">
-    <div class="flex justify-between items-center mb-1.5 border-b border-slate-900 pb-1.5">
+  <div id="notes-panel" class="hidden h-44 bg-slate-950 border-t border-slate-800 px-10 py-5 relative z-10 shadow-inner">
+    <div class="flex justify-between items-center mb-2 border-b border-slate-900 pb-2">
       <h3 class="text-xs font-mono font-bold text-brand-cyan flex items-center gap-1">
-        <i data-lucide="message-square" class="w-3.5 h-3.5"></i> PANDUAN NARASI PRESENTER (CATATAN SUARA)
+        <i data-lucide="message-square" class="w-4 h-4"></i> PANDUAN NARASI PRESENTER (CATATAN SUARA)
       </h3>
-      <span class="text-[10px] font-mono text-slate-400">Tips: Gunakan tombol panah &larr; &rarr; untuk navigasi</span>
+      <span class="text-[11px] font-mono text-slate-400">Tips: Gunakan tombol panah &larr; &rarr; untuk navigasi</span>
     </div>
-    <div id="notes-content" class="text-sm text-slate-200 leading-relaxed overflow-y-auto h-24 custom-scroll italic">
+    <div id="notes-content" class="text-base text-slate-200 leading-relaxed overflow-y-auto h-24 custom-scroll italic font-medium">
       <!-- Dynamic Content loaded by script -->
     </div>
   </div>
 
   <!-- BOTTOM FOOTER / STATUS BAR -->
-  <footer class="px-8 py-3 border-t border-slate-900 bg-slate-950 flex justify-between items-center text-[11px] text-slate-500 font-mono">
+  <footer class="px-10 py-4 border-t border-slate-900 bg-slate-950 flex justify-between items-center text-xs text-slate-500 font-mono">
     <div>
       <span>Maritime OS Presenter &bull; PT Pelabuhan Indonesia (Persero) &bull; © 2026</span>
     </div>
-    <div class="flex items-center gap-4">
-      <div class="flex gap-1" id="dots-indicator">
+    <div class="flex items-center gap-5">
+      <div class="flex gap-1.5" id="dots-indicator">
         <!-- Dot list rendered by script -->
       </div>
       <div>
-        <span id="slide-number">Slide 1 / 10</span>
+        <span id="slide-number">Slide 1 / 11</span>
       </div>
     </div>
   </footer>
 
   <!-- PRESENTATION NAVIGATION JAVASCRIPT -->
   <script>
-    // Presenter Notes Mapping for Slide 1-10
+    // Presenter Notes Mapping for Slide 1-11
     const presenterNotes = {
-      1: "Selamat pagi/siang rekan-rekan sekalian. Hari ini saya sangat senang mendemonstrasikan program terbaru kita yaitu 'Maritime OS'. Ini adalah pusat komando visual terintegrasi satu layar yang dirancang khusus untuk memonitor data meteorologi maritim, AWS, oseanografi, hingga kualitas air laut secara real-time demi menjamin keselamatan berthing kapal dan efisiensi operasional di pelabuhan kita.",
-      2: "Dalam operasional pelabuhan modern, kita menghadapi berbagai tantangan kritis. Angin kencang yang datang mendadak sering mengganggu maneuver kapal kargo saat sandar. Di sisi lain, perubahan ekstrem pada pH air laut memicu korosi cepat pada kapal-kapal yang bersandar. Tanpa sistem deteksi otomatis berlatensi nol, manajemen pelabuhan berisiko terlambat mengambil keputusan darurat yang merugikan miliaran rupiah.",
+      1: "Selamat pagi/siang rekan-rekan sekalian. Hari ini saya sangat senang mendemonstrasikan program terbaru kita yaitu 'Maritime OS'. Ini adalah pusat komando visual terintegrasi satu layar yang dirancang khusus untuk memonitor data meteorologi maritim, stasiun AWS, oseanografi, hingga kualitas air laut secara real-time demi menjamin keselamatan berthing kapal dan efisiensi operasional di pelabuhan kita.",
+      2: "Dalam operasional pelabuhan modern, kita menghadapi berbagai tantangan kritis. Angin kencang yang datang mendadak sering mengganggu maneuver kapal kargo saat sandar. Di sisi lain, perubahan ekstrem pada pasang surut air laut dapat memicu grounding kapal, serta tingkat keasaman air laut memicu korosi cepat pada kapal-kapal yang bersandar. Tanpa sistem deteksi otomatis berlatensi nol, manajemen pelabuhan berisiko terlambat mengambil keputusan darurat yang merugikan miliaran rupiah.",
       3: "Untuk memecahkan masalah ini, kita menerapkan arsitektur end-to-end yang solid. Dari sensor AWS fisik di dermaga, data dikonversi ke format IP secara tangguh oleh gateway MOXA NPort. Selanjutnya, data tersebut dialirkan dengan latensi kurang dari 1 detik ke database relasional PostgreSQL enterprise, dan divisualisasikan secara menakjubkan melalui web dashboard asinkron di pusat kontrol.",
       4: "Inilah tampilan utama dashboard kita. Bagian tengah didominasi oleh Kompas Dermaga interaktif 360 derajat yang disesuaikan dengan sudut kemiringan dermaga nyata kita (Pier Angle). Operator dapat melihat arah hembusan angin riil bertiup relatif terhadap sudut bersandar kapal secara spasial. Dilengkapi pula dengan ring alarm yang akan berpendar merah ketika terjadi anomali angin kencang.",
-      5: "Sistem Peringatan Dini (EWS) kita cerdas karena menggunakan logika Dual-Hazard. Jika terjadi kecepatan angin kritis (di atas 12.0 m/s) DAN tinggi gelombang laut ekstrem (di atas 1.2 m) secara serempak, dashboard langsung berubah status menjadi SIAGA 1 berwarna merah menyala dan operator dapat segera menginstruksikan penghentian sementara aktivitas bongkar muat secara proaktif.",
-      6: "Di Tab Analyst, kami melengkapinya dengan sensor Radar Badai sirkular bergaya militer taktis untuk melacak hembusan gale force regional. Tidak hanya itu, aplikasi ini secara otomatis terintegrasi dengan kueri data prakiraan resmi BMKG maritim (Banten dan Jakarta) sebagai referensi pembanding bagi operator di lapangan.",
-      7: "Salah satu bagian terpenting adalah keandalan perangkat keras MOXA NPort. Program kita bertindak sebagai TCP Client yang sangat gigih. Jika ada kabel jaringan lepas atau listrik padam sementara, daemon pintar kita tidak akan crash. Daemon ini memiliki loop rekoneksi otomatis yang melakukan dial jabat tangan ulang setiap 5 detik secara persisten hingga koneksi pulih sepenuhnya.",
-      8: "Untuk menggaransi zero-operator maintenance di ruang server pelabuhan, kami mendaftarkan sistem ini menjadi 3 Windows Services menggunakan NSSM di sistem operasi Windows. Jika komputer server mati lalu menyala kembali akibat pemadaman listrik, visual dashboard di port 3000, jembatan PHP di port 8000, dan moxa listener akan otomatis aktif seketika bahkan sebelum operator masuk ke sistem.",
-      9: "Seluruh data log historis kini tersimpan di PostgreSQL kelas dunia, bukan lagi file teks mentah yang mudah rusak. Di Tab Database, operator pelabuhan dapat mencari rekaman cuaca presisi per menit berdasarkan tanggal, serta mengekspornya ke dalam berkas .csv hanya dengan satu klik tombol untuk dilaporkan ke BMKG atau Syahbandar jika diperlukan sebagai bukti klaim asuransi kapal.",
-      10: "Sebagai penutup, investasi implementasi Maritime OS ini membawa nilai strategis yang sangat tinggi bagi pelabuhan kita. Kita menekan angka kecelakaan kerja, mengefisienkan waktu antrean bersandar kapal, memiliki perlindungan integritas hukum data, serta mewujudkan pelabuhan pintar berskala internasional. Terima kasih atas perhatiannya, saya persilakan jika ada pertanyaan dari bapak dan ibu sekalian."
+      5: "Selanjutnya, mari kita bahas fitur oseanografi utama: Pemantauan Pasang Surut (Water Level) dan Tinggi Gelombang. Sensor fisik di dermaga mengukur ketinggian air laut dalam centimeter dan menampilkannya dalam meter secara presisi. Data pasut ini dibandingkan secara real-time dengan MSL (Mean Sea Level) referensi yang dikalibrasi di Tab Settings, sehingga deviasi air pasang surut diketahui secara akurat untuk memitigasi kapal kandas (*grounding mitigation*). Selain itu, tinggi gelombang laut dipantau konstan dengan ambang batas bahaya 1.2 meter.",
+      6: "Keandalan sistem kami diperkuat oleh sistem pengaman putusnya koneksi. Jika sensor AWS lapangan terputus karena gangguan fisik, badai, atau pemadaman listrik, state 'isLiveActive' beralih ke offline. Seketika, fitur 'lockOfflineDashboard' akan mengunci visual dashboard kita dengan visualisasi blur (kabur) dan opacity 30% serta memblokir semua interaksi klik. Mengapa ini penting? Untuk mencegah operator mengambil keputusan strategis menggunakan data usang (*stale data*) yang sangat berbahaya bagi keselamatan kapal.",
+      7: "Sistem Peringatan Dini (EWS) kita cerdas karena menggunakan logika Dual-Hazard. Jika terjadi kecepatan angin kritis (di atas 12.0 m/s) DAN tinggi gelombang laut ekstrem (di atas 1.2 m) secara serempak, dashboard langsung berubah status menjadi SIAGA 1 berwarna merah menyala dan operator dapat segera menginstruksikan penghentian sementara aktivitas bongkar muat secara proaktif.",
+      8: "Salah satu bagian terpenting adalah keandalan perangkat keras MOXA NPort. Program kita bertindak sebagai TCP Client yang sangat gigih. Jika ada kabel jaringan lepas atau listrik padam sementara, daemon pintar kita tidak akan crash. Daemon ini memiliki loop rekoneksi otomatis yang melakukan dial jabat tangan ulang setiap 5 detik secara persisten hingga koneksi pulih sepenuhnya.",
+      9: "Untuk menggaransi zero-operator maintenance di ruang server pelabuhan, kami mendaftarkan sistem ini menjadi 3 Windows Services menggunakan NSSM di sistem operasi Windows. Jika komputer server mati lalu menyala kembali akibat pemadaman listrik, visual dashboard di port 3000, jembatan PHP di port 8000, dan moxa listener akan otomatis aktif seketika bahkan sebelum operator masuk ke sistem.",
+      10: "Seluruh data log historis kini tersimpan di PostgreSQL kelas dunia, bukan lagi file teks mentah yang mudah rusak. Di Tab Database, operator pelabuhan dapat mencari rekaman cuaca presisi per menit berdasarkan tanggal, serta mengekspornya ke dalam berkas .csv hanya dengan satu klik tombol untuk dilaporkan ke BMKG atau Syahbandar jika diperlukan sebagai bukti klaim asuransi kapal.",
+      11: "Sebagai penutup, investasi implementasi Maritime OS ini membawa nilai strategis yang sangat tinggi bagi pelabuhan kita. Kita menekan angka kecelakaan kerja, mengefisienkan waktu antrean bersandar kapal, memiliki perlindungan integritas hukum data, serta mewujudkan pelabuhan pintar berskala internasional. Terima kasih atas perhatiannya, saya persilakan jika ada pertanyaan dari bapak dan ibu sekalian."
     };
 
     let currentSlide = 1;
-    const totalSlides = 10;
+    const totalSlides = 11;
     const notesPanel = document.getElementById('notes-panel');
     const notesContent = document.getElementById('notes-content');
     const toggleNotesBtn = document.getElementById('toggle-notes-btn');
@@ -727,7 +823,7 @@
       dotsIndicator.innerHTML = '';
       for (let i = 1; i <= totalSlides; i++) {
         const dot = document.createElement('span');
-        dot.className = `w-1.5 h-1.5 rounded-full transition-all ${i === currentSlide ? 'bg-brand-cyan w-3' : 'bg-slate-700'}`;
+        dot.className = `w-2 h-2 rounded-full transition-all ${i === currentSlide ? 'bg-brand-cyan w-4' : 'bg-slate-700'}`;
         dotsIndicator.appendChild(dot);
       }
     }
@@ -773,6 +869,7 @@
       }
     }
 
+    // Navigation handlers
     function goPrev() {
       if (currentSlide > 1) {
         currentSlide--;
