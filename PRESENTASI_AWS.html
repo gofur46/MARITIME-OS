@@ -256,8 +256,19 @@
             </li>
           </ul>
         </div>
-        <div class="md:col-span-7 flex justify-center">
-          <div class="w-full max-w-md bg-slate-900 border border-slate-800 p-8 rounded-2xl glow-cyan relative">
+        <div class="md:col-span-7 flex flex-col items-center justify-center">
+          <!-- TABS HEADERS -->
+          <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-4 w-full max-w-md">
+            <button onclick="switchTab('slide4', 'mockup')" id="slide4-btn-mockup" class="flex-1 py-1.5 text-xs font-bold rounded-md text-brand-cyan bg-slate-900 border border-brand-cyan/20 transition-all">
+              ⚡ Live Simulation
+            </button>
+            <button onclick="switchTab('slide4', 'screenshot')" id="slide4-btn-screenshot" class="flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition-all">
+              📸 Screenshot Nyata
+            </button>
+          </div>
+
+          <!-- MOCKUP CONTENT -->
+          <div id="slide4-content-mockup" class="w-full max-w-md bg-slate-900 border border-slate-800 p-8 rounded-2xl glow-cyan relative">
             <div class="absolute top-4 right-4 flex items-center gap-1.5 text-xs text-brand-cyan font-mono bg-brand-cyan/10 border border-brand-cyan/20 px-3 py-1 rounded">
               <span class="w-2 h-2 rounded-full bg-brand-cyan animate-ping"></span> LIVE SIMULATION
             </div>
@@ -288,6 +299,19 @@
                   <p class="text-lg font-extrabold text-brand-emerald font-mono">7.82 pH</p>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- SCREENSHOT CONTENT -->
+          <div id="slide4-content-screenshot" class="hidden w-full max-w-md bg-slate-900 border border-slate-800 p-4 rounded-2xl glow-cyan relative">
+            <div class="absolute top-4 right-4 flex items-center gap-1.5 text-xs text-brand-cyan font-mono bg-brand-cyan/10 border border-brand-cyan/20 px-3 py-1 rounded z-10">
+              📸 SYSTEM SCREENSHOT
+            </div>
+            <div class="space-y-3">
+              <img src="/src/assets/images/dashboard_guide_img_1782628660586.jpg" alt="Realtime Dashboard Screen" class="w-full h-auto rounded-xl border border-slate-800 object-cover shadow-lg" referrerPolicy="no-referrer">
+              <p class="text-xs text-slate-400 leading-relaxed font-mono text-center mt-1">
+                * Screenshot nyata antarmuka utama console live yang memuat kompas angin dermaga, grafik asinkron, dan indikator status.
+              </p>
             </div>
           </div>
         </div>
@@ -322,8 +346,19 @@
             </li>
           </ul>
         </div>
-        <div class="md:col-span-7 flex justify-center">
-          <div class="w-full max-w-md bg-slate-900 border border-slate-800 p-8 rounded-2xl relative glow-cyan">
+        <div class="md:col-span-7 flex flex-col items-center justify-center">
+          <!-- TABS HEADERS -->
+          <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-4 w-full max-w-md">
+            <button onclick="switchTab('slide5', 'mockup')" id="slide5-btn-mockup" class="flex-1 py-1.5 text-xs font-bold rounded-md text-[#3b82f6] bg-slate-900 border border-[#3b82f6]/25 transition-all">
+              📊 Simulasi Parameter
+            </button>
+            <button onclick="switchTab('slide5', 'screenshot')" id="slide5-btn-screenshot" class="flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition-all">
+              🌦️ BMKG Maritim View
+            </button>
+          </div>
+
+          <!-- MOCKUP CONTENT -->
+          <div id="slide5-content-mockup" class="w-full max-w-md bg-slate-900 border border-slate-800 p-8 rounded-2xl relative glow-cyan">
             <h3 class="text-sm font-mono text-slate-400 mb-4 uppercase tracking-wider flex items-center gap-1">
               <i data-lucide="activity" class="w-4 h-4 text-[#3b82f6]"></i> MONITORING LEVEL AIR PASUT PELABUHAN
             </h3>
@@ -372,6 +407,19 @@
             <p class="text-xs text-slate-400 leading-relaxed font-mono">
               *Tinggi gelombang di atas 1.2m memicu status WARNING. Air di bawah 0.50m memicu grounding warning untuk kapal draf dalam.
             </p>
+          </div>
+
+          <!-- SCREENSHOT CONTENT -->
+          <div id="slide5-content-screenshot" class="hidden w-full max-w-md bg-slate-900 border border-slate-800 p-4 rounded-2xl glow-emerald relative">
+            <div class="absolute top-4 right-4 flex items-center gap-1.5 text-xs text-brand-emerald font-mono bg-brand-emerald/10 border border-brand-emerald/20 px-3 py-1 rounded z-10">
+              📸 BMKG LIVE PANEL
+            </div>
+            <div class="space-y-3">
+              <img src="/src/assets/images/bmkg_guide_img_1782628700471.jpg" alt="BMKG Weather Guide" class="w-full h-auto rounded-xl border border-slate-800 object-cover shadow-lg" referrerPolicy="no-referrer">
+              <p class="text-xs text-slate-400 leading-relaxed font-mono text-center mt-1">
+                * Integrasi data prakiraan BMKG Maritim resmi mencakup tinggi gelombang, arah arus laut, pasut, dan peta cuaca pelabuhan secara komprehensif.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -658,8 +706,22 @@
             </li>
           </ul>
         </div>
-        <div class="md:col-span-7 flex justify-center">
-          <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md relative glow-emerald">
+        <div class="md:col-span-7 flex flex-col items-center justify-center">
+          <!-- TABS HEADERS -->
+          <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-4 w-full max-w-md">
+            <button onclick="switchTab('slide10', 'mockup')" id="slide10-btn-mockup" class="flex-1 py-1.5 text-[10px] font-bold rounded-md text-brand-emerald bg-slate-900 border border-brand-emerald/25 transition-all">
+              📊 Tabel DB
+            </button>
+            <button onclick="switchTab('slide10', 'database')" id="slide10-btn-database" class="flex-1 py-1.5 text-[10px] font-bold rounded-md text-slate-400 hover:text-white transition-all">
+              🗄️ Screenshot Logs
+            </button>
+            <button onclick="switchTab('slide10', 'analyst')" id="slide10-btn-analyst" class="flex-1 py-1.5 text-[10px] font-bold rounded-md text-slate-400 hover:text-white transition-all">
+              📈 Grafik Analisis
+            </button>
+          </div>
+
+          <!-- MOCKUP CONTENT -->
+          <div id="slide10-content-mockup" class="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md relative glow-emerald">
             <h4 class="text-xs font-mono text-slate-400 uppercase tracking-widest mb-4 flex justify-between items-center">
               <span>POSTGRESQL TABLE SNEAKPEEK</span>
               <span class="text-brand-emerald text-xs font-bold">CONNECTED</span>
@@ -703,6 +765,32 @@
             <div class="mt-5 flex justify-end gap-3 text-xs">
               <span class="px-2.5 py-1 bg-slate-950 border border-slate-800 rounded text-slate-400">Page 1 of 4,210</span>
               <button class="px-3 py-1 bg-brand-emerald/10 hover:bg-brand-emerald/20 text-brand-emerald border border-brand-emerald/20 rounded font-bold transition-all flex items-center gap-1.5"><i data-lucide="download" class="w-4 h-4"></i> Export CSV</button>
+            </div>
+          </div>
+
+          <!-- SCREENSHOT LOGS CONTENT -->
+          <div id="slide10-content-database" class="hidden w-full max-w-md bg-slate-900 border border-slate-800 p-4 rounded-2xl glow-emerald relative">
+            <div class="absolute top-4 right-4 flex items-center gap-1.5 text-xs text-brand-emerald font-mono bg-brand-emerald/10 border border-brand-emerald/20 px-3 py-1 rounded z-10">
+              📸 DB LOGS SCREENSHOT
+            </div>
+            <div class="space-y-3">
+              <img src="/src/assets/images/database_guide_img_1782628687858.jpg" alt="Database Logs Screen" class="w-full h-auto rounded-xl border border-slate-800 object-cover shadow-lg" referrerPolicy="no-referrer">
+              <p class="text-xs text-slate-400 leading-relaxed font-mono text-center mt-1">
+                * Tampilan antarmuka ekspor data log historis AWS, lengkap dengan filter presisi, pagination, dan tombol unduh format CSV.
+              </p>
+            </div>
+          </div>
+
+          <!-- SCREENSHOT ANALYST CONTENT -->
+          <div id="slide10-content-analyst" class="hidden w-full max-w-md bg-slate-900 border border-slate-800 p-4 rounded-2xl glow-cyan relative">
+            <div class="absolute top-4 right-4 flex items-center gap-1.5 text-xs text-brand-cyan font-mono bg-brand-cyan/10 border border-brand-cyan/20 px-3 py-1 rounded z-10">
+              📸 GRAPHIC ANALYSIS
+            </div>
+            <div class="space-y-3">
+              <img src="/src/assets/images/analyst_guide_img_1782628675497.jpg" alt="Historical Analysis Screen" class="w-full h-auto rounded-xl border border-slate-800 object-cover shadow-lg" referrerPolicy="no-referrer">
+              <p class="text-xs text-slate-400 leading-relaxed font-mono text-center mt-1">
+                * Panel grafik analisis multivariat yang menampilkan pergerakan 11 parameter cuaca secara simultan untuk pemetaan pola cuaca musiman.
+              </p>
             </div>
           </div>
         </div>
@@ -793,6 +881,52 @@
 
   <!-- PRESENTATION NAVIGATION JAVASCRIPT -->
   <script>
+    // Function to switch sub-tabs on slides
+    window.switchTab = function(slideId, tabName) {
+      // Find all content divs starting with slideId-content-
+      const contentDivs = document.querySelectorAll(`[id^="${slideId}-content-"]`);
+      contentDivs.forEach(div => {
+        div.classList.add('hidden');
+      });
+      
+      // Show the selected content div
+      const activeDiv = document.getElementById(`${slideId}-content-${tabName}`);
+      if (activeDiv) {
+        activeDiv.classList.remove('hidden');
+      }
+      
+      // Find all buttons starting with slideId-btn-
+      const buttons = document.querySelectorAll(`[id^="${slideId}-btn-"]`);
+      
+      buttons.forEach(btn => {
+        // Remove active styling classes
+        btn.classList.remove('text-brand-cyan', 'text-brand-emerald', 'text-[#3b82f6]', 'bg-slate-900', 'border', 'border-brand-cyan/20', 'border-brand-emerald/25', 'border-[#3b82f6]/25', 'text-white');
+        btn.classList.add('text-slate-400', 'hover:text-white');
+      });
+      
+      const activeBtn = document.getElementById(`${slideId}-btn-${tabName}`);
+      if (activeBtn) {
+        activeBtn.classList.remove('text-slate-400', 'hover:text-white');
+        activeBtn.classList.add('bg-slate-900', 'border');
+        
+        if (slideId === 'slide4') {
+          activeBtn.classList.add('text-brand-cyan', 'border-brand-cyan/20');
+        } else if (slideId === 'slide5') {
+          if (tabName === 'mockup') {
+            activeBtn.classList.add('text-[#3b82f6]', 'border-[#3b82f6]/25');
+          } else {
+            activeBtn.classList.add('text-brand-emerald', 'border-brand-emerald/25');
+          }
+        } else if (slideId === 'slide10') {
+          if (tabName === 'mockup' || tabName === 'database') {
+            activeBtn.classList.add('text-brand-emerald', 'border-brand-emerald/25');
+          } else {
+            activeBtn.classList.add('text-brand-cyan', 'border-brand-cyan/20');
+          }
+        }
+      }
+    };
+
     // Presenter Notes Mapping for Slide 1-11
     const presenterNotes = {
       1: "Selamat pagi/siang rekan-rekan sekalian. Hari ini saya sangat senang mendemonstrasikan program terbaru kita yaitu 'Maritime OS'. Ini adalah pusat komando visual terintegrasi satu layar yang dirancang khusus untuk memonitor data meteorologi maritim, stasiun AWS, oseanografi, hingga kualitas air laut secara real-time demi menjamin keselamatan berthing kapal dan efisiensi operasional di pelabuhan kita.",

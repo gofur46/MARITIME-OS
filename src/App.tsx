@@ -11,6 +11,12 @@ import { WeatherData, AlertLevel, PortInstruction } from './types';
 import { format } from 'date-fns';
 import { io as ioClient } from 'socket.io-client';
 
+// Import actual guide images for the manual book
+import dashboardGuideImg from './assets/images/dashboard_guide_img_1782628660586.jpg';
+import analystGuideImg from './assets/images/analyst_guide_img_1782628675497.jpg';
+import databaseGuideImg from './assets/images/database_guide_img_1782628687858.jpg';
+import bmkgGuideImg from './assets/images/bmkg_guide_img_1782628700471.jpg';
+
 // Create Yesterday's baseline climatology averages for our math
 const CLIMATOLOGY_AVG = {
   currentSpeed: 1.5, // Knots (ocean current speed)
@@ -7029,6 +7035,20 @@ header("Content-Type: application/json; charset=UTF-8");
                           * Tampilan skema dashboard realtime di atas mencakup seluruh widget pembacaan live sesuai screenshot AWS OS Connection.
                         </p>
                       </div>
+
+                      {/* Real Image Screenshot for Realtime Tab */}
+                      <div className="border border-[#00f0ff]/20 rounded-2xl bg-slate-950 p-2.5 shadow-lg max-w-full overflow-hidden space-y-2 mt-4">
+                        <div className="text-[10px] font-mono text-[#00f0ff] uppercase tracking-wider font-bold px-1.5 flex items-center justify-between">
+                          <span>📸 SIMULASI GAMBAR NYATA - DASHBOARD UTAMA</span>
+                          <span className="text-slate-500 text-[8px]">AWS REALTIME VIEW</span>
+                        </div>
+                        <img 
+                          src={dashboardGuideImg} 
+                          alt="Real-time Dashboard" 
+                          className="w-full h-auto rounded-xl border border-white/5 object-cover" 
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -7155,6 +7175,20 @@ header("Content-Type: application/json; charset=UTF-8");
                         <p className="text-[10px] text-slate-400 italic">
                           * Tampilan skema chart tren cuaca dan wind rose di atas mencakup seluruh widget sesuai screenshot Analyst Tab.
                         </p>
+                      </div>
+
+                      {/* Real Image Screenshot for Analyst Tab */}
+                      <div className="border border-amber-500/20 rounded-2xl bg-slate-950 p-2.5 shadow-lg max-w-full overflow-hidden space-y-2">
+                        <div className="text-[10px] font-mono text-amber-400 uppercase tracking-wider font-bold px-1.5 flex items-center justify-between">
+                          <span>📸 SIMULASI GAMBAR NYATA - DASHBOARD ANALISIS HISTORIS</span>
+                          <span className="text-slate-500 text-[8px]">AWS ANALYST VIEW</span>
+                        </div>
+                        <img 
+                          src={analystGuideImg} 
+                          alt="Historical Analyst" 
+                          className="w-full h-auto rounded-xl border border-white/5 object-cover" 
+                          referrerPolicy="no-referrer"
+                        />
                       </div>
 
                       {/* Detail of 11 Sensor Analyst Charts */}
@@ -7649,6 +7683,20 @@ header("Content-Type: application/json; charset=UTF-8");
                           * Tampilan skema halaman BMKG di atas mencakup seluruh widget parameter cuaca laut sesuai screenshot BMKG Tab.
                         </p>
                       </div>
+
+                      {/* Real Image Screenshot for BMKG Tab */}
+                      <div className="border border-emerald-500/20 rounded-2xl bg-slate-950 p-2.5 shadow-lg max-w-full overflow-hidden space-y-2">
+                        <div className="text-[10px] font-mono text-emerald-400 uppercase tracking-wider font-bold px-1.5 flex items-center justify-between">
+                          <span>📸 SIMULASI GAMBAR NYATA - PRAKIRAAN CUACA MARITIM BMKG</span>
+                          <span className="text-slate-500 text-[8px]">AWS BMKG VIEW</span>
+                        </div>
+                        <img 
+                          src={bmkgGuideImg} 
+                          alt="BMKG Port Guide" 
+                          className="w-full h-auto rounded-xl border border-white/5 object-cover" 
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -7754,6 +7802,20 @@ header("Content-Type: application/json; charset=UTF-8");
                         <p className="text-[10px] text-slate-400 italic">
                           * Tampilan skema menu Database di atas mencakup seluruh widget pengolahan logs sesuai screenshot Database Tab.
                         </p>
+                      </div>
+
+                      {/* Real Image Screenshot for Database Tab */}
+                      <div className="border border-[#00f0ff]/20 rounded-2xl bg-slate-950 p-2.5 shadow-lg max-w-full overflow-hidden space-y-2">
+                        <div className="text-[10px] font-mono text-[#00f0ff] uppercase tracking-wider font-bold px-1.5 flex items-center justify-between">
+                          <span>📸 SIMULASI GAMBAR NYATA - DATABASE LOGS & EKSPOR DATA</span>
+                          <span className="text-slate-500 text-[8px]">AWS DATABASE VIEW</span>
+                        </div>
+                        <img 
+                          src={databaseGuideImg} 
+                          alt="Database Logs Guide" 
+                          className="w-full h-auto rounded-xl border border-white/5 object-cover" 
+                          referrerPolicy="no-referrer"
+                        />
                       </div>
                     </div>
                   </div>
