@@ -502,6 +502,265 @@ app.use(express.json());
 // Centralized configuration endpoints for LAN client synchronization
 const AWS_CONFIG_FILE = path.join(process.cwd(), "aws_config.json");
 
+// Centralized telemetry history queue
+let liveHistoryQueue: any[] = [];
+const MAX_QUEUE_SIZE = 150;
+
+// Port profiles for realistic telemetry generation (consistent with App.tsx)
+const PORT_PROFILES: Record<string, {
+  avgWave: number;
+  waveKet: string;
+  avgWind: number;
+  avgTemp: number;
+  baseCurrentDir: string;
+  windDir: string;
+}> = {
+  // Banten Group (18 Ports)
+  pelabuhan_cituis: { avgWave: 0.3, waveKet: "Tenang", avgWind: 7, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+  pelabuhan_kronjo: { avgWave: 0.3, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+  pelabuhan_tanjung_pasir: { avgWave: 0.25, waveKet: "Tenang", avgWind: 7, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Timur" },
+  pelabuhan_anyer: { avgWave: 0.45, waveKet: "Tenang", avgWind: 9, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Timur" },
+  pelabuhan_kepuh: { avgWave: 0.4, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+  pelabuhan_lontar: { avgWave: 0.35, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+  pelabuhan_pasauran: { avgWave: 0.5, waveKet: "Tenang", avgWind: 10, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Tenggara" },
+  pelabuhan_bojonegara: { avgWave: 0.55, waveKet: "Tenang", avgWind: 8, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Tenggara" },
+  pelabuhan_banten: { avgWave: 0.35, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+  pelabuhan_merak: { avgWave: 0.65, waveKet: "Rendah", avgWind: 11, avgTemp: 29, baseCurrentDir: "Selatan", windDir: "Timur Laut" },
+  pelabuhan_ciwandan: { avgWave: 0.42, waveKet: "Tenang", avgWind: 9, avgTemp: 28, baseCurrentDir: "Barat Daya", windDir: "Timur Laut" },
+  pelabuhan_carita: { avgWave: 0.5, waveKet: "Tenang", avgWind: 9, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Timur" },
+  pelabuhan_labuan: { avgWave: 0.55, waveKet: "Tenang", avgWind: 10, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Tenggara" },
+  pelabuhan_panimbang: { avgWave: 0.45, waveKet: "Tenang", avgWind: 8, avgTemp: 29, baseCurrentDir: "Barat Daya", windDir: "Selatan" },
+  pelabuhan_tamanjaya: { avgWave: 0.6, waveKet: "Rendah", avgWind: 10, avgTemp: 28, baseCurrentDir: "Barat Daya", windDir: "Tenggara" },
+  pelabuhan_binuangeun: { avgWave: 0.8, waveKet: "Sedang", avgWind: 12, avgTemp: 28, baseCurrentDir: "Barat Daya", windDir: "Tenggara" },
+  pelabuhan_suralaya: { avgWave: 0.5, waveKet: "Tenang", avgWind: 10, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Timur" },
+  pelabuhan_kbs: { avgWave: 0.42, waveKet: "Tenang", avgWind: 9, avgTemp: 28, baseCurrentDir: "Barat Daya", windDir: "Timur Laut" },
+
+  // Jakarta Group (14 Ports)
+  pelabuhan_tanjung_priok: { avgWave: 0.3, waveKet: "Tenang", avgWind: 7, avgTemp: 31, baseCurrentDir: "Barat", windDir: "Utara" },
+  pelabuhan_sunda_kelapa: { avgWave: 0.2, waveKet: "Tenang", avgWind: 6, avgTemp: 31, baseCurrentDir: "Barat Laut", windDir: "Utara" },
+  pelabuhan_muara_angke: { avgWave: 0.25, waveKet: "Tenang", avgWind: 6, avgTemp: 30, baseCurrentDir: "Barat", windDir: "Utara" },
+  pelabuhan_muara_baru: { avgWave: 0.2, waveKet: "Tenang", avgWind: 6, avgTemp: 30, baseCurrentDir: "Barat", windDir: "Utara" },
+  pelabuhan_kalibaru: { avgWave: 0.25, waveKet: "Tenang", avgWind: 7, avgTemp: 30, baseCurrentDir: "Barat", windDir: "Utara" },
+  pelabuhan_marunda: { avgWave: 0.2, waveKet: "Tenang", avgWind: 6, avgTemp: 30, baseCurrentDir: "Barat", windDir: "Utara" },
+  pelabuhan_p_untung_jawa: { avgWave: 0.2, waveKet: "Tenang", avgWind: 8, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+  pelabuhan_p_lancang: { avgWave: 0.25, waveKet: "Tenang", avgWind: 8, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+  pelabuhan_p_pari: { avgWave: 0.3, waveKet: "Tenang", avgWind: 9, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+  pelabuhan_p_tidung: { avgWave: 0.35, waveKet: "Tenang", avgWind: 9, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+  pelabuhan_p_pramuka: { avgWave: 0.3, waveKet: "Tenang", avgWind: 8, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+  pelabuhan_p_kelapa: { avgWave: 0.35, waveKet: "Tenang", avgWind: 9, avgTemp: 30, baseCurrentDir: "Utara", windDir: "Barat" },
+  pelabuhan_p_babelokan: { avgWave: 0.45, waveKet: "Tenang", avgWind: 10, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Barat" },
+  pelabuhan_p_sabira: { avgWave: 0.5, waveKet: "Tenang", avgWind: 11, avgTemp: 29, baseCurrentDir: "Utara", windDir: "Barat" }
+};
+
+function generateInitialLogsServer(count: number, intervalMinutes: number = 10, portSlug: string = 'pelabuhan_ciwandan') {
+  const data: any[] = [];
+  const spacingMs = intervalMinutes * 60 * 1000;
+  const nowAligned = Math.floor(Date.now() / spacingMs) * spacingMs;
+  let baseTime = nowAligned - count * spacingMs;
+
+  const normalizedSlug = portSlug.toLowerCase().replace(/-/g, '_');
+  const profile = PORT_PROFILES[normalizedSlug] || PORT_PROFILES.pelabuhan_ciwandan;
+
+  for (let i = 0; i < count; i++) {
+    const temp = profile.avgTemp - 2.0 + Math.random() * 4.0;
+    const hum = 75 + Math.random() * 15;
+    const avgWindSpeed = parseFloat((profile.avgWind - 2 + Math.random() * 4).toFixed(1));
+
+    data.push({
+      timestamp: baseTime + i * spacingMs,
+      temperature: parseFloat(temp.toFixed(1)),
+      humidity: Math.round(hum),
+      windSpeed: avgWindSpeed,
+      windDirection: Math.round(Math.random() * 360),
+      pressure: parseFloat((1008 + Math.random() * 6).toFixed(1)),
+      solarRadiation: Math.round(250 + Math.random() * 400),
+      solarRadiationMax: Math.round((250 + Math.random() * 400) * 1.15),
+      rainfall: Math.random() > 0.88 ? parseFloat((Math.random() * 4).toFixed(1)) : 0,
+      waveHeight: parseFloat((profile.avgWave - 0.15 + Math.random() * 0.35).toFixed(2)),
+      currentSpeed: parseFloat((0.8 + Math.random() * 2.2).toFixed(2)),
+      seaLevel: parseFloat((120 + Math.random() * 50).toFixed(1)),
+      seaLevelMin: parseFloat((120 + Math.random() * 50 - 15.5).toFixed(1)),
+      seaLevelMax: parseFloat((120 + Math.random() * 50 + 12.3).toFixed(1)),
+      waterPh: parseFloat((7.6 + Math.random() * 0.8).toFixed(2)),
+      waterTemp: parseFloat((temp - 1.2 + Math.random() * 0.4).toFixed(1)),
+      waterTempMin: parseFloat((temp - 2.0 + Math.random() * 0.3).toFixed(1)),
+      waterTempMax: parseFloat((temp - 0.7 + Math.random() * 0.3).toFixed(1)),
+      tempMin: parseFloat((temp - 1.5).toFixed(1)),
+      tempMax: parseFloat((temp + 1.2).toFixed(1)),
+      windSpeedMin: parseFloat(Math.max(0, avgWindSpeed - 1.8).toFixed(1)),
+      windSpeedMax: parseFloat((avgWindSpeed + 2.5).toFixed(1)),
+      battery: parseFloat((11.9 + Math.random() * 0.6).toFixed(2))
+    });
+  }
+  return data;
+}
+
+function loadConfig() {
+  if (fs.existsSync(AWS_CONFIG_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(AWS_CONFIG_FILE, "utf-8"));
+    } catch (e) {
+      return {};
+    }
+  }
+  return {};
+}
+
+function parseDbRowToWeatherData(row: any) {
+  let parsedTimestamp: number;
+  if (row.timestamp) {
+    const rawTs = String(row.timestamp);
+    parsedTimestamp = new Date(rawTs.replace(' ', 'T')).getTime();
+    if (isNaN(parsedTimestamp)) {
+      parsedTimestamp = new Date(rawTs).getTime();
+    }
+    if (isNaN(parsedTimestamp)) {
+      parsedTimestamp = Date.now();
+    }
+  } else {
+    parsedTimestamp = Date.now();
+  }
+
+  const temp = parseFloat(row.temperature) || 28.0;
+  const ws = parseFloat(row.wind_speed) || 10.0;
+  const sea = parseFloat(row.sea_level) || 140.0;
+
+  return {
+    timestamp: parsedTimestamp,
+    temperature: temp,
+    humidity: parseInt(row.humidity) || 80,
+    windSpeed: ws,
+    windDirection: parseInt(row.wind_direction) || 180,
+    pressure: parseFloat(row.pressure) || 1011.2,
+    solarRadiation: parseInt(row.solar_radiation) || 300,
+    solarRadiationMax: row.solar_radiation_max !== undefined ? parseInt(row.solar_radiation_max) : Math.round((parseInt(row.solar_radiation) || 300) * 1.15),
+    rainfall: parseFloat(row.rainfall) || 0,
+    waveHeight: parseFloat(row.wave_height) || 1.10,
+    currentSpeed: row.current_speed !== undefined ? parseFloat(row.current_speed) : parseFloat(((parseFloat(row.wave_height) || 1.10) * 1.5).toFixed(2)),
+    seaLevel: sea,
+    seaLevelMin: row.sea_level_min !== undefined && row.sea_level_min !== null ? parseFloat(row.sea_level_min) : parseFloat((sea - 15.5).toFixed(1)),
+    seaLevelMax: row.sea_level_max !== undefined && row.sea_level_max !== null ? parseFloat(row.sea_level_max) : parseFloat((sea + 12.3).toFixed(1)),
+    waterPh: parseFloat(row.water_ph) || 7.80,
+    waterTemp: row.water_temp !== undefined && row.water_temp !== null ? (parseFloat(row.water_temp) > 70 ? parseFloat(row.water_temp) / 10 : parseFloat(row.water_temp)) : parseFloat((temp - 1.2).toFixed(1)),
+    waterTempMin: row.water_temp_min !== undefined && row.water_temp_min !== null ? (parseFloat(row.water_temp_min) > 70 ? parseFloat(row.water_temp_min) / 10 : parseFloat(row.water_temp_min)) : parseFloat((temp - 2.0).toFixed(1)),
+    waterTempMax: row.water_temp_max !== undefined && row.water_temp_max !== null ? (parseFloat(row.water_temp_max) > 70 ? parseFloat(row.water_temp_max) / 10 : parseFloat(row.water_temp_max)) : parseFloat((temp - 0.7).toFixed(1)),
+    tempMin: row.temp_min !== undefined && row.temp_min !== null ? parseFloat(row.temp_min) : parseFloat((temp - 1.5).toFixed(1)),
+    tempMax: row.temp_max !== undefined && row.temp_max !== null ? parseFloat(row.temp_max) : parseFloat((temp + 1.2).toFixed(1)),
+    windSpeedMin: row.wind_speed_min !== undefined && row.wind_speed_min !== null ? parseFloat(row.wind_speed_min) : parseFloat(Math.max(0, ws - 1.8).toFixed(1)),
+    windSpeedMax: row.wind_speed_max !== undefined && row.wind_speed_max !== null ? parseFloat(row.wind_speed_max) : parseFloat((ws + 2.5).toFixed(1)),
+    battery: row.battery !== undefined && row.battery !== null ? parseFloat(row.battery) : 12.20
+  };
+}
+
+async function initLiveHistoryQueue() {
+  const config = loadConfig();
+  const activeSlug = config.bmkgPortSlug || 'pelabuhan_ciwandan';
+  const interval = config.dbStorageInterval || 10;
+  
+  try {
+    console.log("🔄 [History Loader] Trying to load history from database...");
+    const res = await fetch("http://localhost:8000/api.php?get_telemetry_logs=1");
+    if (res.ok) {
+      const rawText = await res.text();
+      let rawRows;
+      try {
+        rawRows = JSON.parse(rawText.trim());
+      } catch (err) {
+        const matches = rawText.match(/\[\s*\{[^]*\}\s*\]/g);
+        if (matches && matches.length > 0) rawRows = JSON.parse(matches[matches.length - 1]);
+      }
+      if (rawRows && Array.isArray(rawRows.data)) rawRows = rawRows.data;
+      if (rawRows && Array.isArray(rawRows) && rawRows.length > 0) {
+        liveHistoryQueue = rawRows.map(parseDbRowToWeatherData).reverse().slice(-MAX_QUEUE_SIZE);
+        console.log(`🟢 [History Loader] Successfully loaded ${liveHistoryQueue.length} records from PostgreSQL database!`);
+        return;
+      }
+    }
+  } catch (err) {
+    // Silent fallback
+  }
+
+  // Fallback to generated logs if API is unavailable or has empty rows
+  console.log(`🟡 [History Loader] Database unavailable or empty, pre-generating logs for ${activeSlug}...`);
+  liveHistoryQueue = generateInitialLogsServer(100, interval, activeSlug);
+}
+
+// Start history loading immediately
+initLiveHistoryQueue();
+
+let simulationTimer: NodeJS.Timeout | null = null;
+
+function startServerSimulation() {
+  if (simulationTimer) clearInterval(simulationTimer);
+  
+  console.log("🚀 [Simulation] Starting server-side simulation loop (4.5s)...");
+  simulationTimer = setInterval(() => {
+    const config = loadConfig();
+    const transport = config.transport || 'OFF';
+    
+    // Run simulation only if transport is 'OFF'
+    if (transport !== 'OFF') return;
+    
+    const activeSlug = (config.bmkgPortSlug || 'pelabuhan_ciwandan').toLowerCase().replace(/-/g, '_');
+    const profile = PORT_PROFILES[activeSlug] || PORT_PROFILES.pelabuhan_ciwandan;
+
+    const nextTemp = profile.avgTemp - 2.0 + Math.random() * 4.0;
+    const nextHum = 70 + Math.floor(Math.random() * 25);
+    const nextWindSpeed = profile.avgWind - 2 + Math.random() * 4;
+    const nextWindDir = Math.floor(Math.random() * 360);
+    const nextPress = 1008 + Math.random() * 5;
+    const nextSolar = Math.floor(100 + Math.random() * 600);
+    const nextRainRate = Math.random() > 0.9 ? parseFloat((Math.random() * 6).toFixed(1)) : 0;
+    const nextWave = parseFloat((profile.avgWave - 0.15 + Math.random() * 0.35).toFixed(2));
+    const nextCurrentSpeed = parseFloat((0.8 + Math.random() * 2.2).toFixed(2));
+    const nextSeaLvl = parseFloat((110 + Math.random() * 60).toFixed(1));
+    const nextPh = parseFloat((7.4 + Math.random() * 0.8).toFixed(2));
+
+    const simulatedRecord = {
+      timestamp: Date.now(),
+      temperature: parseFloat(nextTemp.toFixed(1)),
+      humidity: nextHum,
+      windSpeed: parseFloat(nextWindSpeed.toFixed(1)),
+      windDirection: nextWindDir,
+      pressure: parseFloat(nextPress.toFixed(1)),
+      solarRadiation: nextSolar,
+      solarRadiationMax: Math.round(nextSolar * 1.15),
+      rainfall: nextRainRate,
+      waveHeight: nextWave,
+      currentSpeed: nextCurrentSpeed,
+      seaLevel: nextSeaLvl,
+      seaLevelMin: parseFloat((nextSeaLvl - 15.5).toFixed(1)),
+      seaLevelMax: parseFloat((nextSeaLvl + 12.3).toFixed(1)),
+      waterPh: nextPh,
+      waterTemp: parseFloat((nextTemp - 1.2).toFixed(1)),
+      waterTempMin: parseFloat((nextTemp - 2.0).toFixed(1)),
+      waterTempMax: parseFloat((nextTemp - 0.7).toFixed(1)),
+      tempMin: parseFloat((nextTemp - 1.5).toFixed(1)),
+      tempMax: parseFloat((nextTemp + 1.2).toFixed(1)),
+      windSpeedMin: parseFloat(Math.max(0, nextWindSpeed - 1.8).toFixed(1)),
+      windSpeedMax: parseFloat((nextWindSpeed + 2.5).toFixed(1)),
+      battery: parseFloat((12.05 + Math.random() * 0.4).toFixed(2))
+    };
+
+    // Push to queue
+    liveHistoryQueue.push(simulatedRecord);
+    if (liveHistoryQueue.length > MAX_QUEUE_SIZE) {
+      liveHistoryQueue.shift();
+    }
+
+    // Broadcast to all clients on port 3000
+    io.emit("dataUpdate", simulatedRecord);
+  }, 4500);
+}
+
+// Start server-side simulation automatically
+startServerSimulation();
+
+// GET /api/live-history - Load live history logs instantly for any device
+app.get("/api/live-history", (req, res) => {
+  res.json(liveHistoryQueue);
+});
+
 // GET /api/aws-config - Load centralized configuration
 app.get("/api/aws-config", (req, res) => {
   try {
@@ -523,6 +782,10 @@ app.post("/api/aws-config", (req, res) => {
     if (configData && typeof configData === "object" && Object.keys(configData).length > 0) {
       fs.writeFileSync(AWS_CONFIG_FILE, JSON.stringify(configData, null, 2), "utf-8");
       console.log("💾 Centralized AWS configuration successfully saved to disk.");
+      
+      // Reload simulation/history properties to reflect changed settings
+      startServerSimulation();
+      
       return res.json({ success: true, message: "Configuration saved successfully on host machine." });
     }
     return res.status(400).json({ error: "Invalid configuration data" });
@@ -906,8 +1169,17 @@ localMoxaSocket.on("rawTelemetry", (raw: any) => {
 
 localMoxaSocket.on("dataUpdate", (parsedRecord: any) => {
   if (parsedRecord) {
-    // Broadcast parsed telemetry to all port 3000 web clients
-    io.emit("dataUpdate", parsedRecord);
+    // Enrich with standard WeatherData keys so clients receive complete state
+    const enriched = parseDbRowToWeatherData(parsedRecord);
+    
+    // Store in the in-memory queue
+    liveHistoryQueue.push(enriched);
+    if (liveHistoryQueue.length > MAX_QUEUE_SIZE) {
+      liveHistoryQueue.shift();
+    }
+    
+    // Broadcast parsed and enriched telemetry to all port 3000 web clients
+    io.emit("dataUpdate", enriched);
   }
 });
 

@@ -554,6 +554,26 @@ export default function App() {
     fetchServerConfig();
   }, []);
 
+  // Load synchronized live history logs on startup so all clients match the server exactly
+  useEffect(() => {
+    const fetchLiveHistory = async () => {
+      try {
+        const res = await fetch('/api/live-history');
+        if (res.ok) {
+          const liveHistory = await res.json();
+          if (Array.isArray(liveHistory) && liveHistory.length > 0) {
+            console.log("📈 Loaded synchronized live history from server:", liveHistory.length, "records");
+            setHistory(liveHistory);
+            localStorage.setItem('aws_history_logs', JSON.stringify(liveHistory));
+          }
+        }
+      } catch (err) {
+        console.warn("⚠️ Failed to load synchronized live history, relying on client-side cache:", err);
+      }
+    };
+    fetchLiveHistory();
+  }, []);
+
   const [currentClockTime, setCurrentClockTime] = useState<Date>(new Date());
   useEffect(() => {
     const clockTimer = setInterval(() => {
@@ -769,31 +789,18 @@ export default function App() {
     lastDbSaveTimeRef.current = lastDbSaveTime;
   }, [lastDbSaveTime]);
 
-  // Socket.IO + Fallback PHP Polling integration with Moxa Daemon
+  // Socket.IO + Fallback PHP Polling integration with Express Server / Moxa Gateway
   useEffect(() => {
-    if (config.transport !== 'MOXA_TCP') {
-      setMoxaStatus(null);
-      return;
-    }
-
     let socket: any = null;
     let fallbackIntervalId: any = null;
 
-    // Dynamically resolve daemon address depending on the client hostname or API configuration
-    const getDaemonUrl = () => {
-      // 1. If running in the cloud run preview sandbox (HTTPS or port 3000), connect through Express gateway on port 3000
-      const isCloudPreview = window.location.protocol === 'https:' || window.location.port === '3000';
-      if (isCloudPreview) {
-        return window.location.origin;
-      }
-      // 2. Otherwise in local production, connect directly to the Moxa WebSocket daemon running on port 8080
-      return config.moxaDaemonUrl || 'http://localhost:8080';
-    };
-
-    const daemonUrl = getDaemonUrl();
+    // We always connect to the local Express core server on port 3000.
+    // Express handles proxying to Moxa Daemon on port 8080, and runs simulation on port 3000 in OFF mode.
+    // This allows any LAN device (HP, laptop, tablet) to receive synchronized live data!
+    const daemonUrl = window.location.origin;
 
     const setupSocket = (ioClient: any) => {
-      console.log(`🔌 Connecting to Moxa Daemon WebSocket on ${daemonUrl}...`);
+      console.log(`🔌 Connecting to Core Express WebSocket on ${daemonUrl}...`);
       try {
         socket = ioClient(daemonUrl, {
           transports: ['websocket', 'polling'],
@@ -803,8 +810,7 @@ export default function App() {
         });
 
         socket.on('connect', () => {
-          console.log("✅ Main Dashboard connected to Moxa Daemon via WebSocket!");
-          // Wait for statusUpdate from the daemon to tell us the actual connection state
+          console.log("✅ Connected to Core Express Server WebSocket!");
         });
 
         socket.on('statusUpdate', (status: any) => {
@@ -815,7 +821,7 @@ export default function App() {
 
         // Stream live raw sentences directly to terminal
         socket.on('rawTelemetry', (raw: any) => {
-          if (raw && raw.data) {
+          if (raw && raw.data && configRef.current.transport === 'MOXA_TCP') {
             setStreamLogs(prevLogs => {
               const lines = prevLogs.split('\n');
               const timeStr = new Date().toLocaleTimeString('id-ID');
@@ -830,20 +836,45 @@ export default function App() {
           }
         });
 
-        // Stream live parsed data (made redundant since we parse rawTelemetry directly with active settings mapping indexes)
+        // Stream live parsed and enriched data (especially useful for simulated OFF mode synchrony across clients)
         socket.on('dataUpdate', (parsedRecord: any) => {
-          // Bypassed: We now parse rawTelemetry directly in the frontend so that index mappings set by the user in settings are 100% active and respected in real-time!
+          if (parsedRecord && configRef.current.transport === 'OFF') {
+            setHistory(prev => {
+              // Prevent duplicate records for the same exact timestamp
+              if (prev.length > 0 && prev[prev.length - 1].timestamp === parsedRecord.timestamp) {
+                return prev;
+              }
+              const updated = [...prev, parsedRecord];
+              const keeps = updated.length > 200 ? updated.slice(updated.length - 150) : updated;
+              localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
+              return keeps;
+            });
+
+            setLastIncomingTime(Date.now());
+
+            // Process averages and sample buffers
+            processNewSampleRef.current?.(parsedRecord);
+
+            // Print success logs to terminal
+            setStreamLogs(prev => {
+              const list = prev.split('\n');
+              const ts = new Date().toLocaleTimeString('id-ID');
+              const logLine = `[${ts} SIMULATION INBOUND] 🟢 RECEIVED CORE PACKET -> Temp: ${parsedRecord.temperature}°C, WS: ${parsedRecord.windSpeed}m/s, pH: ${parsedRecord.waterPh}`;
+              const output = [...list, logLine];
+              return (output.length > 40 ? output.slice(output.length - 30) : output).join('\n');
+            });
+          }
         });
 
         socket.on('disconnect', () => {
-          console.warn("❌ Moxa WebSocket disconnected, waiting for reconnection...");
+          console.warn("❌ Express WebSocket disconnected, waiting for reconnection...");
           setMoxaStatus(prev => ({
             connected: false,
             moxa_ip: prev?.moxa_ip || '192.168.1.254',
             moxa_port: prev?.moxa_port || 4001,
             state: 'OFFLINE',
             last_seen: new Date().toLocaleTimeString('id-ID'),
-            error: 'Daemon WebSocket Offline (Port 8080)'
+            error: 'Daemon WebSocket Offline (Port 3000)'
           }));
         });
 
