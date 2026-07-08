@@ -324,14 +324,18 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
   let cosSum = 0;
 
   const speeds = buffer.map(item => item.windSpeed);
-  const maxSpeed = speeds.length > 0 ? Math.max(...speeds) : 0;
-  const minSpeed = speeds.length > 0 ? Math.min(...speeds) : 0;
+  const loggerWindMins = buffer.map(item => item.windSpeedMin).filter(w => w !== undefined && !isNaN(w)) as number[];
+  const loggerWindMaxs = buffer.map(item => item.windSpeedMax).filter(w => w !== undefined && !isNaN(w)) as number[];
+  const minSpeed = loggerWindMins.length > 0 ? loggerWindMins[loggerWindMins.length - 1] : (speeds.length > 0 ? Math.min(...speeds) : 0.0);
+  const maxSpeed = loggerWindMaxs.length > 0 ? loggerWindMaxs[loggerWindMaxs.length - 1] : (speeds.length > 0 ? Math.max(...speeds) : 0.0);
   const hasGust = (maxSpeed - minSpeed) >= 10;
   const computedWindGust = hasGust ? parseFloat(maxSpeed.toFixed(1)) : undefined;
 
   const temperatures = buffer.map(item => item.temperature);
-  const minTemp = temperatures.length > 0 ? Math.min(...temperatures) : 28.0;
-  const maxTemp = temperatures.length > 0 ? Math.max(...temperatures) : 28.0;
+  const loggerTempMins = buffer.map(item => item.tempMin).filter(t => t !== undefined && !isNaN(t)) as number[];
+  const loggerTempMaxs = buffer.map(item => item.tempMax).filter(t => t !== undefined && !isNaN(t)) as number[];
+  const minTemp = loggerTempMins.length > 0 ? loggerTempMins[loggerTempMins.length - 1] : (temperatures.length > 0 ? Math.min(...temperatures) : 28.0);
+  const maxTemp = loggerTempMaxs.length > 0 ? loggerTempMaxs[loggerTempMaxs.length - 1] : (temperatures.length > 0 ? Math.max(...temperatures) : 28.0);
 
   const solarRads = buffer.map(item => item.solarRadiationMax ?? item.solarRadiation).filter(s => s !== undefined && !isNaN(s)) as number[];
   const maxSolarRad = solarRads.length > 0 ? Math.max(...solarRads) : 350;
@@ -340,8 +344,10 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
     const rawVal = item.waterTemp ?? (item.temperature - 1.2);
     return rawVal > 70 ? rawVal / 10 : rawVal;
   }).filter(t => t !== undefined && !isNaN(t)) as number[];
-  const minWaterTemp = waterTemps.length > 0 ? Math.min(...waterTemps) : 26.8;
-  const maxWaterTemp = waterTemps.length > 0 ? Math.max(...waterTemps) : 28.8;
+  const loggerWaterTempMins = buffer.map(item => item.waterTempMin).filter(t => t !== undefined && !isNaN(t)) as number[];
+  const loggerWaterTempMaxs = buffer.map(item => item.waterTempMax).filter(t => t !== undefined && !isNaN(t)) as number[];
+  const minWaterTemp = loggerWaterTempMins.length > 0 ? loggerWaterTempMins[loggerWaterTempMins.length - 1] : (waterTemps.length > 0 ? Math.min(...waterTemps) : 26.8);
+  const maxWaterTemp = loggerWaterTempMaxs.length > 0 ? loggerWaterTempMaxs[loggerWaterTempMaxs.length - 1] : (waterTemps.length > 0 ? Math.max(...waterTemps) : 28.8);
   const sumWaterTemp = waterTemps.reduce((sum, t) => sum + t, 0);
   const avgWaterTemp = waterTemps.length > 0 ? (sumWaterTemp / waterTemps.length) : 27.8;
 
@@ -349,8 +355,10 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
   const avgBattery = batts.length > 0 ? batts.reduce((sum, b) => sum + b, 0) / batts.length : 12.2;
 
   const seaLevels = buffer.map(item => item.seaLevel).filter(s => s !== undefined && !isNaN(s)) as number[];
-  const minSeaLevel = seaLevels.length > 0 ? Math.min(...seaLevels) : 120;
-  const maxSeaLevel = seaLevels.length > 0 ? Math.max(...seaLevels) : 160;
+  const loggerSeaMins = buffer.map(item => item.seaLevelMin).filter(s => s !== undefined && !isNaN(s)) as number[];
+  const loggerSeaMaxs = buffer.map(item => item.seaLevelMax).filter(s => s !== undefined && !isNaN(s)) as number[];
+  const minSeaLevel = loggerSeaMins.length > 0 ? loggerSeaMins[loggerSeaMins.length - 1] : (seaLevels.length > 0 ? Math.min(...seaLevels) : 120);
+  const maxSeaLevel = loggerSeaMaxs.length > 0 ? loggerSeaMaxs[loggerSeaMaxs.length - 1] : (seaLevels.length > 0 ? Math.max(...seaLevels) : 160);
 
   buffer.forEach(item => {
     sumTemp += item.temperature;
@@ -1806,7 +1814,15 @@ export default function App() {
     rainfall: 0,
     waveHeight: 1.1,
     seaLevel: 140,
-    waterPh: 7.8
+    waterPh: 7.8,
+    tempMin: 26.7,
+    tempMax: 29.4,
+    waterTemp: 27.0,
+    waterTempMin: 26.2,
+    waterTempMax: 27.5,
+    windSpeedMin: 10.2,
+    windSpeedMax: 14.5,
+    battery: 12.2
   };
 
   // Track wind directions of the last 2 minutes for rendering green trails/arcs
@@ -1831,61 +1847,66 @@ export default function App() {
     }
   }, [currentData.seaLevel]);
 
-  // 1-Hour temperature statistics computed from the history queue
+  // 1-Hour temperature statistics (using data logger values directly for Min and Max)
   const tempStats = (() => {
     const lastSix = history.slice(-12); // approx last couple hours
-    if (lastSix.length === 0) return { avg: '28.2', max: '29.1', min: '27.4' };
-    const temps = lastSix.map(h => h.temperature);
-    const sum = temps.reduce((a, b) => a + b, 0);
-    const avg = (sum / temps.length).toFixed(1);
-    const max = Math.max(...temps).toFixed(1);
-    const min = Math.min(...temps).toFixed(1);
-    return { avg, max, min };
+    const avgVal = currentData.temperature !== undefined ? currentData.temperature : 28.2;
+    const maxVal = currentData.tempMax !== undefined ? currentData.tempMax : (lastSix.length > 0 ? Math.max(...lastSix.map(h => h.temperature)) : (avgVal + 1.2));
+    const minVal = currentData.tempMin !== undefined ? currentData.tempMin : (lastSix.length > 0 ? Math.min(...lastSix.map(h => h.temperature)) : (avgVal - 1.5));
+    
+    let avg = avgVal.toFixed(1);
+    if (lastSix.length > 0) {
+      const temps = lastSix.map(h => h.temperature);
+      const sum = temps.reduce((a, b) => a + b, 0);
+      avg = (sum / temps.length).toFixed(1);
+    }
+    
+    return {
+      avg,
+      max: maxVal.toFixed(1),
+      min: minVal.toFixed(1)
+    };
   })();
 
-  // Water temperature statistics computed from the history queue
+  // Water temperature statistics (using data logger values directly for Min and Max)
   const waterTempStats = (() => {
     const lastSix = history.slice(-12); // approx last couple hours
-    if (lastSix.length === 0) {
-      let curWaterTemp = currentData.waterTemp ?? (currentData.temperature - 1.2);
-      if (curWaterTemp > 70) curWaterTemp = curWaterTemp / 10;
-      let curWaterTempMax = currentData.waterTempMax ?? (currentData.temperature - 0.7);
-      if (curWaterTempMax > 70) curWaterTempMax = curWaterTempMax / 10;
-      let curWaterTempMin = currentData.waterTempMin ?? (currentData.temperature - 2.0);
-      if (curWaterTempMin > 70) curWaterTempMin = curWaterTempMin / 10;
-      return {
-        avg: curWaterTemp.toFixed(1),
-        max: curWaterTempMax.toFixed(1),
-        min: curWaterTempMin.toFixed(1)
-      };
-    }
-    const temps = lastSix.map(h => {
-      const v = h.waterTemp ?? (h.temperature - 1.2);
-      return v > 70 ? v / 10 : v;
-    });
-    const maxTemps = lastSix.map(h => {
-      const v = h.waterTempMax ?? (h.waterTemp ?? (h.temperature - 0.7));
-      return v > 70 ? v / 10 : v;
-    });
-    const minTemps = lastSix.map(h => {
-      const v = h.waterTempMin ?? (h.waterTemp ?? (h.temperature - 2.0));
-      return v > 70 ? v / 10 : v;
-    });
     
-    const sum = temps.reduce((a, b) => a + b, 0);
-    const avg = (sum / temps.length).toFixed(1);
-    const max = Math.max(...maxTemps).toFixed(1);
-    const min = Math.min(...minTemps).toFixed(1);
-    return { avg, max, min };
+    let curWaterTemp = currentData.waterTemp ?? (currentData.temperature - 1.2);
+    if (curWaterTemp > 70) curWaterTemp = curWaterTemp / 10;
+    
+    let curWaterTempMax = currentData.waterTempMax ?? (curWaterTemp + 0.5);
+    if (curWaterTempMax > 70) curWaterTempMax = curWaterTempMax / 10;
+    
+    let curWaterTempMin = currentData.waterTempMin ?? (curWaterTemp - 0.8);
+    if (curWaterTempMin > 70) curWaterTempMin = curWaterTempMin / 10;
+    
+    let avg = curWaterTemp.toFixed(1);
+    if (lastSix.length > 0) {
+      const temps = lastSix.map(h => {
+        const v = h.waterTemp ?? (h.temperature - 1.2);
+        return v > 70 ? v / 10 : v;
+      });
+      const sum = temps.reduce((a, b) => a + b, 0);
+      avg = (sum / temps.length).toFixed(1);
+    }
+    
+    return {
+      avg,
+      max: curWaterTempMax.toFixed(1),
+      min: curWaterTempMin.toFixed(1)
+    };
   })();
 
-  // Dynamic Wind Speed Max and Min computed from the history queue
+  // Dynamic Wind Speed Max and Min (using data logger values directly if available)
   const windStats = (() => {
-    if (history.length === 0) return { min: currentData.windSpeed, max: currentData.windSpeed };
-    const speeds = history.map(h => h.windSpeed);
-    const max = Math.max(...speeds);
-    const min = Math.min(...speeds);
-    return { min, max };
+    const avgSpd = currentData.windSpeed !== undefined ? currentData.windSpeed : 0.0;
+    const maxSpd = currentData.windSpeedMax !== undefined ? currentData.windSpeedMax : (history.length > 0 ? Math.max(...history.map(h => h.windSpeed)) : (avgSpd + 2.5));
+    const minSpd = currentData.windSpeedMin !== undefined ? currentData.windSpeedMin : (history.length > 0 ? Math.min(...history.map(h => h.windSpeed)) : Math.max(0, avgSpd - 1.8));
+    return {
+      min: minSpd,
+      max: maxSpd
+    };
   })();
 
   // Find the last recorded wind gust from the history, filtered to only include gusts that occurred on the same calendar day as the current clock time
