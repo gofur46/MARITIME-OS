@@ -484,18 +484,26 @@ export const BMKG_PORTS_LIST: BmkgPortOption[] = [
 const resolveLocalApiUrl = (urlStr: string) => {
   if (!urlStr) return urlStr;
   
+  // Check if we are running in the cloud run sandbox / development preview
+  const isCloudPreview = window.location.protocol === 'https:' || window.location.port === '3000';
+
   // If it's a Moxa Daemon URL (running on port 8080)
   if (urlStr.includes(':8080') || urlStr.includes('8080')) {
-    // Connect to the port 3000 Express Socket.IO server directly!
-    return window.location.origin;
+    // If in cloud sandbox, connect to the port 3000 Express Socket.IO server directly!
+    if (isCloudPreview) {
+      return window.location.origin;
+    }
+    return urlStr;
   }
   
-  // If it's a Local DB API URL (running on port 8000/api.php)
-  if (urlStr.includes('api.php') || urlStr.includes(':8000')) {
-    // Route through the local Express server proxy
-    return window.location.origin + '/api/local-db';
+  // If we are in the cloud preview, route through the local Express server proxy
+  if (isCloudPreview) {
+    if (urlStr.includes('api.php') || urlStr.includes(':8000')) {
+      return window.location.origin + '/api/local-db';
+    }
   }
 
+  // Otherwise, use direct address (replaces localhost with actual current hostname if accessing via LAN)
   const currentHost = window.location.hostname;
   if (currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
     return urlStr.replace(/(localhost|127\.0\.0\.1)/g, currentHost);
@@ -747,7 +755,13 @@ export default function App() {
 
     // Dynamically resolve daemon address depending on the client hostname or API configuration
     const getDaemonUrl = () => {
-      return window.location.origin;
+      // 1. If running in the cloud run preview sandbox (HTTPS or port 3000), connect through Express gateway on port 3000
+      const isCloudPreview = window.location.protocol === 'https:' || window.location.port === '3000';
+      if (isCloudPreview) {
+        return window.location.origin;
+      }
+      // 2. Otherwise in local production, connect directly to the Moxa WebSocket daemon running on port 8080
+      return config.moxaDaemonUrl || 'http://localhost:8080';
     };
 
     const daemonUrl = getDaemonUrl();
