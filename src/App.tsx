@@ -537,50 +537,70 @@ export default function App() {
 
   const [config, setConfig] = useState(initialConfig);
 
-  // Fetch centralized server config on load to ensure LAN clients match the server exactly
+  // --- MULAI TAMBAHAN: AUTO-SYNC CLIENT KE SERVER (VERSI SEMPURNA) ---
   useEffect(() => {
-    const fetchServerConfig = async () => {
+    const initClientState = async () => {
+      const apiUrl = resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php');
+      
+      // 1. Ambil config dari PHP & Set Mapping Sensor ke Moxa Presets
       try {
-        const res = await fetch('/api/aws-config');
-        if (res.ok) {
-          const serverConfig = await res.json();
-          if (serverConfig && typeof serverConfig === 'object' && Object.keys(serverConfig).length > 0) {
-            console.log("📥 Loaded centralized configuration from server:", serverConfig);
-            // Save to localStorage so that offline/cached reloads have a warm start
-            localStorage.setItem('aws_config', JSON.stringify(serverConfig));
-            setConfig(prev => ({
-              ...prev,
-              ...serverConfig,
-              isSimulationOn: 'OFF' // Keep simulation forced to OFF
-            }));
-          }
-        }
-      } catch (err) {
-        console.warn("⚠️ Failed to load centralized config from server, relying on localStorage fallback:", err);
-      }
-    };
-    fetchServerConfig();
-  }, []);
+        const configRes = await fetch(`${apiUrl}?get_moxa_config=1`);
+        if (configRes.ok) {
+          const serverConfig = await configRes.json();
+          
+          // Pastikan client (HP/Laptop) menggunakan mapping kolom yang sama dengan Server (Moxa Presets)
+          const moxaSensors = {
+            'ch_0': '6', 'ch_2': '6', 'ch_4': '7', 'ch_6': '8', 'ch_8': '9',
+            'ch_5': '12', 'ch_solar_max': 'OFF', 'ch_15': '17', 'ch_16': '5',
+            'ch_17': '3', 'ch_19': 'OFF', 'ch_20': 'OFF', 'ch_7': '10',
+            'ch_9': '10', 'ch_11': '10', 'ch_13': '10', 'ch_18': '18',
+            'ch_water_temp': '14', 'ch_water_temp_max': '15', 'ch_water_temp_min': '16',
+            'ch_rain': '13', 'ch_batt': '20'
+          };
 
-  // Load synchronized live history logs on startup so all clients match the server exactly
-  useEffect(() => {
-    const fetchLiveHistory = async () => {
+          setConfig(prev => {
+            const newConfig = {
+              ...prev,
+              transport: serverConfig.transport || 'MOXA_TCP',
+              serialcom: serverConfig.moxa_ip || prev.serialcom,
+              baudrate: serverConfig.moxa_port ? String(serverConfig.moxa_port) : prev.baudrate,
+              sensors: moxaSensors // Paksa client pakai mapping moxa agar angka sama
+            };
+            localStorage.setItem('aws_config', JSON.stringify(newConfig));
+            return newConfig;
+          });
+        }
+      } catch (err) { }
+
+      // 2. Tarik Data Riwayat (History) Asli dari Database agar Grafik & Angka Sama Persis!
       try {
-        const res = await fetch('/api/live-history');
-        if (res.ok) {
-          const liveHistory = await res.json();
-          if (Array.isArray(liveHistory) && liveHistory.length > 0) {
-            console.log("📈 Loaded synchronized live history from server:", liveHistory.length, "records");
-            setHistory(liveHistory);
-            localStorage.setItem('aws_history_logs', JSON.stringify(liveHistory));
+        const logRes = await fetch(`${apiUrl}?get_telemetry_logs=1`);
+        if (logRes.ok) {
+          const rawText = await logRes.text();
+          let rawRows;
+          try { 
+            rawRows = JSON.parse(rawText.trim()); 
+          } catch (err) {
+            const matches = rawText.match(/\[\s*\{[^]*\}\s*\]/g);
+            if (matches && matches.length > 0) rawRows = JSON.parse(matches[matches.length - 1]);
+          }
+          if (rawRows && Array.isArray(rawRows.data)) rawRows = rawRows.data;
+
+          if (rawRows && Array.isArray(rawRows) && rawRows.length > 0) {
+            // Format data database ke grafik, lalu balik urutannya (ASC) agar grafik bergerak maju
+            const parsedHistory = rawRows.map(parseDbRowToWeatherData).reverse();
+            setHistory(parsedHistory);
+            localStorage.setItem('aws_history_logs', JSON.stringify(parsedHistory));
+            console.log("🟢 Sinkronisasi History DB & Config selesai!");
           }
         }
-      } catch (err) {
-        console.warn("⚠️ Failed to load synchronized live history, relying on client-side cache:", err);
-      }
+      } catch (err) { }
     };
-    fetchLiveHistory();
+
+    // Jalankan fungsi ini otomatis
+    initClientState();
   }, []);
+  // --- AKHIR TAMBAHAN ---
 
   const [currentClockTime, setCurrentClockTime] = useState<Date>(new Date());
   useEffect(() => {
@@ -1847,25 +1867,33 @@ export default function App() {
     }
   }, [currentData.seaLevel]);
 
-  // 1-Hour temperature statistics (using data logger values directly for Min and Max)
+  // Temperature statistics (Max/Min now extracted DIRECTLY from hardware data stream)
   const tempStats = (() => {
-    const lastSix = history.slice(-12); // approx last couple hours
-    const avgVal = currentData.temperature !== undefined ? currentData.temperature : 28.2;
-    const maxVal = currentData.tempMax !== undefined ? currentData.tempMax : (lastSix.length > 0 ? Math.max(...lastSix.map(h => h.temperature)) : (avgVal + 1.2));
-    const minVal = currentData.tempMin !== undefined ? currentData.tempMin : (lastSix.length > 0 ? Math.min(...lastSix.map(h => h.temperature)) : (avgVal - 1.5));
+    const lastSix = history.slice(-12); 
     
-    let avg = avgVal.toFixed(1);
-    if (lastSix.length > 0) {
-      const temps = lastSix.map(h => h.temperature);
-      const sum = temps.reduce((a, b) => a + b, 0);
-      avg = (sum / temps.length).toFixed(1);
+    // Jika tidak ada history, tampilkan dari data terkini (currentData)
+    if (lastSix.length === 0) {
+      return { 
+        avg: currentData.temperature.toFixed(1), 
+        max: (currentData.tempMax ?? (currentData.temperature + 1.2)).toFixed(1), 
+        min: (currentData.tempMin ?? (currentData.temperature - 1.5)).toFixed(1) 
+      };
     }
     
-    return {
-      avg,
-      max: maxVal.toFixed(1),
-      min: minVal.toFixed(1)
-    };
+    // Hitung Average (Rata-rata) dari history suhu aktual
+    const temps = lastSix.map(h => h.temperature);
+    const sum = temps.reduce((a, b) => a + b, 0);
+    const avg = (sum / temps.length).toFixed(1);
+    
+    // Ambil array nilai Max & Min murni dari variabel alat (ch_4 dan ch_6)
+    const streamMaxTemps = lastSix.map(h => h.tempMax ?? h.temperature);
+    const streamMinTemps = lastSix.map(h => h.tempMin ?? h.temperature);
+    
+    // Pastikan kita menampilkan angka Max & Min yang paling sesuai dari stream
+    const max = Math.max(...streamMaxTemps).toFixed(1);
+    const min = Math.min(...streamMinTemps).toFixed(1);
+    
+    return { avg, max, min };
   })();
 
   // Water temperature statistics (using data logger values directly for Min and Max)
