@@ -11,11 +11,12 @@ import { WeatherData, AlertLevel, PortInstruction } from './types';
 import { format } from 'date-fns';
 import { io as ioClient } from 'socket.io-client';
 
-// Import actual guide images for the manual book
-import dashboardGuideImg from './assets/images/dashboard_guide_img_1782628660586.jpg';
-import analystGuideImg from './assets/images/analyst_guide_img_1782628675497.jpg';
-import databaseGuideImg from './assets/images/database_guide_img_1782628687858.jpg';
-import bmkgGuideImg from './assets/images/bmkg_guide_img_1782628700471.jpg';
+// Resolve guide images dynamically using Vite asset URL resolution
+// This prevents compilation errors if the images are missing in the local folder
+const dashboardGuideImg = new URL('./assets/images/dashboard_guide_img_1782628660586.jpg', import.meta.url).href;
+const analystGuideImg = new URL('./assets/images/analyst_guide_img_1782628675497.jpg', import.meta.url).href;
+const databaseGuideImg = new URL('./assets/images/database_guide_img_1782628687858.jpg', import.meta.url).href;
+const bmkgGuideImg = new URL('./assets/images/bmkg_guide_img_1782628700471.jpg', import.meta.url).href;
 
 // Create Yesterday's baseline climatology averages for our math
 const CLIMATOLOGY_AVG = {
