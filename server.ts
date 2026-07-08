@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
-import { exec } from "child_process";
+import { exec, spawn } from "child_process";
 import fetch from "node-fetch";
 import { createServer as createViteServer } from "vite";
 import { createServer as createHttpServer } from "http";
@@ -502,6 +502,16 @@ app.use(express.json());
 // Centralized configuration endpoints for LAN client synchronization
 const AWS_CONFIG_FILE = path.join(process.cwd(), "aws_config.json");
 
+// Local variables to hold the latest moxa daemon status and raw messages
+let lastMoxaStatus: any = {
+  connected: false,
+  moxa_ip: '192.168.1.254',
+  moxa_port: 4001,
+  state: 'OFFLINE',
+  last_seen: '-',
+  error: 'Waiting for daemon connection'
+};
+
 // Centralized telemetry history queue
 let liveHistoryQueue: any[] = [];
 const MAX_QUEUE_SIZE = 150;
@@ -766,7 +776,25 @@ app.get("/api/aws-config", (req, res) => {
   try {
     if (fs.existsSync(AWS_CONFIG_FILE)) {
       const data = fs.readFileSync(AWS_CONFIG_FILE, "utf-8");
-      return res.json(JSON.parse(data));
+      const parsed = JSON.parse(data);
+      
+      // If the Moxa daemon requests its configuration
+      if (req.query.get_moxa_config === '1') {
+        return res.json({
+          moxa_ip: parsed.serialcom || '192.168.1.254',
+          moxa_port: parseInt(parsed.baudrate) || 4001
+        });
+      }
+      
+      return res.json(parsed);
+    }
+    
+    // Fallback defaults if file doesn't exist
+    if (req.query.get_moxa_config === '1') {
+      return res.json({
+        moxa_ip: '192.168.1.254',
+        moxa_port: 4001
+      });
     }
     return res.json({}); // Return empty object if file does not exist
   } catch (err) {
@@ -780,11 +808,43 @@ app.post("/api/aws-config", (req, res) => {
   try {
     const configData = req.body;
     if (configData && typeof configData === "object" && Object.keys(configData).length > 0) {
+      
+      // Handle status update from daemon
+      if (configData.action === 'save_moxa_status') {
+        console.log("📥 [Proxy] Received status update from Moxa Daemon:", configData);
+        lastMoxaStatus = {
+          connected: configData.connected,
+          moxa_ip: configData.moxa_ip || '192.168.1.254',
+          moxa_port: configData.moxa_port || 4001,
+          state: configData.state || 'UNKNOWN',
+          last_seen: new Date().toLocaleTimeString('id-ID'),
+          error: configData.error || ''
+        };
+        // Broadcast to all connected clients on port 3000
+        io.emit("statusUpdate", lastMoxaStatus);
+        return res.json({ success: true, message: "Status updated successfully" });
+      }
+
+      // Normal configuration save
       fs.writeFileSync(AWS_CONFIG_FILE, JSON.stringify(configData, null, 2), "utf-8");
       console.log("💾 Centralized AWS configuration successfully saved to disk.");
       
       // Reload simulation/history properties to reflect changed settings
       startServerSimulation();
+      
+      // Forward the updated IP/Port to the daemon's /save-config endpoint on port 8080
+      const daemonIp = configData.serialcom;
+      const daemonPort = configData.baudrate;
+      if (daemonIp && daemonPort) {
+        console.log(`[Proxy] Forwarding updated config to Moxa Daemon: ${daemonIp}:${daemonPort}`);
+        fetch("http://localhost:8080/save-config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ip: daemonIp, port: parseInt(daemonPort) || 4001 })
+        }).catch((err) => {
+          // Daemon might be offline or starting up, ignore error
+        });
+      }
       
       return res.json({ success: true, message: "Configuration saved successfully on host machine." });
     }
@@ -793,6 +853,14 @@ app.post("/api/aws-config", (req, res) => {
     console.error("Failed to write aws_config.json:", err);
     return res.status(500).json({ error: "Failed to save configuration" });
   }
+});
+
+// GET /api/moxa-status - Retrieve the latest Moxa connection status
+app.get("/api/moxa-status", (req, res) => {
+  res.json(lastMoxaStatus);
+});
+app.get("/api/moxa_status", (req, res) => {
+  res.json(lastMoxaStatus);
 });
 
 // Transparent PostgreSQL API Proxy for api.php
@@ -1128,15 +1196,38 @@ const io = new SocketIOServer(httpServer, {
   }
 });
 
-// Local variables to hold the latest moxa daemon status and raw messages
-let lastMoxaStatus: any = {
-  connected: false,
-  moxa_ip: '192.168.1.254',
-  moxa_port: 4001,
-  state: 'OFFLINE',
-  last_seen: '-',
-  error: 'Waiting for daemon connection'
+// Automatically start and manage the Moxa background daemon on port 8080
+let daemonChild: any = null;
+
+const startMoxaDaemon = () => {
+  if (daemonChild) {
+    try {
+      daemonChild.kill();
+    } catch (e) {}
+  }
+
+  console.log("🚀 [Proxy] Starting background Moxa Daemon process (tcp_moxa_listener.js)...");
+  
+  // Point the API_URL of the daemon to our Express server's API endpoint so it stays synced!
+  const targetApiUrl = `http://localhost:${PORT}/api/aws-config`;
+  
+  daemonChild = spawn("node", ["tcp_moxa_listener.js", targetApiUrl], {
+    stdio: "inherit",
+    detached: false
+  });
+  
+  daemonChild.on("error", (err: any) => {
+    console.error("❌ [Proxy] Failed to start Moxa Daemon process:", err);
+  });
+  
+  daemonChild.on("exit", (code: number, signal: string) => {
+    console.warn(`⚠️ [Proxy] Moxa Daemon process exited with code ${code} and signal ${signal}. Restarting in 5s...`);
+    daemonChild = null;
+    setTimeout(startMoxaDaemon, 5000);
+  });
 };
+
+startMoxaDaemon();
 
 // Create a connection to the local Moxa Daemon on port 8080
 const MOXA_DAEMON_URL = "http://localhost:8080";

@@ -919,6 +919,20 @@ export default function App() {
 
     // Fallback polling for status in case WebSocket connection is blocked by CORS/Mixed Content
     const fetchMoxaStatus = async () => {
+      // First, try our Express server's moxa-status API which is 100% reliable
+      try {
+        const res = await fetch('/api/moxa-status');
+        if (res.ok) {
+          const parsed = await res.json();
+          if (parsed && typeof parsed.connected === 'boolean') {
+            setMoxaStatus(parsed);
+            return; // Successfully got status from Express, no need to query PHP
+          }
+        }
+      } catch (err) {
+        // Fallback to PHP if Express fails
+      }
+
       const testUrl = resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php');
       const moxaStatusUrl = `${testUrl}?get_moxa_status=1`;
       try {
