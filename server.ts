@@ -499,6 +499,39 @@ app.get("/api/bmkg", async (req, res) => {
 // JSON Middleware for Updater
 app.use(express.json());
 
+// Centralized configuration endpoints for LAN client synchronization
+const AWS_CONFIG_FILE = path.join(process.cwd(), "aws_config.json");
+
+// GET /api/aws-config - Load centralized configuration
+app.get("/api/aws-config", (req, res) => {
+  try {
+    if (fs.existsSync(AWS_CONFIG_FILE)) {
+      const data = fs.readFileSync(AWS_CONFIG_FILE, "utf-8");
+      return res.json(JSON.parse(data));
+    }
+    return res.json({}); // Return empty object if file does not exist
+  } catch (err) {
+    console.error("Failed to read aws_config.json:", err);
+    return res.status(500).json({ error: "Failed to load configuration" });
+  }
+});
+
+// POST /api/aws-config - Save centralized configuration
+app.post("/api/aws-config", (req, res) => {
+  try {
+    const configData = req.body;
+    if (configData && typeof configData === "object" && Object.keys(configData).length > 0) {
+      fs.writeFileSync(AWS_CONFIG_FILE, JSON.stringify(configData, null, 2), "utf-8");
+      console.log("💾 Centralized AWS configuration successfully saved to disk.");
+      return res.json({ success: true, message: "Configuration saved successfully on host machine." });
+    }
+    return res.status(400).json({ error: "Invalid configuration data" });
+  } catch (err) {
+    console.error("Failed to write aws_config.json:", err);
+    return res.status(500).json({ error: "Failed to save configuration" });
+  }
+});
+
 // Transparent PostgreSQL API Proxy for api.php
 app.all("/api/local-db", async (req, res) => {
   const targetUrl = "http://localhost:8000/api.php";

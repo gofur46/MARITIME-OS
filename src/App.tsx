@@ -529,6 +529,31 @@ export default function App() {
 
   const [config, setConfig] = useState(initialConfig);
 
+  // Fetch centralized server config on load to ensure LAN clients match the server exactly
+  useEffect(() => {
+    const fetchServerConfig = async () => {
+      try {
+        const res = await fetch('/api/aws-config');
+        if (res.ok) {
+          const serverConfig = await res.json();
+          if (serverConfig && typeof serverConfig === 'object' && Object.keys(serverConfig).length > 0) {
+            console.log("📥 Loaded centralized configuration from server:", serverConfig);
+            // Save to localStorage so that offline/cached reloads have a warm start
+            localStorage.setItem('aws_config', JSON.stringify(serverConfig));
+            setConfig(prev => ({
+              ...prev,
+              ...serverConfig,
+              isSimulationOn: 'OFF' // Keep simulation forced to OFF
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn("⚠️ Failed to load centralized config from server, relying on localStorage fallback:", err);
+      }
+    };
+    fetchServerConfig();
+  }, []);
+
   const [currentClockTime, setCurrentClockTime] = useState<Date>(new Date());
   useEffect(() => {
     const clockTimer = setInterval(() => {
@@ -1289,10 +1314,24 @@ export default function App() {
   };
 
   // Save changes helper
-  const handleSaveConfig = async (newConfig: typeof config) => {
+  const handleSaveConfig = async (newConfig: typeof config, customMessage?: string) => {
     setConfig(newConfig);
     localStorage.setItem('aws_config', JSON.stringify(newConfig));
-    showToastNotification('Config Saved Successfully!');
+    showToastNotification(customMessage || 'Config Saved Successfully!');
+
+    // Sync entire config to Express server so LAN clients can automatically retrieve it
+    try {
+      await fetch('/api/aws-config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newConfig),
+      });
+      console.log('Successfully synchronized entire configuration to Express server');
+    } catch (e) {
+      console.warn('Could not sync configuration to Express server:', e);
+    }
 
     // Post newly configured Moxa IP & Port to host computer's api.php automatically
     const moxaIp = newConfig.serialcom || '192.168.127.254';
@@ -2285,9 +2324,7 @@ export default function App() {
                     <button 
                       onClick={() => {
                         const newCfg = { ...config, transport: 'OFF' };
-                        setConfig(newCfg);
-                        localStorage.setItem('aws_config', JSON.stringify(newCfg));
-                        showToastNotification("Simulation mode turned ON automatically!");
+                        handleSaveConfig(newCfg, "Simulation mode turned ON automatically!");
                       }}
                       className="w-full sm:w-auto bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-mono text-xs font-black px-6 py-3 rounded-xl uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] hover:scale-105 active:scale-95 cursor-pointer"
                     >
@@ -2296,9 +2333,7 @@ export default function App() {
                     <button 
                       onClick={() => {
                         const newCfg = { ...config, lockOfflineDashboard: 'OFF' };
-                        setConfig(newCfg);
-                        localStorage.setItem('aws_config', JSON.stringify(newCfg));
-                        showToastNotification("Dashboard lock disabled. Showing last known data.");
+                        handleSaveConfig(newCfg, "Dashboard lock disabled. Showing last known data.");
                       }}
                       className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold px-6 py-3 rounded-xl uppercase tracking-wider transition-all border border-white/10 cursor-pointer"
                     >
@@ -2327,8 +2362,7 @@ export default function App() {
                   <button 
                     onClick={() => {
                       const newCfg = { ...config, lockOfflineDashboard: 'ON' };
-                      setConfig(newCfg);
-                      localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                      handleSaveConfig(newCfg, "Dashboard lock enabled.");
                     }}
                     className="bg-rose-500 hover:bg-rose-600 text-white font-mono text-[10px] font-black tracking-widest px-4 py-2.5 rounded-lg uppercase transition-all whitespace-nowrap cursor-pointer"
                   >
@@ -2337,9 +2371,7 @@ export default function App() {
                   <button 
                     onClick={() => {
                       const newCfg = { ...config, transport: 'OFF' };
-                      setConfig(newCfg);
-                      localStorage.setItem('aws_config', JSON.stringify(newCfg));
-                      showToastNotification("Simulation mode turned ON automatically!");
+                      handleSaveConfig(newCfg, "Simulation mode turned ON automatically!");
                     }}
                     className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-mono text-[10px] font-black tracking-widest px-4 py-2.5 rounded-lg uppercase transition-all whitespace-nowrap shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer"
                   >
@@ -5139,7 +5171,10 @@ header("Content-Type: application/json; charset=UTF-8");
                           onChange={(e) => {
                             const newCfg = { ...config, moxaDaemonUrl: e.target.value };
                             setConfig(newCfg);
-                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                          }}
+                          onBlur={(e) => {
+                            const newCfg = { ...config, moxaDaemonUrl: e.target.value };
+                            handleSaveConfig(newCfg, "Daemon URL updated");
                           }}
                           className="w-full bg-black border border-white/10 font-mono text-xs text-center p-2 text-teal-300 rounded focus:border-[#00f0ff] outline-none" 
                         />
@@ -5181,8 +5216,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       value={config.lockOfflineDashboard || 'ON'} 
                       onChange={(e) => {
                         const newCfg = { ...config, lockOfflineDashboard: e.target.value };
-                        setConfig(newCfg);
-                        localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                        handleSaveConfig(newCfg, `Dashboard lock set to ${e.target.value}`);
                       }}
                       className="w-full bg-[#050a12] border border-white/15 font-mono text-xs md:text-sm p-3 text-rose-300 font-bold rounded-lg outline-none cursor-pointer focus:border-rose-400"
                     >
@@ -5798,8 +5832,7 @@ header("Content-Type: application/json; charset=UTF-8");
                               bmkgPortSlug: config.bmkgPortSlug || 'pelabuhan_ciwandan',
                               bmkgPortLabel: config.stationName || config.bmkgPortLabel || 'Pelabuhan Ciwandan'
                             };
-                            setConfig(newCfg);
-                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                            handleSaveConfig(newCfg, "Custom mode selected");
                           } else {
                             const selectedObj = BMKG_PORTS_LIST.find(item => item.slug === val);
                             if (selectedObj) {
@@ -5809,15 +5842,13 @@ header("Content-Type: application/json; charset=UTF-8");
                                 bmkgPortSlug: selectedObj.slug,
                                 bmkgPortLabel: selectedObj.label
                               };
-                              setConfig(newCfg);
-                              localStorage.setItem('aws_config', JSON.stringify(newCfg));
                               
                               // Update the historical database logs to reflect this port profile immediately
                               const newHistory = generateInitialLogs(45, newCfg.dbStorageInterval || 10, selectedObj.slug);
                               setHistory(newHistory);
                               localStorage.setItem('aws_history_logs', JSON.stringify(newHistory));
 
-                              showToastNotification(`Lokasi diubah: ${selectedObj.label}`);
+                              handleSaveConfig(newCfg, `Lokasi diubah: ${selectedObj.label}`);
                               fetchBmkgLive(selectedObj.slug, true);
                             }
                           }
@@ -5877,15 +5908,13 @@ header("Content-Type: application/json; charset=UTF-8");
                               bmkgPortSlug: item.slug,
                               bmkgPortLabel: fullLabel
                             };
-                            setConfig(newCfg);
-                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
 
                             // Update the historical database logs to reflect this port profile immediately
                             const newHistory = generateInitialLogs(45, newCfg.dbStorageInterval || 10, item.slug);
                             setHistory(newHistory);
                             localStorage.setItem('aws_history_logs', JSON.stringify(newHistory));
 
-                            showToastNotification(`Lokasi diubah: ${fullLabel}`);
+                            handleSaveConfig(newCfg, `Lokasi diubah: ${fullLabel}`);
                             fetchBmkgLive(item.slug, true);
                           }}
                           className={`px-3 py-1.5 text-[10px] font-mono tracking-tight font-extrabold rounded-lg whitespace-nowrap border shrink-0 transition-all cursor-pointer ${
@@ -5920,7 +5949,11 @@ header("Content-Type: application/json; charset=UTF-8");
                           const val = e.target.value.toLowerCase().replace(/[^a-z0-9\-_]/g, '');
                           const newCfg = { ...config, bmkgPortSlug: val };
                           setConfig(newCfg);
-                          localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                        }}
+                        onBlur={(e) => {
+                          const val = e.target.value.toLowerCase().replace(/[^a-z0-9\-_]/g, '');
+                          const newCfg = { ...config, bmkgPortSlug: val };
+                          handleSaveConfig(newCfg, "Custom slug saved");
                         }}
                         className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 rounded-xl outline-none focus:border-[#10b981]"
                       />
@@ -5934,7 +5967,10 @@ header("Content-Type: application/json; charset=UTF-8");
                         onChange={(e) => {
                           const newCfg = { ...config, stationName: e.target.value, bmkgPortLabel: e.target.value };
                           setConfig(newCfg);
-                          localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                        }}
+                        onBlur={(e) => {
+                          const newCfg = { ...config, stationName: e.target.value, bmkgPortLabel: e.target.value };
+                          handleSaveConfig(newCfg, "Custom name saved");
                         }}
                         className="w-full bg-[#050a12] border border-white/10 font-sans text-xs p-2 rounded-xl outline-none focus:border-[#10b981]"
                       />
