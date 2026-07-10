@@ -832,16 +832,51 @@ export default function App() {
 
   // Socket.IO + Fallback PHP Polling integration with Express Server / Moxa Gateway
   useEffect(() => {
+    const isCloud = window.location.hostname.includes('run.app') || window.location.hostname.includes('google.com') || window.location.hostname.includes('aistudio');
+    if (!isCloud && config.transport !== 'MOXA_TCP') {
+      setMoxaStatus(null);
+      return;
+    }
+
     let socket: any = null;
     let fallbackIntervalId: any = null;
 
-    // We always connect to the local Express core server on port 3000.
-    // Express handles proxying to Moxa Daemon on port 8080, and runs simulation on port 3000 in OFF mode.
-    // This allows any LAN device (HP, laptop, tablet) to receive synchronized live data!
-    const daemonUrl = window.location.origin;
+    // Dynamically resolve daemon address depending on the client hostname or API configuration
+    const getDaemonUrl = () => {
+      // If user has explicitly saved a daemon URL, always respect that first (resolved dynamically)!
+      if (config.moxaDaemonUrl) {
+        return resolveLocalApiUrl(config.moxaDaemonUrl);
+      }
+
+      const currentHost = window.location.hostname;
+      
+      // If accessed via a remote local network IP (e.g. http://192.168.1.50:3000)
+      if (currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
+        return `http://${currentHost}:8080`;
+      }
+
+      // If we are in AI Studio / Cloud preview container
+      if (isCloud) {
+        return window.location.origin;
+      }
+      
+      // Fallback: check config.localDbApiUrl host
+      try {
+        const apiParts = new URL(resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php'));
+        if (apiParts.hostname && apiParts.hostname !== 'localhost' && apiParts.hostname !== '127.0.0.1') {
+          return `http://${apiParts.hostname}:8080`;
+        }
+      } catch (e) {
+        // ignore
+      }
+      
+      return 'http://localhost:8080';
+    };
+
+    const daemonUrl = getDaemonUrl();
 
     const setupSocket = (ioClient: any) => {
-      console.log(`🔌 Connecting to Core Express WebSocket on ${daemonUrl}...`);
+      console.log(`🔌 Connecting to WebSocket Server on ${daemonUrl}...`);
       try {
         socket = ioClient(daemonUrl, {
           transports: ['websocket', 'polling'],
@@ -851,7 +886,7 @@ export default function App() {
         });
 
         socket.on('connect', () => {
-          console.log("✅ Connected to Core Express Server WebSocket!");
+          console.log(`✅ Connected to WebSocket Server on ${daemonUrl}!`);
         });
 
         socket.on('statusUpdate', (status: any) => {
@@ -914,14 +949,14 @@ export default function App() {
         });
 
         socket.on('disconnect', () => {
-          console.warn("❌ Express WebSocket disconnected, waiting for reconnection...");
+          console.warn("❌ WebSocket disconnected, waiting for reconnection...");
           setMoxaStatus(prev => ({
             connected: false,
             moxa_ip: prev?.moxa_ip || '192.168.1.254',
             moxa_port: prev?.moxa_port || 4001,
             state: 'OFFLINE',
             last_seen: new Date().toLocaleTimeString('id-ID'),
-            error: 'Daemon WebSocket Offline (Port 3000)'
+            error: `Daemon WebSocket Offline (${daemonUrl})`
           }));
         });
 
@@ -938,18 +973,20 @@ export default function App() {
 
     // Fallback polling for status in case WebSocket connection is blocked by CORS/Mixed Content
     const fetchMoxaStatus = async () => {
-      // First, try our Express server's moxa-status API which is 100% reliable
-      try {
-        const res = await fetch('/api/moxa-status');
-        if (res.ok) {
-          const parsed = await res.json();
-          if (parsed && typeof parsed.connected === 'boolean') {
-            setMoxaStatus(parsed);
-            return; // Successfully got status from Express, no need to query PHP
+      // First, try our Express server's moxa-status API if in Cloud
+      if (isCloud) {
+        try {
+          const res = await fetch('/api/moxa-status');
+          if (res.ok) {
+            const parsed = await res.json();
+            if (parsed && typeof parsed.connected === 'boolean') {
+              setMoxaStatus(parsed);
+              return; // Successfully got status from Express, no need to query PHP
+            }
           }
+        } catch (err) {
+          // Fallback to PHP if Express fails
         }
-      } catch (err) {
-        // Fallback to PHP if Express fails
       }
 
       const testUrl = resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php');

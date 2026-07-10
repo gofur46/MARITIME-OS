@@ -170,13 +170,17 @@ function getFriendlyErrorMessage(err) {
 let hasInitializedFromArgs = false;
 
 function syncConfigAndConnect() {
-    // Inisialisasi awal sekali dari parameter command line (jika ada) saat pertama kali fungsi dipanggil.
-    // Kita tidak mengunci variabel ini selamanya agar perubahan di Dashboard tetap dapat disinkronkan secara dinamis!
-    if (!hasInitializedFromArgs && process.argv[3] && process.argv[4]) {
+    // Jika user menentukan IP & Port lewat parameter baris perintah (Command Line / BAT file),
+    // kita kunci nilai tersebut agar tidak pernah tertimpa oleh database api.php atau Express.
+    if (process.argv[3] && process.argv[4]) {
         MOXA_IP = process.argv[3];
         MOXA_PORT = parseInt(process.argv[4]) || 4001;
-        console.log(`[${new Date().toISOString()}] 🚀 [INITIAL STATIC ARGS]: Menggunakan IP Moxa: ${MOXA_IP} | Port Moxa: ${MOXA_PORT} (Sesuai Parameter BAT)`);
-        hasInitializedFromArgs = true;
+        if (!hasInitializedFromArgs) {
+            console.log(`[${new Date().toISOString()}] 🚀 [STATIC OVERRIDE]: Mengunci IP Moxa: ${MOXA_IP} | Port Moxa: ${MOXA_PORT} (Sesuai Parameter BAT!)`);
+            hasInitializedFromArgs = true;
+        }
+        connectToMoxa();
+        return;
     }
 
     if (isFetchingConfig) return;
