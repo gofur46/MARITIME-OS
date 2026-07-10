@@ -144,16 +144,39 @@ function updateStatusOnPhpServer(connected, stateLabel, errorMsg) {
     }, () => {}, dataString);
 }
 
+// Helper untuk menerjemahkan error TCP umum ke bahasa Indonesia yang mudah dimengerti pengguna
+function getFriendlyErrorMessage(err) {
+    if (!err) return '';
+    const msg = err.message || String(err);
+    if (msg.includes('ECONNREFUSED')) {
+        return `Koneksi ditolak (${msg}). Pastikan Moxa sudah diatur sebagai "TCP Server" dan port ${MOXA_PORT} sudah benar. Moxa hanya mengizinkan SATU koneksi TCP aktif. Pastikan tidak ada program lain (seperti daemon moxa ganda, HyperTerminal, atau Putty) yang sedang tersambung ke Moxa ini.`;
+    }
+    if (msg.includes('ETIMEDOUT') || msg.includes('TIMEOUT')) {
+        return `Batas waktu koneksi habis (${msg}). Periksa jaringan fisik ke Moxa, pastikan Moxa menyala, kabel LAN terpasang kencang, dan IP PC satu segmen (subnet) dengan Moxa.`;
+    }
+    if (msg.includes('EHOSTUNREACH')) {
+        return `Host tidak terjangkau (${msg}). Komputer tidak dapat menemukan jalur ke IP Moxa. Periksa konfigurasi IP PC Anda, pastikan segmen IP sama (misal: PC 192.168.1.10 dan Moxa 192.168.1.254).`;
+    }
+    if (msg.includes('EADDRNOTAVAIL')) {
+        return `Alamat IP tidak valid (${msg}). Alamat IP Moxa ${MOXA_IP} tidak dapat digunakan. Periksa kembali penulisan IP di Pengaturan Dashboard.`;
+    }
+    if (msg.includes('ENOTFOUND')) {
+        return `IP atau Host tidak ditemukan (${msg}). Pastikan IP yang dimasukkan adalah alamat IP yang valid, bukan nama COM port seperti COM3 (COM port hanya digunakan untuk mode SERIAL, gunakan IP seperti 192.168.1.254 untuk MOXA_TCP).`;
+    }
+    return msg;
+}
+
 // Ambil konfigurasi paling update dari database
+let hasInitializedFromArgs = false;
+
 function syncConfigAndConnect() {
-    // Jika user menentukan IP & Port lewat parameter baris perintah (Command Line / BAT file),
-    // kita kunci nilai tersebut agar tidak pernah tertimpa oleh database api.php.
-    if (process.argv[3] && process.argv[4]) {
+    // Inisialisasi awal sekali dari parameter command line (jika ada) saat pertama kali fungsi dipanggil.
+    // Kita tidak mengunci variabel ini selamanya agar perubahan di Dashboard tetap dapat disinkronkan secara dinamis!
+    if (!hasInitializedFromArgs && process.argv[3] && process.argv[4]) {
         MOXA_IP = process.argv[3];
         MOXA_PORT = parseInt(process.argv[4]) || 4001;
-        console.log(`[${new Date().toISOString()}] 🚀 [STATIC OVERRIDE]: Mengunci IP Moxa: ${MOXA_IP} | Port Moxa: ${MOXA_PORT} (Sesuai Parameter BAT!)`);
-        connectToMoxa();
-        return;
+        console.log(`[${new Date().toISOString()}] 🚀 [INITIAL STATIC ARGS]: Menggunakan IP Moxa: ${MOXA_IP} | Port Moxa: ${MOXA_PORT} (Sesuai Parameter BAT)`);
+        hasInitializedFromArgs = true;
     }
 
     if (isFetchingConfig) return;
@@ -210,20 +233,20 @@ function connectToMoxa() {
     if (connectTimeoutTimer) clearTimeout(connectTimeoutTimer);
     connectTimeoutTimer = setTimeout(() => {
         if (isTcpConnecting) {
-            console.warn(`[${new Date().toISOString()}] ⚠️ [HANDSHAKE TIMEOUT] Gagal terhubung ke Moxa (Handshake Timeout setelah 5 detik)`);
+            console.warn(`[${new Date().toISOString()}] ⚠️ [HANDSHAKE TIMEOUT] Gagal terhubung ke Moxa (Handshake Timeout setelah 15 detik)`);
             isTcpConnecting = false;
-            broadcastStatus(false, 'TIMEOUT', 'Batas waktu koneksi habis (Moxa Offline)');
+            broadcastStatus(false, 'TIMEOUT', 'Batas waktu koneksi habis (Moxa Offline / Handshake Timeout)');
             try { client.destroy(); } catch (e) {}
         }
-    }, 5000);
+    }, 15000);
 
     client = new net.Socket();
     
     // Enable TCP Keep-Alives to detect broken physical connection quickly
     client.setKeepAlive(true, 5000); // Send TCP probes every 5 seconds
     
-    // Set 5-second initial connect handshake timeout
-    client.setTimeout(5000);
+    // Set 15-second initial connect handshake timeout
+    client.setTimeout(15000);
 
     client.on('timeout', () => {
         if (connectTimeoutTimer) clearTimeout(connectTimeoutTimer);
@@ -272,8 +295,9 @@ function connectToMoxa() {
     client.on('error', (err) => {
         if (connectTimeoutTimer) clearTimeout(connectTimeoutTimer);
         isTcpConnecting = false;
-        console.error(`[${new Date().toISOString()}] ❌ [TCP ERROR]: ${err.message}`);
-        broadcastStatus(false, 'ERROR', err.message);
+        const friendlyMsg = getFriendlyErrorMessage(err);
+        console.error(`[${new Date().toISOString()}] ❌ [TCP ERROR]: ${err.message}\n💡 Solusi: ${friendlyMsg}`);
+        broadcastStatus(false, 'ERROR', friendlyMsg);
         if (client) {
             client.destroy();
         }
