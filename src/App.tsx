@@ -506,13 +506,25 @@ export default function App() {
   
   // Extract and parse saved config first to avoid dependency chain issues
   const savedConfigStr = localStorage.getItem('aws_config');
-  const parsedConfig = savedConfigStr ? JSON.parse(savedConfigStr) : DEFAULT_CONFIG;
-  if (parsedConfig && (parsedConfig.stationName === 'Pelabuhan Ciwandan' || !parsedConfig.stationName)) {
-    parsedConfig.stationName = 'Automatic Weather Station';
+  let parsedConfig = savedConfigStr ? JSON.parse(savedConfigStr) : null;
+
+  // Auto-migrate old/stale sensor mappings in localStorage to the new correct default Moxa mappings
+  if (parsedConfig && parsedConfig.sensors) {
+    const isOldMapping = parsedConfig.sensors['ch_0'] === '2' || parsedConfig.sensors['ch_8'] === '3' || parsedConfig.sensors['ch_rain'] === '5';
+    if (isOldMapping) {
+      console.log("⚠️ Old/stale sensor mappings detected in localStorage. Auto-migrating to standard Moxa TCP/IP mappings.");
+      parsedConfig.sensors = { ...DEFAULT_CONFIG.sensors };
+      localStorage.setItem('aws_config', JSON.stringify(parsedConfig));
+    }
+  }
+
+  const activeConfig = parsedConfig || DEFAULT_CONFIG;
+  if (activeConfig && (activeConfig.stationName === 'Pelabuhan Ciwandan' || !activeConfig.stationName)) {
+    activeConfig.stationName = 'Automatic Weather Station';
   }
   const initialConfig = {
     ...DEFAULT_CONFIG,
-    ...parsedConfig,
+    ...activeConfig,
     isSimulationOn: 'OFF' // Force simulation to OFF as per user request
   };
 
