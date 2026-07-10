@@ -340,27 +340,37 @@ function processRawPayload(rawPayload) {
 
     const tokens = rawPayload.split(';');
 
-    if (tokens.length < 15) {
+    if (tokens.length < 21) {
         console.error(`[${new Date().toISOString()}] ❌ [PARSER ERROR] Skenario token tidak valid (${tokens.length} tokens).`);
         return;
     }
 
     try {
         const stationId = tokens[0] || 'AWS001';
-        let datePart = tokens[1]; // dd-mm-yyyy
-        let timePart = tokens[2]; // HH:mm:ss
+        let datePart = tokens[1] || ''; // DD-MM-YYYY
+        let timePart = tokens[2] || ''; // HH:mm:ss
         
         let formattedTimestamp = '';
-        if (datePart && datePart.includes('-')) {
-            const dates = datePart.split('-');
-            if (dates.length === 3) {
-                formattedTimestamp = `${dates[2]}-${dates[1]}-${dates[0]} ${timePart}`;
+        if (datePart && timePart) {
+            if (datePart.includes('-')) {
+                const dates = datePart.split('-');
+                if (dates.length === 3) {
+                    if (dates[0].length === 4) {
+                        formattedTimestamp = `${datePart} ${timePart}`;
+                    } else {
+                        formattedTimestamp = `${dates[2]}-${dates[1]}-${dates[0]} ${timePart}`;
+                    }
+                }
             }
-        } else {
+        }
+        if (!formattedTimestamp) {
             const d = new Date();
             const pad = (n) => n.toString().padStart(2, '0');
             formattedTimestamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
         }
+
+        const rawSea = parseFloat(tokens[17]) || 120.0;
+        const seaLevel = rawSea < 20 ? rawSea * 100 : rawSea;
 
         const mappedRecord = {
             station_id: stationId,
@@ -368,9 +378,9 @@ function processRawPayload(rawPayload) {
             temperature: parseFloat(tokens[6]) || 28.0,
             humidity: parseInt(tokens[9]) || 80,
             solar_radiation: parseInt(tokens[12]) || 0,
-            rainfall: parseFloat(tokens[15]) || 0.0, 
-            wave_height: parseFloat(tokens[16]) || 1.0, 
-            sea_level: parseFloat(tokens[17]) ? (parseFloat(tokens[17]) * 100) : 120.0, // kelola meter ke cm
+            rainfall: parseFloat(tokens[20]) || 0.0, 
+            wave_height: 1.10, 
+            sea_level: seaLevel,
             water_ph: parseFloat(tokens[18]) || 7.0,
             wind_direction: parseInt(parseFloat(tokens[5])) || 0,
             wind_speed: parseFloat(tokens[3]) || 0.0,

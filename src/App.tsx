@@ -56,28 +56,28 @@ const DEFAULT_CONFIG = {
   uiZoom: '115', // Default font size scale (%) for excellent laptop reading
   isSimulationOn: 'OFF', // ON / OFF simulation mode
   sensors: {
-    'ch_0': '2',   // Air Temp
-    'ch_2': '2',   // Temp Avg (let's map to Temp source with average)
-    'ch_4': '2',   // Temp Max (computed in code or mapped)
-    'ch_6': '2',   // Temp Min
-    'ch_8': '3',   // Humidity
-    'ch_5': '4',   // Solar Rad
-    'ch_solar_max': 'OFF', // Solar Rad Max
-    'ch_15': '7',  // Water Level
-    'ch_16': '9',  // Wind Direction
-    'ch_17': '10', // Wind Speed
-    'ch_7': '11',  // Pressure STN
-    'ch_9': '11',  // Pres QFE
-    'ch_11': '11', // Pres QFF
-    'ch_13': '11', // Pres QNH
-    'ch_18': '8',  // Water pH
+    'ch_0': '6',   // Air Temp
+    'ch_2': '6',   // Temp Avg (let's map to Temp source with average)
+    'ch_4': '7',   // Temp Max (computed in code or mapped)
+    'ch_6': '8',   // Temp Min
+    'ch_8': '9',   // Humidity
+    'ch_5': '12',  // Solar Rad
+    'ch_solar_max': '13', // Solar Rad Max
+    'ch_15': '17',  // Water Level
+    'ch_16': '5',  // Wind Direction
+    'ch_17': '3', // Wind Speed
+    'ch_7': '10',  // Pressure STN
+    'ch_9': '10',  // Pres QFE
+    'ch_11': '10', // Pres QFF
+    'ch_13': '10', // Pres QNH
+    'ch_18': '18',  // Water pH
     'ch_water_temp': '14', // Water Temp
     'ch_water_temp_max': '15', // Water Temp Max
     'ch_water_temp_min': '16', // Water Temp Min
-    'ch_19': 'OFF', // Wind Speed Max
+    'ch_19': '4', // Wind Speed Max
     'ch_20': 'OFF', // Wind Speed Min
-    'ch_rain': '5', // Rainfall
-    'ch_batt': 'OFF' // Battery Voltage
+    'ch_rain': '20', // Rainfall
+    'ch_batt': '21' // Battery Voltage
   }
 };
 
@@ -531,11 +531,11 @@ useEffect(() => {
         // Pastikan client (HP/Laptop) menggunakan mapping kolom yang sama dengan Server (Moxa Presets)
         const moxaSensors = {
           'ch_0': '6', 'ch_2': '6', 'ch_4': '7', 'ch_6': '8', 'ch_8': '9',
-          'ch_5': '12', 'ch_solar_max': 'OFF', 'ch_15': '17', 'ch_16': '5',
-          'ch_17': '3', 'ch_19': 'OFF', 'ch_20': 'OFF', 'ch_7': '10',
+          'ch_5': '12', 'ch_solar_max': '13', 'ch_15': '17', 'ch_16': '5',
+          'ch_17': '3', 'ch_19': '4', 'ch_20': 'OFF', 'ch_7': '10',
           'ch_9': '10', 'ch_11': '10', 'ch_13': '10', 'ch_18': '18',
           'ch_water_temp': '14', 'ch_water_temp_max': '15', 'ch_water_temp_min': '16',
-          'ch_rain': '13', 'ch_batt': '20'
+          'ch_rain': '20', 'ch_batt': '21'
         };
 
         setConfig(prev => {
@@ -5790,22 +5790,22 @@ header("Content-Type: application/json; charset=UTF-8");
                       'ch_6': '8',   // Temp Min (TA_Min)
                       'ch_8': '9',   // Humidity (RH_meas)
                       'ch_5': '12',  // Solar Rad
-                      'ch_solar_max': 'OFF', // Solar Rad Max
+                      'ch_solar_max': '13', // Solar Rad Max
                       'ch_15': '17', // Water Level (m)
                       'ch_16': '5',  // Wind Dir (WD_meas)
                       'ch_17': '3',  // Wind Spd (WS_meas)
-                      'ch_19': 'OFF',// Wind Spd Max (not mapped by preset)
+                      'ch_19': '4',  // Wind Spd Max
                       'ch_20': 'OFF',// Wind Spd Min (not mapped by preset)
                       'ch_7': '10',  // Pres STN
                       'ch_9': '10',  // Pres QFE
                       'ch_11': '10', // Pres QFF
                       'ch_13': '10', // Pres QNH
-                      'ch_18': '18',  // Water pH (PH_meas)
+                      'ch_18': '18', // Water pH (PH_meas)
                       'ch_water_temp': '14', // Water Temp
                       'ch_water_temp_max': '15', // Water Temp Max
                       'ch_water_temp_min': '16', // Water Temp Min
-                      'ch_rain': '13', // Rainfall (for example, rain meter)
-                      'ch_batt': '20' // Battery Voltage
+                      'ch_rain': '20', // Rainfall (for example, rain meter)
+                      'ch_batt': '21' // Battery Voltage
                     };
                     setConfig({
                       ...config,
