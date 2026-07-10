@@ -542,37 +542,7 @@ export default function App() {
     const initClientState = async () => {
       const apiUrl = resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php');
       
-      // 1. Ambil config dari PHP & Set Mapping Sensor ke Moxa Presets
-      try {
-        const configRes = await fetch(`${apiUrl}?get_moxa_config=1`);
-        if (configRes.ok) {
-          const serverConfig = await configRes.json();
-          
-          // Pastikan client (HP/Laptop) menggunakan mapping kolom yang sama dengan Server (Moxa Presets)
-          const moxaSensors = {
-            'ch_0': '6', 'ch_2': '6', 'ch_4': '7', 'ch_6': '8', 'ch_8': '9',
-            'ch_5': '12', 'ch_solar_max': 'OFF', 'ch_15': '17', 'ch_16': '5',
-            'ch_17': '3', 'ch_19': 'OFF', 'ch_20': 'OFF', 'ch_7': '10',
-            'ch_9': '10', 'ch_11': '10', 'ch_13': '10', 'ch_18': '18',
-            'ch_water_temp': '14', 'ch_water_temp_max': '15', 'ch_water_temp_min': '16',
-            'ch_rain': '13', 'ch_batt': '20'
-          };
-
-          setConfig(prev => {
-            const newConfig = {
-              ...prev,
-              transport: serverConfig.transport || 'MOXA_TCP',
-              serialcom: serverConfig.moxa_ip || prev.serialcom,
-              baudrate: serverConfig.moxa_port ? String(serverConfig.moxa_port) : prev.baudrate,
-              sensors: moxaSensors // Paksa client pakai mapping moxa agar angka sama
-            };
-            localStorage.setItem('aws_config', JSON.stringify(newConfig));
-            return newConfig;
-          });
-        }
-      } catch (err) { }
-
-      // 2. Tarik Data Riwayat (History) Asli dari Database agar Grafik & Angka Sama Persis!
+      // Tarik Data Riwayat (History) Asli dari Database agar Grafik & Angka Sama Persis!
       try {
         const logRes = await fetch(`${apiUrl}?get_telemetry_logs=1`);
         if (logRes.ok) {
@@ -597,7 +567,7 @@ export default function App() {
             if (latestRecord && latestRecord.timestamp) {
               setLastIncomingTime(latestRecord.timestamp);
             }
-            console.log("🟢 Sinkronisasi History DB & Config selesai!");
+            console.log("🟢 Sinkronisasi History DB selesai!");
           }
         }
       } catch (err) { }
