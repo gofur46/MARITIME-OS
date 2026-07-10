@@ -4,19 +4,13 @@ import {
   Waves, MoveDown, LayoutDashboard, History, Settings, FileText,
   AlertTriangle, Play, RefreshCw, Send, CheckCircle, Database,
   Anchor, ArrowUpRight, Eye, Compass, X, ExternalLink, Maximize2, BookOpen,
-  Battery, BatteryCharging, BellRing, ShieldAlert, Activity, Save, Check
+  Battery, BatteryCharging, BellRing, ShieldAlert, Activity, Save, Check,
+  Lock, Unlock, User, Shield
 } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { WeatherData, AlertLevel, PortInstruction } from './types';
 import { format } from 'date-fns';
 import { io as ioClient } from 'socket.io-client';
-
-// Resolve guide images dynamically using Vite asset URL resolution
-// This prevents compilation errors if the images are missing in the local folder
-const dashboardGuideImg = new URL('./assets/images/dashboard_guide_img_1782628660586.jpg', import.meta.url).href;
-const analystGuideImg = new URL('./assets/images/analyst_guide_img_1782628675497.jpg', import.meta.url).href;
-const databaseGuideImg = new URL('./assets/images/database_guide_img_1782628687858.jpg', import.meta.url).href;
-const bmkgGuideImg = new URL('./assets/images/bmkg_guide_img_1782628700471.jpg', import.meta.url).href;
 
 // Create Yesterday's baseline climatology averages for our math
 const CLIMATOLOGY_AVG = {
@@ -324,18 +318,14 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
   let cosSum = 0;
 
   const speeds = buffer.map(item => item.windSpeed);
-  const loggerWindMins = buffer.map(item => item.windSpeedMin).filter(w => w !== undefined && !isNaN(w)) as number[];
-  const loggerWindMaxs = buffer.map(item => item.windSpeedMax).filter(w => w !== undefined && !isNaN(w)) as number[];
-  const minSpeed = loggerWindMins.length > 0 ? loggerWindMins[loggerWindMins.length - 1] : (speeds.length > 0 ? Math.min(...speeds) : 0.0);
-  const maxSpeed = loggerWindMaxs.length > 0 ? loggerWindMaxs[loggerWindMaxs.length - 1] : (speeds.length > 0 ? Math.max(...speeds) : 0.0);
+  const maxSpeed = speeds.length > 0 ? Math.max(...speeds) : 0;
+  const minSpeed = speeds.length > 0 ? Math.min(...speeds) : 0;
   const hasGust = (maxSpeed - minSpeed) >= 10;
   const computedWindGust = hasGust ? parseFloat(maxSpeed.toFixed(1)) : undefined;
 
   const temperatures = buffer.map(item => item.temperature);
-  const loggerTempMins = buffer.map(item => item.tempMin).filter(t => t !== undefined && !isNaN(t)) as number[];
-  const loggerTempMaxs = buffer.map(item => item.tempMax).filter(t => t !== undefined && !isNaN(t)) as number[];
-  const minTemp = loggerTempMins.length > 0 ? loggerTempMins[loggerTempMins.length - 1] : (temperatures.length > 0 ? Math.min(...temperatures) : 28.0);
-  const maxTemp = loggerTempMaxs.length > 0 ? loggerTempMaxs[loggerTempMaxs.length - 1] : (temperatures.length > 0 ? Math.max(...temperatures) : 28.0);
+  const minTemp = temperatures.length > 0 ? Math.min(...temperatures) : 28.0;
+  const maxTemp = temperatures.length > 0 ? Math.max(...temperatures) : 28.0;
 
   const solarRads = buffer.map(item => item.solarRadiationMax ?? item.solarRadiation).filter(s => s !== undefined && !isNaN(s)) as number[];
   const maxSolarRad = solarRads.length > 0 ? Math.max(...solarRads) : 350;
@@ -344,10 +334,8 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
     const rawVal = item.waterTemp ?? (item.temperature - 1.2);
     return rawVal > 70 ? rawVal / 10 : rawVal;
   }).filter(t => t !== undefined && !isNaN(t)) as number[];
-  const loggerWaterTempMins = buffer.map(item => item.waterTempMin).filter(t => t !== undefined && !isNaN(t)) as number[];
-  const loggerWaterTempMaxs = buffer.map(item => item.waterTempMax).filter(t => t !== undefined && !isNaN(t)) as number[];
-  const minWaterTemp = loggerWaterTempMins.length > 0 ? loggerWaterTempMins[loggerWaterTempMins.length - 1] : (waterTemps.length > 0 ? Math.min(...waterTemps) : 26.8);
-  const maxWaterTemp = loggerWaterTempMaxs.length > 0 ? loggerWaterTempMaxs[loggerWaterTempMaxs.length - 1] : (waterTemps.length > 0 ? Math.max(...waterTemps) : 28.8);
+  const minWaterTemp = waterTemps.length > 0 ? Math.min(...waterTemps) : 26.8;
+  const maxWaterTemp = waterTemps.length > 0 ? Math.max(...waterTemps) : 28.8;
   const sumWaterTemp = waterTemps.reduce((sum, t) => sum + t, 0);
   const avgWaterTemp = waterTemps.length > 0 ? (sumWaterTemp / waterTemps.length) : 27.8;
 
@@ -355,10 +343,8 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
   const avgBattery = batts.length > 0 ? batts.reduce((sum, b) => sum + b, 0) / batts.length : 12.2;
 
   const seaLevels = buffer.map(item => item.seaLevel).filter(s => s !== undefined && !isNaN(s)) as number[];
-  const loggerSeaMins = buffer.map(item => item.seaLevelMin).filter(s => s !== undefined && !isNaN(s)) as number[];
-  const loggerSeaMaxs = buffer.map(item => item.seaLevelMax).filter(s => s !== undefined && !isNaN(s)) as number[];
-  const minSeaLevel = loggerSeaMins.length > 0 ? loggerSeaMins[loggerSeaMins.length - 1] : (seaLevels.length > 0 ? Math.min(...seaLevels) : 120);
-  const maxSeaLevel = loggerSeaMaxs.length > 0 ? loggerSeaMaxs[loggerSeaMaxs.length - 1] : (seaLevels.length > 0 ? Math.max(...seaLevels) : 160);
+  const minSeaLevel = seaLevels.length > 0 ? Math.min(...seaLevels) : 120;
+  const maxSeaLevel = seaLevels.length > 0 ? Math.max(...seaLevels) : 160;
 
   buffer.forEach(item => {
     sumTemp += item.temperature;
@@ -492,27 +478,6 @@ export const BMKG_PORTS_LIST: BmkgPortOption[] = [
 
 const resolveLocalApiUrl = (urlStr: string) => {
   if (!urlStr) return urlStr;
-  
-  // Check if we are running in the cloud run sandbox / development preview
-  const isCloudPreview = window.location.protocol === 'https:' || window.location.port === '3000';
-
-  // If it's a Moxa Daemon URL (running on port 8080)
-  if (urlStr.includes(':8080') || urlStr.includes('8080')) {
-    // If in cloud sandbox, connect to the port 3000 Express Socket.IO server directly!
-    if (isCloudPreview) {
-      return window.location.origin;
-    }
-    return urlStr;
-  }
-  
-  // If we are in the cloud preview, route through the local Express server proxy
-  if (isCloudPreview) {
-    if (urlStr.includes('api.php') || urlStr.includes(':8000')) {
-      return window.location.origin + '/api/local-db';
-    }
-  }
-
-  // Otherwise, use direct address (replaces localhost with actual current hostname if accessing via LAN)
   const currentHost = window.location.hostname;
   if (currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
     return urlStr.replace(/(localhost|127\.0\.0\.1)/g, currentHost);
@@ -522,6 +487,22 @@ const resolveLocalApiUrl = (urlStr: string) => {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'realtime' | 'analyst' | 'telemetry' | 'database' | 'settings' | 'bmkg'>('realtime');
+  
+  // Role & Authentication States
+  const [currentUserRole, setCurrentUserRole] = useState<'admin' | 'user'>(() => {
+    return (localStorage.getItem('aws_user_role') as 'admin' | 'user') || 'user';
+  });
+  const [isAdminLoginModalOpen, setIsAdminLoginModalOpen] = useState(false);
+  const [pendingTab, setPendingTab] = useState<'realtime' | 'analyst' | 'telemetry' | 'database' | 'settings' | 'bmkg' | null>(null);
+  const [passcodeVal, setPasscodeVal] = useState('');
+  const [passcodeError, setPasscodeError] = useState('');
+  
+  // Fallback check to ensure non-admins cannot stay on restricted tabs
+  useEffect(() => {
+    if (currentUserRole === 'user' && (activeTab === 'database' || activeTab === 'settings' || activeTab === 'telemetry')) {
+      setActiveTab('realtime');
+    }
+  }, [currentUserRole, activeTab]);
   
   // Extract and parse saved config first to avoid dependency chain issues
   const savedConfigStr = localStorage.getItem('aws_config');
@@ -536,47 +517,70 @@ export default function App() {
   };
 
   const [config, setConfig] = useState(initialConfig);
+// --- MULAI TAMBAHAN: AUTO-SYNC CLIENT KE SERVER (VERSI SEMPURNA) ---
+useEffect(() => {
+  const initClientState = async () => {
+    const apiUrl = resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php');
+    
+    // 1. Ambil config dari PHP & Set Mapping Sensor ke Moxa Presets
+    try {
+      const configRes = await fetch(`${apiUrl}?get_moxa_config=1`);
+      if (configRes.ok) {
+        const serverConfig = await configRes.json();
+        
+        // Pastikan client (HP/Laptop) menggunakan mapping kolom yang sama dengan Server (Moxa Presets)
+        const moxaSensors = {
+          'ch_0': '6', 'ch_2': '6', 'ch_4': '7', 'ch_6': '8', 'ch_8': '9',
+          'ch_5': '12', 'ch_solar_max': 'OFF', 'ch_15': '17', 'ch_16': '5',
+          'ch_17': '3', 'ch_19': 'OFF', 'ch_20': 'OFF', 'ch_7': '10',
+          'ch_9': '10', 'ch_11': '10', 'ch_13': '10', 'ch_18': '18',
+          'ch_water_temp': '14', 'ch_water_temp_max': '15', 'ch_water_temp_min': '16',
+          'ch_rain': '13', 'ch_batt': '20'
+        };
 
-  // --- MULAI TAMBAHAN: AUTO-SYNC CLIENT KE SERVER (VERSI SEMPURNA) ---
-  useEffect(() => {
-    const initClientState = async () => {
-      const apiUrl = resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php');
-      
-      // Tarik Data Riwayat (History) Asli dari Database agar Grafik & Angka Sama Persis!
-      try {
-        const logRes = await fetch(`${apiUrl}?get_telemetry_logs=1`);
-        if (logRes.ok) {
-          const rawText = await logRes.text();
-          let rawRows;
-          try { 
-            rawRows = JSON.parse(rawText.trim()); 
-          } catch (err) {
-            const matches = rawText.match(/\[\s*\{[^]*\}\s*\]/g);
-            if (matches && matches.length > 0) rawRows = JSON.parse(matches[matches.length - 1]);
-          }
-          if (rawRows && Array.isArray(rawRows.data)) rawRows = rawRows.data;
+        setConfig(prev => {
+          const newConfig = {
+            ...prev,
+            transport: serverConfig.transport || 'MOXA_TCP',
+            serialcom: serverConfig.moxa_ip || prev.serialcom,
+            baudrate: serverConfig.moxa_port ? String(serverConfig.moxa_port) : prev.baudrate,
+            sensors: moxaSensors // Paksa client pakai mapping moxa agar angka sama
+          };
+          localStorage.setItem('aws_config', JSON.stringify(newConfig));
+          return newConfig;
+        });
+      }
+    } catch (err) { }
 
-          if (rawRows && Array.isArray(rawRows) && rawRows.length > 0) {
-            // Format data database ke grafik, lalu balik urutannya (ASC) agar grafik bergerak maju
-            const parsedHistory = rawRows.map(parseDbRowToWeatherData).reverse();
-            setHistory(parsedHistory);
-            localStorage.setItem('aws_history_logs', JSON.stringify(parsedHistory));
-            
-            // Atur lastIncomingTime dari rekor database terbaru agar status offline tidak memblokir di awal
-            const latestRecord = parsedHistory[parsedHistory.length - 1];
-            if (latestRecord && latestRecord.timestamp) {
-              setLastIncomingTime(latestRecord.timestamp);
-            }
-            console.log("🟢 Sinkronisasi History DB selesai!");
-          }
+    // 2. Tarik Data Riwayat (History) Asli dari Database agar Grafik & Angka Sama Persis!
+    try {
+      const logRes = await fetch(`${apiUrl}?get_telemetry_logs=1`);
+      if (logRes.ok) {
+        const rawText = await logRes.text();
+        let rawRows;
+        try { 
+          rawRows = JSON.parse(rawText.trim()); 
+        } catch (err) {
+          const matches = rawText.match(/\[\s*\{[^]*\}\s*\]/g);
+          if (matches && matches.length > 0) rawRows = JSON.parse(matches[matches.length - 1]);
         }
-      } catch (err) { }
-    };
+        if (rawRows && Array.isArray(rawRows.data)) rawRows = rawRows.data;
 
-    // Jalankan fungsi ini otomatis
-    initClientState();
-  }, []);
-  // --- AKHIR TAMBAHAN ---
+        if (rawRows && Array.isArray(rawRows) && rawRows.length > 0) {
+          // Format data database ke grafik, lalu balik urutannya (ASC) agar grafik bergerak maju
+          const parsedHistory = rawRows.map(parseDbRowToWeatherData).reverse();
+          setHistory(parsedHistory);
+          localStorage.setItem('aws_history_logs', JSON.stringify(parsedHistory));
+          console.log("🟢 Sinkronisasi History DB & Config selesai!");
+        }
+      }
+    } catch (err) { }
+  };
+
+  // Jalankan fungsi ini otomatis
+  initClientState();
+}, []);
+// --- AKHIR TAMBAHAN ---
 
   const [currentClockTime, setCurrentClockTime] = useState<Date>(new Date());
   useEffect(() => {
@@ -761,25 +765,18 @@ export default function App() {
     }
 
     const checkActive = () => {
-      // 1. Jika status Moxa dari Express/Daemon melaporkan "terhubung", maka AWS aktif!
-      if (moxaStatus && moxaStatus.connected) {
-        setIsLiveActive(true);
-        return;
-      }
-
-      // 2. Fallback ke waktu kedatangan paket real-time terakhir
       if (lastIncomingTime === null) {
         setIsLiveActive(false);
       } else {
         const elapsed = Date.now() - lastIncomingTime;
-        setIsLiveActive(elapsed < 45000); // 45 seconds timeout untuk toleransi koneksi seluler/remote
+        setIsLiveActive(elapsed < 25000); // 25 seconds timeout
       }
     };
 
     checkActive();
     const intervalId = setInterval(checkActive, 2000);
     return () => clearInterval(intervalId);
-  }, [lastIncomingTime, config.transport, moxaStatus]);
+  }, [lastIncomingTime, config.transport]);
 
   // Reset live connection tracking when transport type is changed
   useEffect(() => {
@@ -800,10 +797,9 @@ export default function App() {
     lastDbSaveTimeRef.current = lastDbSaveTime;
   }, [lastDbSaveTime]);
 
-  // Socket.IO + Fallback PHP Polling integration with Express Server / Moxa Gateway
+  // Socket.IO + Fallback PHP Polling integration with Moxa Daemon
   useEffect(() => {
-    const isCloud = window.location.hostname.includes('run.app') || window.location.hostname.includes('google.com') || window.location.hostname.includes('aistudio');
-    if (!isCloud && config.transport !== 'MOXA_TCP') {
+    if (config.transport !== 'MOXA_TCP') {
       setMoxaStatus(null);
       return;
     }
@@ -826,8 +822,8 @@ export default function App() {
       }
 
       // If we are in AI Studio / Cloud preview container
-      if (isCloud) {
-        return window.location.origin;
+      if (currentHost.includes('run.app') || currentHost.includes('google.com') || currentHost.includes('aistudio')) {
+        return 'http://localhost:8080';
       }
       
       // Fallback: check config.localDbApiUrl host
@@ -846,7 +842,7 @@ export default function App() {
     const daemonUrl = getDaemonUrl();
 
     const setupSocket = (ioClient: any) => {
-      console.log(`🔌 Connecting to WebSocket Server on ${daemonUrl}...`);
+      console.log(`🔌 Connecting to Moxa Daemon WebSocket on ${daemonUrl}...`);
       try {
         socket = ioClient(daemonUrl, {
           transports: ['websocket', 'polling'],
@@ -856,7 +852,8 @@ export default function App() {
         });
 
         socket.on('connect', () => {
-          console.log(`✅ Connected to WebSocket Server on ${daemonUrl}!`);
+          console.log("✅ Main Dashboard connected to Moxa Daemon via WebSocket!");
+          // Wait for statusUpdate from the daemon to tell us the actual connection state
         });
 
         socket.on('statusUpdate', (status: any) => {
@@ -867,7 +864,7 @@ export default function App() {
 
         // Stream live raw sentences directly to terminal
         socket.on('rawTelemetry', (raw: any) => {
-          if (raw && raw.data && configRef.current.transport === 'MOXA_TCP') {
+          if (raw && raw.data) {
             setStreamLogs(prevLogs => {
               const lines = prevLogs.split('\n');
               const timeStr = new Date().toLocaleTimeString('id-ID');
@@ -882,51 +879,20 @@ export default function App() {
           }
         });
 
-        // Stream live parsed and enriched data (especially useful for simulated OFF mode and Moxa synchrony across clients)
+        // Stream live parsed data (made redundant since we parse rawTelemetry directly with active settings mapping indexes)
         socket.on('dataUpdate', (parsedRecord: any) => {
-          if (parsedRecord) {
-            setHistory(prev => {
-              // Prevent duplicate records for the same exact timestamp
-              if (prev.length > 0 && prev[prev.length - 1].timestamp === parsedRecord.timestamp) {
-                return prev;
-              }
-              const updated = [...prev, parsedRecord];
-              const keeps = updated.length > 200 ? updated.slice(updated.length - 150) : updated;
-              localStorage.setItem('aws_history_logs', JSON.stringify(keeps));
-              return keeps;
-            });
-
-            setLastIncomingTime(Date.now());
-
-            // Jalankan processNewSample (penyimpanan DB/Averaging) hanya di mode OFF (simulasi),
-            // sedangkan di mode MOXA_TCP, penyimpanan DB ditangani secara lokal melalui parsing rawTelemetry langsung di browser client utama.
-            if (configRef.current.transport === 'OFF') {
-              processNewSampleRef.current?.(parsedRecord);
-            }
-
-            // Print success logs to terminal
-            setStreamLogs(prev => {
-              const list = prev.split('\n');
-              const ts = new Date().toLocaleTimeString('id-ID');
-              const tempVal = parsedRecord.temperature !== undefined ? parsedRecord.temperature : (parsedRecord.temp !== undefined ? parsedRecord.temp : 0);
-              const wsVal = parsedRecord.windSpeed !== undefined ? parsedRecord.windSpeed : (parsedRecord.wind_speed !== undefined ? parsedRecord.wind_speed : 0);
-              const phVal = parsedRecord.waterPh !== undefined ? parsedRecord.waterPh : (parsedRecord.water_ph !== undefined ? parsedRecord.water_ph : 7.0);
-              const logLine = `[${ts} INBOUND] 🟢 RECEIVED CORE PACKET -> Temp: ${tempVal}°C, WS: ${wsVal}m/s, pH: ${phVal}`;
-              const output = [...list, logLine];
-              return (output.length > 40 ? output.slice(output.length - 30) : output).join('\n');
-            });
-          }
+          // Bypassed: We now parse rawTelemetry directly in the frontend so that index mappings set by the user in settings are 100% active and respected in real-time!
         });
 
         socket.on('disconnect', () => {
-          console.warn("❌ WebSocket disconnected, waiting for reconnection...");
+          console.warn("❌ Moxa WebSocket disconnected, waiting for reconnection...");
           setMoxaStatus(prev => ({
             connected: false,
             moxa_ip: prev?.moxa_ip || '192.168.1.254',
             moxa_port: prev?.moxa_port || 4001,
             state: 'OFFLINE',
             last_seen: new Date().toLocaleTimeString('id-ID'),
-            error: `Daemon WebSocket Offline (${daemonUrl})`
+            error: 'Daemon WebSocket Offline (Port 8080)'
           }));
         });
 
@@ -943,22 +909,6 @@ export default function App() {
 
     // Fallback polling for status in case WebSocket connection is blocked by CORS/Mixed Content
     const fetchMoxaStatus = async () => {
-      // First, try our Express server's moxa-status API if in Cloud
-      if (isCloud) {
-        try {
-          const res = await fetch('/api/moxa-status');
-          if (res.ok) {
-            const parsed = await res.json();
-            if (parsed && typeof parsed.connected === 'boolean') {
-              setMoxaStatus(parsed);
-              return; // Successfully got status from Express, no need to query PHP
-            }
-          }
-        } catch (err) {
-          // Fallback to PHP if Express fails
-        }
-      }
-
       const testUrl = resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php');
       const moxaStatusUrl = `${testUrl}?get_moxa_status=1`;
       try {
@@ -1412,25 +1362,30 @@ export default function App() {
     }
   };
 
+  // Handle Admin Passcode verification
+  const handlePasscodeSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (passcodeVal === 'admin123') {
+      setCurrentUserRole('admin');
+      localStorage.setItem('aws_user_role', 'admin');
+      setIsAdminLoginModalOpen(false);
+      setPasscodeVal('');
+      setPasscodeError('');
+      showToastNotification("Akses Admin Terverifikasi!");
+      if (pendingTab) {
+        setActiveTab(pendingTab);
+        setPendingTab(null);
+      }
+    } else {
+      setPasscodeError("Passcode salah! Silakan coba lagi.");
+    }
+  };
+
   // Save changes helper
-  const handleSaveConfig = async (newConfig: typeof config, customMessage?: string) => {
+  const handleSaveConfig = async (newConfig: typeof config) => {
     setConfig(newConfig);
     localStorage.setItem('aws_config', JSON.stringify(newConfig));
-    showToastNotification(customMessage || 'Config Saved Successfully!');
-
-    // Sync entire config to Express server so LAN clients can automatically retrieve it
-    try {
-      await fetch('/api/aws-config', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newConfig),
-      });
-      console.log('Successfully synchronized entire configuration to Express server');
-    } catch (e) {
-      console.warn('Could not sync configuration to Express server:', e);
-    }
+    showToastNotification('Config Saved Successfully!');
 
     // Post newly configured Moxa IP & Port to host computer's api.php automatically
     const moxaIp = newConfig.serialcom || '192.168.127.254';
@@ -1536,7 +1491,8 @@ export default function App() {
   // Active simulated logger feed
   useEffect(() => {
     const interval = setInterval(() => {
-      if (config.isSimulationOn === 'OFF') {
+      // Do not run simulator if we are actively receiving live hardware telemetry in non-OFF modes
+      if (config.transport !== 'OFF' && isLiveActive) {
         return;
       }
       const pctime = new Date();
@@ -1700,7 +1656,7 @@ export default function App() {
     }, 4500);
 
     return () => clearInterval(interval);
-  }, [config]);
+  }, [config, isLiveActive]);
 
   // Helper to parse database row into WeatherData object safely
   const parseDbRowToWeatherData = (row: any): WeatherData => {
@@ -1874,15 +1830,7 @@ export default function App() {
     rainfall: 0,
     waveHeight: 1.1,
     seaLevel: 140,
-    waterPh: 7.8,
-    tempMin: 26.7,
-    tempMax: 29.4,
-    waterTemp: 27.0,
-    waterTempMin: 26.2,
-    waterTempMax: 27.5,
-    windSpeedMin: 10.2,
-    windSpeedMax: 14.5,
-    battery: 12.2
+    waterPh: 7.8
   };
 
   // Track wind directions of the last 2 minutes for rendering green trails/arcs
@@ -1935,46 +1883,62 @@ export default function App() {
     
     return { avg, max, min };
   })();
-
-  // Water temperature statistics (using data logger values directly for Min and Max)
+/*
+  // 1-Hour temperature statistics computed from the history queue
+  const tempStats = (() => {
+    const lastSix = history.slice(-12); // approx last couple hours
+    if (lastSix.length === 0) return { avg: '28.2', max: '29.1', min: '27.4' };
+    const temps = lastSix.map(h => h.temperature);
+    const sum = temps.reduce((a, b) => a + b, 0);
+    const avg = (sum / temps.length).toFixed(1);
+    const max = Math.max(...temps).toFixed(1);
+    const min = Math.min(...temps).toFixed(1);
+    return { avg, max, min };
+  })();
+*/
+  // Water temperature statistics computed from the history queue
   const waterTempStats = (() => {
     const lastSix = history.slice(-12); // approx last couple hours
-    
-    let curWaterTemp = currentData.waterTemp ?? (currentData.temperature - 1.2);
-    if (curWaterTemp > 70) curWaterTemp = curWaterTemp / 10;
-    
-    let curWaterTempMax = currentData.waterTempMax ?? (curWaterTemp + 0.5);
-    if (curWaterTempMax > 70) curWaterTempMax = curWaterTempMax / 10;
-    
-    let curWaterTempMin = currentData.waterTempMin ?? (curWaterTemp - 0.8);
-    if (curWaterTempMin > 70) curWaterTempMin = curWaterTempMin / 10;
-    
-    let avg = curWaterTemp.toFixed(1);
-    if (lastSix.length > 0) {
-      const temps = lastSix.map(h => {
-        const v = h.waterTemp ?? (h.temperature - 1.2);
-        return v > 70 ? v / 10 : v;
-      });
-      const sum = temps.reduce((a, b) => a + b, 0);
-      avg = (sum / temps.length).toFixed(1);
+    if (lastSix.length === 0) {
+      let curWaterTemp = currentData.waterTemp ?? (currentData.temperature - 1.2);
+      if (curWaterTemp > 70) curWaterTemp = curWaterTemp / 10;
+      let curWaterTempMax = currentData.waterTempMax ?? (currentData.temperature - 0.7);
+      if (curWaterTempMax > 70) curWaterTempMax = curWaterTempMax / 10;
+      let curWaterTempMin = currentData.waterTempMin ?? (currentData.temperature - 2.0);
+      if (curWaterTempMin > 70) curWaterTempMin = curWaterTempMin / 10;
+      return {
+        avg: curWaterTemp.toFixed(1),
+        max: curWaterTempMax.toFixed(1),
+        min: curWaterTempMin.toFixed(1)
+      };
     }
+    const temps = lastSix.map(h => {
+      const v = h.waterTemp ?? (h.temperature - 1.2);
+      return v > 70 ? v / 10 : v;
+    });
+    const maxTemps = lastSix.map(h => {
+      const v = h.waterTempMax ?? (h.waterTemp ?? (h.temperature - 0.7));
+      return v > 70 ? v / 10 : v;
+    });
+    const minTemps = lastSix.map(h => {
+      const v = h.waterTempMin ?? (h.waterTemp ?? (h.temperature - 2.0));
+      return v > 70 ? v / 10 : v;
+    });
     
-    return {
-      avg,
-      max: curWaterTempMax.toFixed(1),
-      min: curWaterTempMin.toFixed(1)
-    };
+    const sum = temps.reduce((a, b) => a + b, 0);
+    const avg = (sum / temps.length).toFixed(1);
+    const max = Math.max(...maxTemps).toFixed(1);
+    const min = Math.min(...minTemps).toFixed(1);
+    return { avg, max, min };
   })();
 
-  // Dynamic Wind Speed Max and Min (using data logger values directly if available)
+  // Dynamic Wind Speed Max and Min computed from the history queue
   const windStats = (() => {
-    const avgSpd = currentData.windSpeed !== undefined ? currentData.windSpeed : 0.0;
-    const maxSpd = currentData.windSpeedMax !== undefined ? currentData.windSpeedMax : (history.length > 0 ? Math.max(...history.map(h => h.windSpeed)) : (avgSpd + 2.5));
-    const minSpd = currentData.windSpeedMin !== undefined ? currentData.windSpeedMin : (history.length > 0 ? Math.min(...history.map(h => h.windSpeed)) : Math.max(0, avgSpd - 1.8));
-    return {
-      min: minSpd,
-      max: maxSpd
-    };
+    if (history.length === 0) return { min: currentData.windSpeed, max: currentData.windSpeed };
+    const speeds = history.map(h => h.windSpeed);
+    const max = Math.max(...speeds);
+    const min = Math.min(...speeds);
+    return { min, max };
   })();
 
   // Find the last recorded wind gust from the history, filtered to only include gusts that occurred on the same calendar day as the current clock time
@@ -2268,8 +2232,40 @@ export default function App() {
         
         {/* PII Instrument Logo */}
         <div className="w-16 h-16 bg-gradient-to-br from-[#00f0ff]/20 to-[#3b82f6]/10 rounded-2xl flex flex-col items-center justify-center shadow-[0_0_25px_rgba(0,240,255,0.15)] border border-[#00f0ff]/30 cursor-pointer p-1.5 hover:border-[#00f0ff]/60 hover:shadow-[0_0_30px_rgba(0,240,255,0.3)] transition-all duration-300" onClick={() => setActiveTab('realtime')}>
-          <span className="text-white font-black text-base tracking-tighter leading-none font-sans">PII</span>
+          <span className="text-white font-black text-base tracking-tighter leading-none font-sans">KBS</span>
           <span className="text-[7px] text-[#00f0ff] tracking-[0.05em] font-black uppercase mt-1 text-center leading-none">INSTRUMENT</span>
+        </div>
+
+        {/* Role Pill Indicator */}
+        <div className="w-full px-3 text-center">
+          {currentUserRole === 'admin' ? (
+            <button
+              onClick={() => {
+                setCurrentUserRole('user');
+                localStorage.setItem('aws_user_role', 'user');
+                setActiveTab('realtime');
+                showToastNotification("🟢 Berhasil Keluar dari Mode Admin");
+              }}
+              className="w-full py-1.5 px-2 bg-emerald-500/10 border border-emerald-400/40 hover:border-rose-500/50 hover:bg-rose-500/15 rounded-xl flex items-center justify-center gap-1.5 transition-all text-[9px] font-black text-emerald-400 hover:text-rose-400 cursor-pointer shadow-[0_0_15px_rgba(16,185,129,0.15)] uppercase group"
+              title="Klik untuk Keluar dari Mode Admin"
+            >
+              <Shield className="w-3 h-3 text-emerald-400 group-hover:text-rose-400 transition-colors" />
+              <span className="group-hover:hidden">ADMIN</span>
+              <span className="hidden group-hover:inline">KELUAR</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setPendingTab(null);
+                setIsAdminLoginModalOpen(true);
+              }}
+              className="w-full py-1.5 px-2 bg-slate-800/60 border border-slate-700 hover:border-[#00f0ff]/50 hover:bg-[#00f0ff]/10 rounded-xl flex items-center justify-center gap-1.5 transition-all text-[9px] font-black text-slate-400 hover:text-[#00f0ff] cursor-pointer uppercase"
+              title="Klik untuk Login sebagai Admin."
+            >
+              <User className="w-3 h-3 text-slate-500" />
+              <span>USER</span>
+            </button>
+          )}
         </div>
 
         <nav className="flex flex-col gap-5 w-full px-3">
@@ -2289,21 +2285,29 @@ export default function App() {
             <span className="text-xs">ANALYST</span>
           </button>
 
-          <button 
-            onClick={() => setActiveTab('database')}
-            className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border ${activeTab === 'database' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
-          >
-            <Database className="w-4.5 h-4.5" />
-            <span className="text-xs">DATABASE</span>
-          </button>
+          {currentUserRole === 'admin' && (
+            <>
+              <button 
+                onClick={() => setActiveTab('database')}
+                className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border relative ${activeTab === 'database' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
+              >
+                <div className="relative">
+                  <Database className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs">DATABASE</span>
+              </button>
 
-          <button 
-            onClick={() => setActiveTab('settings')}
-            className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border ${activeTab === 'settings' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
-          >
-            <Settings className="w-4.5 h-4.5" />
-            <span className="text-xs">OPTION</span>
-          </button>
+              <button 
+                onClick={() => setActiveTab('settings')}
+                className={`w-full py-3.5 px-2 rounded-xl flex flex-col items-center gap-1.5 transition-all text-xs font-bold uppercase tracking-wider font-sans border relative ${activeTab === 'settings' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]' : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'}`}
+              >
+                <div className="relative">
+                  <Settings className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs">OPTION</span>
+              </button>
+            </>
+          )}
 
           <button 
             onClick={() => setActiveTab('bmkg')}
@@ -2363,9 +2367,6 @@ export default function App() {
             <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-white uppercase flex flex-wrap items-baseline gap-x-2">
               <span>Automatic weather station</span> <span className="text-[#00f0ff] text-xs font-mono lowercase tracking-[0.05em] bg-[#00f0ff]/10 py-0.5 px-3 rounded border border-[#00f0ff]/30 font-bold">Pro AWS</span>
             </h1>
-            <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-bold">
-              Kondisi Operasional Port & Log Terminal Cuaca Maritim
-            </p>
           </div>
 
           <div className="flex items-center gap-6 self-stretch lg:self-auto justify-between lg:justify-end border-t lg:border-t-0 border-white/5 pt-3 lg:pt-0">
@@ -2421,23 +2422,14 @@ export default function App() {
                     <p className="text-sm text-slate-200 font-medium">
                       Sensor data stream terputus! Tidak ada paket data baru yang diterima dari Data Logger.
                     </p>
-                    <p className="text-xs text-slate-400 font-sans max-w-md mx-auto leading-relaxed">
-                      Sistem mengamankan dashboard dan menyembunyikan data buffer usang untuk menghindari kesalahan analisis oleh petugas di lapangan. Anda dapat mematikan pengunci ini di menu Setting jika ingin tetap menampilkan data terakhir.
-                    </p>
                   </div>
                   
                   <div className="bg-[#050a12]/90 border border-red-500/15 p-4 rounded-xl font-mono text-[11px] text-left text-slate-300 space-y-2 max-w-md mx-auto shadow-inner">
                     <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Logger Transport Mode:</span> <span className="font-extrabold text-red-400">{config.transport}</span></div>
                     {config.transport === 'MOXA_TCP' ? (
                       <>
-                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">IP Gateway Moxa:</span> <span className="font-bold text-slate-200">{moxaStatus?.moxa_ip || config.serialcom || '192.168.1.1'}</span></div>
-                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Port Gateway Moxa:</span> <span className="font-bold text-slate-200">{moxaStatus?.moxa_port || config.baudrate || '4001'}</span></div>
-                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Daemon State:</span> <span className={`font-bold ${moxaStatus && moxaStatus.connected ? 'text-emerald-400' : 'text-amber-400 animate-pulse'}`}>{moxaStatus?.state || 'OFFLINE'}</span></div>
-                        {moxaStatus?.error && (
-                          <div className="text-[10px] text-amber-400 bg-amber-500/10 p-2.5 rounded border border-amber-500/20 whitespace-pre-wrap leading-relaxed max-w-full overflow-x-auto">
-                            💡 {moxaStatus.error}
-                          </div>
-                        )}
+                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">IP Gateway Moxa:</span> <span className="font-bold text-slate-200">{config.serialcom || '192.168.1.1'}</span></div>
+                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Port Gateway Moxa:</span> <span className="font-bold text-slate-200">{config.baudrate || '4001'}</span></div>
                       </>
                     ) : (
                       <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Serial Port / Endpoint:</span> <span className="font-bold text-slate-200">{config.serialcom || 'COM1'}</span></div>
@@ -2450,7 +2442,9 @@ export default function App() {
                     <button 
                       onClick={() => {
                         const newCfg = { ...config, transport: 'OFF' };
-                        handleSaveConfig(newCfg, "Simulation mode turned ON automatically!");
+                        setConfig(newCfg);
+                        localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                        showToastNotification("Simulation mode turned ON automatically!");
                       }}
                       className="w-full sm:w-auto bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-mono text-xs font-black px-6 py-3 rounded-xl uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] hover:scale-105 active:scale-95 cursor-pointer"
                     >
@@ -2459,7 +2453,9 @@ export default function App() {
                     <button 
                       onClick={() => {
                         const newCfg = { ...config, lockOfflineDashboard: 'OFF' };
-                        handleSaveConfig(newCfg, "Dashboard lock disabled. Showing last known data.");
+                        setConfig(newCfg);
+                        localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                        showToastNotification("Dashboard lock disabled. Showing last known data.");
                       }}
                       className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold px-6 py-3 rounded-xl uppercase tracking-wider transition-all border border-white/10 cursor-pointer"
                     >
@@ -2477,23 +2473,16 @@ export default function App() {
                   <div className="p-2.5 bg-red-500/20 border border-red-500/40 rounded-xl">
                     <AlertTriangle className="w-6 h-6 text-red-500" />
                   </div>
-                  <div className="text-left space-y-1">
+                  <div className="text-left space-y-0.5">
                     <span className="text-sm font-black text-red-400 tracking-wider font-mono block">🔴 WARNING: ALAT OFFLINE / JALUR DATA MASUK TERPUTUS</span>
-                    <p className="text-xs text-slate-300 leading-normal">
-                      Koneksi ke data logger aktif terputus. Dashboard saat ini menampilkan data rekaman terakhir yang tersimpan di sistem (<span className="text-amber-400 font-bold">stale data buffer</span>) untuk keamanan navigasi.
-                    </p>
-                    {config.transport === 'MOXA_TCP' && (
-                      <div className="text-xs font-mono text-amber-300/95 bg-amber-500/10 px-2.5 py-1.5 rounded-lg border border-amber-500/20 inline-block">
-                        ⚡ Target IP: <strong className="text-white">{moxaStatus?.moxa_ip || config.serialcom}</strong> | Port: <strong className="text-white">{moxaStatus?.moxa_port || config.baudrate}</strong> | State: <strong className="text-amber-400 animate-pulse">{moxaStatus?.state || 'OFFLINE'}</strong> {moxaStatus?.error && `(${moxaStatus.error})`}
-                      </div>
-                    )}
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto">
                   <button 
                     onClick={() => {
                       const newCfg = { ...config, lockOfflineDashboard: 'ON' };
-                      handleSaveConfig(newCfg, "Dashboard lock enabled.");
+                      setConfig(newCfg);
+                      localStorage.setItem('aws_config', JSON.stringify(newCfg));
                     }}
                     className="bg-rose-500 hover:bg-rose-600 text-white font-mono text-[10px] font-black tracking-widest px-4 py-2.5 rounded-lg uppercase transition-all whitespace-nowrap cursor-pointer"
                   >
@@ -2502,7 +2491,9 @@ export default function App() {
                   <button 
                     onClick={() => {
                       const newCfg = { ...config, transport: 'OFF' };
-                      handleSaveConfig(newCfg, "Simulation mode turned ON automatically!");
+                      setConfig(newCfg);
+                      localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                      showToastNotification("Simulation mode turned ON automatically!");
                     }}
                     className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-mono text-[10px] font-black tracking-widest px-4 py-2.5 rounded-lg uppercase transition-all whitespace-nowrap shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer"
                   >
@@ -2528,7 +2519,7 @@ export default function App() {
                 <div className="flex-1 flex flex-col justify-center space-y-2.5">
                   {/* Primary Air temp StatCard */}
                   <div className="bg-[#0b1424] border border-[#22c55e]/10 p-3 rounded-xl text-center transition-colors hover:border-[#22c55e]/20">
-                    <div className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Saat Ini</div>
+                    <div className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">currently</div>
                     <div className="text-2xl md:text-3xl font-bold font-mono text-[#22c55e]">
                       {currentData.temperature.toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">°C</span>
                     </div>
@@ -3210,10 +3201,6 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                
-                <p className="text-[9px] text-slate-500 leading-tight italic font-sans text-center border-t border-white/5 pt-1.5">
-                  Panjang ruji menunjukkan persentase frekuensi arah tiupan angin (24 Jam terakhir).
-                </p>
               </div>
 
               {/* Wind Limits & Gust Events (Moved under Wind Rose) */}
@@ -3355,9 +3342,6 @@ export default function App() {
                 </div>
                 <div className="text-left">
                   <span className="text-xs font-black text-[#00f0ff] uppercase tracking-wider font-mono block">📊 ANALISIS HISTORIS DATA DATABASE</span>
-                  <p className="text-[11px] text-slate-300 leading-normal">
-                    Menampilkan data historis murni dari database lokal (PostgreSQL <code>tbl_sensor_logs</code>) dalam rentang penuh 24 jam sehari mulai dari pukul <strong>00:00</strong> sampai dengan <strong>23:59</strong>.
-                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2 font-mono text-[11px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-xl">
@@ -3438,9 +3422,6 @@ export default function App() {
                       <span>🧭 SKEMATIK FISIK DERMAGA &amp; SIMULASI PASUT WIDESCREEN</span>
                       <span className="text-emerald-400 text-[9px] font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded animate-pulse">⛵ KAPAL BERLABUH AKTIF</span>
                     </h3>
-                    <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
-                      Kalkulator skema instalasi sensor ultrasonik &amp; radar air laut dermaga. Menghitung kedalaman absolut, elevasi pasut, dan jarak pantul sonar.
-                    </p>
                   </div>
                 </div>
                 
@@ -3801,9 +3782,6 @@ export default function App() {
                       <h4 className="text-xs uppercase font-extrabold text-[#00f0ff] tracking-[0.2em] font-mono flex items-center gap-2">
                         📈 HISTORI ELEVASI PASUT &amp; WATER LEVEL 24 JAM TERAKHIR (FULL WIDTH)
                       </h4>
-                      <p className="text-[10px] text-slate-400 font-sans">
-                        Grafik korelasi tinggi absolut permukaan air laut dengan garis Mean Sea Level (MSL Ref: <strong className="text-emerald-400">{calcMslHeight.toFixed(2)}m</strong>) untuk menentukan kondisi pasang surut pelabuhan.
-                      </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3 font-mono text-[9px] bg-black/30 px-3 py-1.5 rounded-lg border border-white/5">
                       <span className="flex items-center gap-1.5 text-[#38bdf8] font-bold">
@@ -4296,6 +4274,31 @@ export default function App() {
         {activeTab === 'database' && (
           <div className="space-y-6">
             
+            {/* Otorisasi Admin Status Bar */}
+            <div className="bg-emerald-950/25 border-2 border-emerald-500/30 rounded-2xl p-4.5 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-500/10 border border-emerald-500/40 rounded-xl">
+                  <Shield className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h5 className="text-xs font-black uppercase text-white font-mono tracking-wider">Mode Otorisasi Admin Aktif</h5>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Anda saat ini memiliki hak akses penuh untuk membaca database logs & mengubah konfigurasi.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setCurrentUserRole('user');
+                  localStorage.setItem('aws_user_role', 'user');
+                  setActiveTab('realtime');
+                  showToastNotification("🟢 Berhasil Keluar dari Mode Admin");
+                }}
+                className="w-full sm:w-auto bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-mono text-[10px] font-black tracking-widest px-5 py-2.5 rounded-xl uppercase transition-all shadow-[0_0_15px_rgba(239,68,68,0.2)] hover:scale-102 cursor-pointer flex items-center justify-center gap-2 shrink-0"
+              >
+                <Unlock className="w-3.5 h-3.5" />
+                <span>KELUAR DARI ADMIN</span>
+              </button>
+            </div>
+            
             {/* Real-time Custom Database Mode & PostgreSQL Integration Banner */}
             <div className="bg-gradient-to-r from-[#0a1b3a] to-[#041026] p-5 rounded-2xl border border-teal-500/30 shadow-[0_0_20px_rgba(20,184,166,0.1)] space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-4">
@@ -4423,8 +4426,8 @@ export default function App() {
                     </div>
                     <p className="text-xs text-slate-400 mt-1 leading-normal max-w-[620px]">
                       {isDbConnected 
-                        ? 'Koneksi ke database PostgreSQL lokal teruji aktif. Sinkronisasi data telemetri otomatis beroperasi di latar belakang.' 
-                        : 'Menunggu pengujian koneksi. Klik tombol konfigurasi jika Anda ingin menyinkronkan data ke basis data PostgreSQL lokal Anda.'}
+                        ? '' 
+                        : ''}
                     </p>
                   </div>
                 </div>
@@ -4961,13 +4964,6 @@ header("Content-Type: application/json; charset=UTF-8");
                       {showRealDb ? 'DATABASE RAW POSTGRESQL' : 'TRANSIENT OFFLINE SIMULATION'}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 leading-normal max-w-[650px]">
-                    {showRealDb ? (
-                      <span>Menampilkan <strong>{filteredLogs.length} data riwayat nyata</strong> yang bersumber langsung dari tabel PostgreSQL <code className="text-[#00f0ff] font-mono">tbl_sensor_logs</code> komputer/server lokal Anda untuk keperluan audit/inspeksi.</span>
-                    ) : (
-                      <span>Menampilkan data log simulasi offline karena basis data PostgreSQL belum terhubung atau ditarik. Klik tombol di kanan untuk memuat data asli database jika PostgreSQL Anda aktif.</span>
-                    )}
-                  </p>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
@@ -5147,7 +5143,34 @@ header("Content-Type: application/json; charset=UTF-8");
 
         {/* PAGE tab 4: SETTINGS OPT */}
         {activeTab === 'settings' && (
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+          <div className="space-y-6">
+            
+            {/* Otorisasi Admin Status Bar */}
+            <div className="bg-emerald-950/25 border-2 border-emerald-500/30 rounded-2xl p-4.5 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-500/10 border border-emerald-500/40 rounded-xl">
+                  <Shield className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h5 className="text-xs font-black uppercase text-white font-mono tracking-wider">Mode Otorisasi Admin Aktif</h5>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Anda saat ini memiliki hak akses penuh untuk membaca database logs & mengubah konfigurasi.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setCurrentUserRole('user');
+                  localStorage.setItem('aws_user_role', 'user');
+                  setActiveTab('realtime');
+                  showToastNotification("🟢 Berhasil Keluar dari Mode Admin");
+                }}
+                className="w-full sm:w-auto bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-mono text-[10px] font-black tracking-widest px-5 py-2.5 rounded-xl uppercase transition-all shadow-[0_0_15px_rgba(239,68,68,0.2)] hover:scale-102 cursor-pointer flex items-center justify-center gap-2 shrink-0"
+              >
+                <Unlock className="w-3.5 h-3.5" />
+                <span>KELUAR DARI ADMIN</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
             
             {/* COLUMN 1: Hardware & Network (width 4/12) */}
             <div className="xl:col-span-4 space-y-6">
@@ -5193,15 +5216,6 @@ header("Content-Type: application/json; charset=UTF-8");
                       )}
                     </div>
                   )}
-
-                  <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-1">
-                    <label className="text-xs md:text-xs uppercase font-bold text-emerald-400 font-mono tracking-wider block mb-1">🔌 Mode Pengoperasian</label>
-                    <div className="text-xs text-slate-100 font-bold font-mono">📡 HARDWARE REAL-TIME RECEIVER</div>
-                    <p className="text-xs text-slate-400 font-sans mt-1 leading-normal">
-                      Simulasi dinonaktifkan sepenuhnya. Sistem memproses data real-time langsung melalui physical receiver.
-                    </p>
-                  </div>
-
                   <div className="mb-3.5">
                     <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">🏷️ Station ID</label>
                     <input 
@@ -5302,10 +5316,7 @@ header("Content-Type: application/json; charset=UTF-8");
                           onChange={(e) => {
                             const newCfg = { ...config, moxaDaemonUrl: e.target.value };
                             setConfig(newCfg);
-                          }}
-                          onBlur={(e) => {
-                            const newCfg = { ...config, moxaDaemonUrl: e.target.value };
-                            handleSaveConfig(newCfg, "Daemon URL updated");
+                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
                           }}
                           className="w-full bg-black border border-white/10 font-mono text-xs text-center p-2 text-teal-300 rounded focus:border-[#00f0ff] outline-none" 
                         />
@@ -5341,22 +5352,20 @@ header("Content-Type: application/json; charset=UTF-8");
 
                   <div className="border-t border-white/5 pt-3">
                     <label className="text-xs uppercase font-bold text-rose-400 tracking-wider block mb-1.5 flex items-center gap-1.5">
-                      🔒 Kunci Dashboard Saat Offline (Tampilkan Warning)
+                      🔒 Device Offline: Dashboard Hiden
                     </label>
                     <select 
                       value={config.lockOfflineDashboard || 'ON'} 
                       onChange={(e) => {
                         const newCfg = { ...config, lockOfflineDashboard: e.target.value };
-                        handleSaveConfig(newCfg, `Dashboard lock set to ${e.target.value}`);
+                        setConfig(newCfg);
+                        localStorage.setItem('aws_config', JSON.stringify(newCfg));
                       }}
                       className="w-full bg-[#050a12] border border-white/15 font-mono text-xs md:text-sm p-3 text-rose-300 font-bold rounded-lg outline-none cursor-pointer focus:border-rose-400"
                     >
-                      <option value="ON">ON (Kunci &amp; Blokir Dashboard)</option>
-                      <option value="OFF">OFF (Tampilkan Data Terakhir Tanpa Blokir)</option>
+                      <option value="ON">ON Locked</option>
+                      <option value="OFF">OFF </option>
                     </select>
-                    <p className="text-[10px] text-slate-400 font-sans mt-1 leading-normal">
-                      Saat sensor/Moxa mati atau terputus, opsi <strong>ON</strong> akan menampilkan layar warning peringatan merah agar petugas tahu ada kerusakan data stream. Opsi <strong>OFF</strong> akan membiarkan dashboard menampilkan data terakhir.
-                    </p>
                   </div>
 
                   <div className="border-t border-white/5 pt-3">
@@ -5373,9 +5382,6 @@ header("Content-Type: application/json; charset=UTF-8");
                       <option value="125">125% (Sangat Besar)</option>
                       <option value="130">130% (Resolusi Tinggi / High DPI)</option>
                     </select>
-                    <p className="text-xs text-slate-400 font-sans mt-1 leading-normal">
-                      Sesuaikan skala ukuran teks untuk kenyamanan membaca di layar laptop Anda.
-                    </p>
                   </div>
 
                   {/* Cloud Mode configs */}
@@ -5630,9 +5636,6 @@ header("Content-Type: application/json; charset=UTF-8");
                           onChange={(e) => setConfig({ ...config, localDbApiUrl: e.target.value })}
                           className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-teal-400 rounded outline-none text-left"
                         />
-                        <p className="text-xs text-slate-500 font-mono mt-1 leading-tight">
-                          Alamat file <code className="text-slate-400 bg-white/5 px-0.5 rounded">api.php</code> di server PHP standalone atau virtual host Anda.
-                        </p>
                         {window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && (
                           <p className="text-xs text-amber-500 font-mono mt-1 leading-tight">
                             ℹ️ <strong>LAN Auto-Resolve Aktif:</strong> Karena Anda mengakses dari perangkat lain (<code className="text-amber-400 font-bold">{window.location.hostname}</code>), semua URL <code className="text-slate-400">localhost</code> akan dialihkan ke IP server utama secara otomatis demi menjaga status tetap ONLINE.
@@ -5848,6 +5851,7 @@ header("Content-Type: application/json; charset=UTF-8");
             </div>
 
           </div>
+          </div>
         )}
 
         {/* PAGE tab 5: BMKG FORECAST INTEGRATION */}
@@ -5963,7 +5967,8 @@ header("Content-Type: application/json; charset=UTF-8");
                               bmkgPortSlug: config.bmkgPortSlug || 'pelabuhan_ciwandan',
                               bmkgPortLabel: config.stationName || config.bmkgPortLabel || 'Pelabuhan Ciwandan'
                             };
-                            handleSaveConfig(newCfg, "Custom mode selected");
+                            setConfig(newCfg);
+                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
                           } else {
                             const selectedObj = BMKG_PORTS_LIST.find(item => item.slug === val);
                             if (selectedObj) {
@@ -5973,13 +5978,15 @@ header("Content-Type: application/json; charset=UTF-8");
                                 bmkgPortSlug: selectedObj.slug,
                                 bmkgPortLabel: selectedObj.label
                               };
+                              setConfig(newCfg);
+                              localStorage.setItem('aws_config', JSON.stringify(newCfg));
                               
                               // Update the historical database logs to reflect this port profile immediately
                               const newHistory = generateInitialLogs(45, newCfg.dbStorageInterval || 10, selectedObj.slug);
                               setHistory(newHistory);
                               localStorage.setItem('aws_history_logs', JSON.stringify(newHistory));
 
-                              handleSaveConfig(newCfg, `Lokasi diubah: ${selectedObj.label}`);
+                              showToastNotification(`Lokasi diubah: ${selectedObj.label}`);
                               fetchBmkgLive(selectedObj.slug, true);
                             }
                           }
@@ -6039,13 +6046,15 @@ header("Content-Type: application/json; charset=UTF-8");
                               bmkgPortSlug: item.slug,
                               bmkgPortLabel: fullLabel
                             };
+                            setConfig(newCfg);
+                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
 
                             // Update the historical database logs to reflect this port profile immediately
                             const newHistory = generateInitialLogs(45, newCfg.dbStorageInterval || 10, item.slug);
                             setHistory(newHistory);
                             localStorage.setItem('aws_history_logs', JSON.stringify(newHistory));
 
-                            handleSaveConfig(newCfg, `Lokasi diubah: ${fullLabel}`);
+                            showToastNotification(`Lokasi diubah: ${fullLabel}`);
                             fetchBmkgLive(item.slug, true);
                           }}
                           className={`px-3 py-1.5 text-[10px] font-mono tracking-tight font-extrabold rounded-lg whitespace-nowrap border shrink-0 transition-all cursor-pointer ${
@@ -6080,11 +6089,7 @@ header("Content-Type: application/json; charset=UTF-8");
                           const val = e.target.value.toLowerCase().replace(/[^a-z0-9\-_]/g, '');
                           const newCfg = { ...config, bmkgPortSlug: val };
                           setConfig(newCfg);
-                        }}
-                        onBlur={(e) => {
-                          const val = e.target.value.toLowerCase().replace(/[^a-z0-9\-_]/g, '');
-                          const newCfg = { ...config, bmkgPortSlug: val };
-                          handleSaveConfig(newCfg, "Custom slug saved");
+                          localStorage.setItem('aws_config', JSON.stringify(newCfg));
                         }}
                         className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 rounded-xl outline-none focus:border-[#10b981]"
                       />
@@ -6098,10 +6103,7 @@ header("Content-Type: application/json; charset=UTF-8");
                         onChange={(e) => {
                           const newCfg = { ...config, stationName: e.target.value, bmkgPortLabel: e.target.value };
                           setConfig(newCfg);
-                        }}
-                        onBlur={(e) => {
-                          const newCfg = { ...config, stationName: e.target.value, bmkgPortLabel: e.target.value };
-                          handleSaveConfig(newCfg, "Custom name saved");
+                          localStorage.setItem('aws_config', JSON.stringify(newCfg));
                         }}
                         className="w-full bg-[#050a12] border border-white/10 font-sans text-xs p-2 rounded-xl outline-none focus:border-[#10b981]"
                       />
@@ -7217,20 +7219,6 @@ header("Content-Type: application/json; charset=UTF-8");
                           * Tampilan skema dashboard realtime di atas mencakup seluruh widget pembacaan live sesuai screenshot AWS OS Connection.
                         </p>
                       </div>
-
-                      {/* Real Image Screenshot for Realtime Tab */}
-                      <div className="border border-[#00f0ff]/20 rounded-2xl bg-slate-950 p-2.5 shadow-lg max-w-full overflow-hidden space-y-2 mt-4">
-                        <div className="text-[10px] font-mono text-[#00f0ff] uppercase tracking-wider font-bold px-1.5 flex items-center justify-between">
-                          <span>📸 SIMULASI GAMBAR NYATA - DASHBOARD UTAMA</span>
-                          <span className="text-slate-500 text-[8px]">AWS REALTIME VIEW</span>
-                        </div>
-                        <img 
-                          src={dashboardGuideImg} 
-                          alt="Real-time Dashboard" 
-                          className="w-full h-auto rounded-xl border border-white/5 object-cover" 
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
                     </div>
                   </div>
                 )}
@@ -7357,20 +7345,6 @@ header("Content-Type: application/json; charset=UTF-8");
                         <p className="text-[10px] text-slate-400 italic">
                           * Tampilan skema chart tren cuaca dan wind rose di atas mencakup seluruh widget sesuai screenshot Analyst Tab.
                         </p>
-                      </div>
-
-                      {/* Real Image Screenshot for Analyst Tab */}
-                      <div className="border border-amber-500/20 rounded-2xl bg-slate-950 p-2.5 shadow-lg max-w-full overflow-hidden space-y-2">
-                        <div className="text-[10px] font-mono text-amber-400 uppercase tracking-wider font-bold px-1.5 flex items-center justify-between">
-                          <span>📸 SIMULASI GAMBAR NYATA - DASHBOARD ANALISIS HISTORIS</span>
-                          <span className="text-slate-500 text-[8px]">AWS ANALYST VIEW</span>
-                        </div>
-                        <img 
-                          src={analystGuideImg} 
-                          alt="Historical Analyst" 
-                          className="w-full h-auto rounded-xl border border-white/5 object-cover" 
-                          referrerPolicy="no-referrer"
-                        />
                       </div>
 
                       {/* Detail of 11 Sensor Analyst Charts */}
@@ -7865,20 +7839,6 @@ header("Content-Type: application/json; charset=UTF-8");
                           * Tampilan skema halaman BMKG di atas mencakup seluruh widget parameter cuaca laut sesuai screenshot BMKG Tab.
                         </p>
                       </div>
-
-                      {/* Real Image Screenshot for BMKG Tab */}
-                      <div className="border border-emerald-500/20 rounded-2xl bg-slate-950 p-2.5 shadow-lg max-w-full overflow-hidden space-y-2">
-                        <div className="text-[10px] font-mono text-emerald-400 uppercase tracking-wider font-bold px-1.5 flex items-center justify-between">
-                          <span>📸 SIMULASI GAMBAR NYATA - PRAKIRAAN CUACA MARITIM BMKG</span>
-                          <span className="text-slate-500 text-[8px]">AWS BMKG VIEW</span>
-                        </div>
-                        <img 
-                          src={bmkgGuideImg} 
-                          alt="BMKG Port Guide" 
-                          className="w-full h-auto rounded-xl border border-white/5 object-cover" 
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
                     </div>
                   </div>
                 )}
@@ -7984,20 +7944,6 @@ header("Content-Type: application/json; charset=UTF-8");
                         <p className="text-[10px] text-slate-400 italic">
                           * Tampilan skema menu Database di atas mencakup seluruh widget pengolahan logs sesuai screenshot Database Tab.
                         </p>
-                      </div>
-
-                      {/* Real Image Screenshot for Database Tab */}
-                      <div className="border border-[#00f0ff]/20 rounded-2xl bg-slate-950 p-2.5 shadow-lg max-w-full overflow-hidden space-y-2">
-                        <div className="text-[10px] font-mono text-[#00f0ff] uppercase tracking-wider font-bold px-1.5 flex items-center justify-between">
-                          <span>📸 SIMULASI GAMBAR NYATA - DATABASE LOGS & EKSPOR DATA</span>
-                          <span className="text-slate-500 text-[8px]">AWS DATABASE VIEW</span>
-                        </div>
-                        <img 
-                          src={databaseGuideImg} 
-                          alt="Database Logs Guide" 
-                          className="w-full h-auto rounded-xl border border-white/5 object-cover" 
-                          referrerPolicy="no-referrer"
-                        />
                       </div>
                     </div>
                   </div>
@@ -8144,6 +8090,100 @@ header("Content-Type: application/json; charset=UTF-8");
         </div>
       )}
 
+      {/* ADMIN PASSCODE LOGIN MODAL */}
+      {isAdminLoginModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-md animate-fade-in font-sans">
+          <div className="bg-[#07111e] border-2 border-[#00f0ff]/30 w-full max-w-md rounded-3xl shadow-[0_0_60px_rgba(0,240,255,0.4)] flex flex-col overflow-hidden relative text-slate-100">
+            
+            {/* Corner highlights */}
+            <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-[#00f0ff]/40 rounded-tl-xl" />
+            <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-[#00f0ff]/40 rounded-br-xl" />
+
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-[#11243b] to-[#081220] px-6 py-5 border-b border-[#00f0ff]/20 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-rose-500/15 rounded-lg border border-rose-500/30 animate-pulse">
+                  <Lock className="w-5 h-5 text-rose-400" />
+                </div>
+                <div>
+                  <h2 className="text-md font-black tracking-wider uppercase text-white">LOGIN OTORISASI ADMIN</h2>
+                  <p className="text-[9px] font-mono text-[#00f0ff] uppercase tracking-widest mt-0.5">Sistem Penguncian Parameter AWS</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsAdminLoginModalOpen(false);
+                  setPasscodeVal('');
+                  setPasscodeError('');
+                }}
+                className="p-1.5 rounded-lg border border-white/10 hover:border-red-500/40 text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer flex items-center justify-center"
+                title="Batal Login"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handlePasscodeSubmit} className="p-6 space-y-4">
+              <div className="space-y-1 text-center py-1">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Masukkan passcode otorisasi Admin KBS untuk membuka akses tab <strong className="text-white">DATABASE LOGS</strong> dan <strong className="text-white">SYSTEM CONFIGURATIONS (OPTION)</strong>.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono uppercase font-bold text-slate-400 block tracking-wider">Passcode Otorisasi</label>
+                <div className="relative">
+                  <input 
+                    type="password"
+                    value={passcodeVal}
+                    onChange={(e) => {
+                      setPasscodeVal(e.target.value);
+                      if (passcodeError) setPasscodeError('');
+                    }}
+                    placeholder="••••••••"
+                    autoFocus
+                    className="w-full bg-black/50 border border-white/15 focus:border-[#00f0ff] font-mono text-center text-sm p-3 rounded-xl outline-none transition-all tracking-widest text-[#00f0ff] placeholder-slate-600 shadow-inner"
+                  />
+                </div>
+                
+                {passcodeError && (
+                  <p className="text-[10px] font-mono text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2 rounded-lg text-center font-bold">
+                    ⚠️ {passcodeError}
+                  </p>
+                )}
+              </div>
+
+              <div className="text-center bg-black/40 p-2.5 rounded-xl border border-white/5">
+                <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block">💡 Petunjuk Otorisasi</span>
+                <span className="text-[10px] font-mono text-slate-400 mt-1 block">Passcode Default: <strong className="text-teal-400 font-bold">admin123</strong></span>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsAdminLoginModalOpen(false);
+                    setPasscodeVal('');
+                    setPasscodeError('');
+                  }}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer border border-white/5 text-center"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 bg-[#00f0ff] hover:bg-[#00d0e0] text-black font-black py-3 px-4 rounded-xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_15px_rgba(0,240,255,0.3)] text-center"
+                >
+                  VERIFIKASI
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      )}
+
       {/* Decorative subtle console metadata footer */}
       <footer className="fixed bottom-3 right-6 pointer-events-none opacity-20 flex flex-col items-end gap-0.5">
         <span className="text-xs font-mono tracking-widest text-[#00f0ff] uppercase">AWS SYS STN: CONNECTED SECURE</span>
@@ -8152,4 +8192,3 @@ header("Content-Type: application/json; charset=UTF-8");
     </div>
   );
 }
-
