@@ -591,6 +591,12 @@ export default function App() {
             const parsedHistory = rawRows.map(parseDbRowToWeatherData).reverse();
             setHistory(parsedHistory);
             localStorage.setItem('aws_history_logs', JSON.stringify(parsedHistory));
+            
+            // Atur lastIncomingTime dari rekor database terbaru agar status offline tidak memblokir di awal
+            const latestRecord = parsedHistory[parsedHistory.length - 1];
+            if (latestRecord && latestRecord.timestamp) {
+              setLastIncomingTime(latestRecord.timestamp);
+            }
             console.log("🟢 Sinkronisasi History DB & Config selesai!");
           }
         }
@@ -785,18 +791,25 @@ export default function App() {
     }
 
     const checkActive = () => {
+      // 1. Jika status Moxa dari Express/Daemon melaporkan "terhubung", maka AWS aktif!
+      if (moxaStatus && moxaStatus.connected) {
+        setIsLiveActive(true);
+        return;
+      }
+
+      // 2. Fallback ke waktu kedatangan paket real-time terakhir
       if (lastIncomingTime === null) {
         setIsLiveActive(false);
       } else {
         const elapsed = Date.now() - lastIncomingTime;
-        setIsLiveActive(elapsed < 25000); // 25 seconds timeout
+        setIsLiveActive(elapsed < 45000); // 45 seconds timeout untuk toleransi koneksi seluler/remote
       }
     };
 
     checkActive();
     const intervalId = setInterval(checkActive, 2000);
     return () => clearInterval(intervalId);
-  }, [lastIncomingTime, config.transport]);
+  }, [lastIncomingTime, config.transport, moxaStatus]);
 
   // Reset live connection tracking when transport type is changed
   useEffect(() => {
@@ -864,9 +877,9 @@ export default function App() {
           }
         });
 
-        // Stream live parsed and enriched data (especially useful for simulated OFF mode synchrony across clients)
+        // Stream live parsed and enriched data (especially useful for simulated OFF mode and Moxa synchrony across clients)
         socket.on('dataUpdate', (parsedRecord: any) => {
-          if (parsedRecord && configRef.current.transport === 'OFF') {
+          if (parsedRecord) {
             setHistory(prev => {
               // Prevent duplicate records for the same exact timestamp
               if (prev.length > 0 && prev[prev.length - 1].timestamp === parsedRecord.timestamp) {
@@ -880,14 +893,20 @@ export default function App() {
 
             setLastIncomingTime(Date.now());
 
-            // Process averages and sample buffers
-            processNewSampleRef.current?.(parsedRecord);
+            // Jalankan processNewSample (penyimpanan DB/Averaging) hanya di mode OFF (simulasi),
+            // sedangkan di mode MOXA_TCP, penyimpanan DB ditangani secara lokal melalui parsing rawTelemetry langsung di browser client utama.
+            if (configRef.current.transport === 'OFF') {
+              processNewSampleRef.current?.(parsedRecord);
+            }
 
             // Print success logs to terminal
             setStreamLogs(prev => {
               const list = prev.split('\n');
               const ts = new Date().toLocaleTimeString('id-ID');
-              const logLine = `[${ts} SIMULATION INBOUND] 🟢 RECEIVED CORE PACKET -> Temp: ${parsedRecord.temperature}°C, WS: ${parsedRecord.windSpeed}m/s, pH: ${parsedRecord.waterPh}`;
+              const tempVal = parsedRecord.temperature !== undefined ? parsedRecord.temperature : (parsedRecord.temp !== undefined ? parsedRecord.temp : 0);
+              const wsVal = parsedRecord.windSpeed !== undefined ? parsedRecord.windSpeed : (parsedRecord.wind_speed !== undefined ? parsedRecord.wind_speed : 0);
+              const phVal = parsedRecord.waterPh !== undefined ? parsedRecord.waterPh : (parsedRecord.water_ph !== undefined ? parsedRecord.water_ph : 7.0);
+              const logLine = `[${ts} INBOUND] 🟢 RECEIVED CORE PACKET -> Temp: ${tempVal}°C, WS: ${wsVal}m/s, pH: ${phVal}`;
               const output = [...list, logLine];
               return (output.length > 40 ? output.slice(output.length - 30) : output).join('\n');
             });

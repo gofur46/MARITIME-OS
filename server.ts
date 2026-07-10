@@ -863,6 +863,31 @@ app.get("/api/moxa_status", (req, res) => {
   res.json(lastMoxaStatus);
 });
 
+// POST /api/telemetry - Receive parsed telemetry data from Moxa Daemon and broadcast it
+app.post("/api/telemetry", (req, res) => {
+  const parsedRecord = req.body;
+  if (parsedRecord) {
+    const enriched = parseDbRowToWeatherData(parsedRecord);
+    liveHistoryQueue.push(enriched);
+    if (liveHistoryQueue.length > MAX_QUEUE_SIZE) {
+      liveHistoryQueue.shift();
+    }
+    io.emit("dataUpdate", enriched);
+    return res.json({ success: true });
+  }
+  return res.status(400).json({ error: "Invalid data" });
+});
+
+// POST /api/raw-telemetry - Receive raw telemetry packets from Moxa Daemon and broadcast them
+app.post("/api/raw-telemetry", (req, res) => {
+  const raw = req.body;
+  if (raw) {
+    io.emit("rawTelemetry", raw);
+    return res.json({ success: true });
+  }
+  return res.status(400).json({ error: "Invalid data" });
+});
+
 // Transparent PostgreSQL API Proxy for api.php
 app.all("/api/local-db", async (req, res) => {
   const targetUrl = "http://localhost:8000/api.php";

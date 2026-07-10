@@ -15,6 +15,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import net from 'net';
 import http from 'http';
+import https from 'https';
 import { URL } from 'url';
 
 // ==================== CONFIGURATION ====================
@@ -48,6 +49,7 @@ console.log(`==================================================================\
 
 let client = null;
 let reconnectTimer = null;
+let connectTimeoutTimer = null;
 let isFetchingConfig = false;
 let isTcpConnecting = false;
 let dataBuffer = ''; // Penyangga byte stream
@@ -60,18 +62,50 @@ let lastStatus = {
     error: 'Initializing daemon...'
 };
 
-// Parser URL cerdas untuk posting database
+// Parser URL cerdas untuk posting database (Mendukung http dan https)
 function parseUrlConfig(targetUrl) {
     try {
         const parsed = new URL(targetUrl);
         return {
+            protocol: parsed.protocol || 'http:',
             hostname: parsed.hostname || 'localhost',
             port: parsed.port ? parseInt(parsed.port) : (parsed.protocol === 'https:' ? 443 : 80),
             path: parsed.pathname + parsed.search
         };
     } catch (e) {
-        return { hostname: 'localhost', port: 80, path: '/aws_marine/api.php' };
+        return { protocol: 'http:', hostname: 'localhost', port: 80, path: '/aws_marine/api.php' };
     }
+}
+
+// Helper untuk melakukan request HTTP/HTTPS secara cerdas
+function makeRequest(targetUrl, options, callback, bodyData = null) {
+    const apiParts = parseUrlConfig(targetUrl);
+    const clientLib = apiParts.protocol === 'https:' ? https : http;
+    
+    const reqOptions = {
+        hostname: apiParts.hostname,
+        port: apiParts.port,
+        path: options.path || apiParts.path,
+        method: options.method || 'GET',
+        headers: options.headers || {}
+    };
+
+    if (bodyData) {
+        reqOptions.headers['Content-Type'] = 'application/json';
+        reqOptions.headers['Content-Length'] = Buffer.byteLength(bodyData);
+    }
+
+    const req = clientLib.request(reqOptions, callback);
+    req.on('error', (err) => {
+        if (options.onError) {
+            options.onError(err);
+        }
+    });
+
+    if (bodyData) {
+        req.write(bodyData);
+    }
+    req.end();
 }
 
 // Menyiarkan status terbaru ke seluruh klien Socket.IO & mengabari api.php
@@ -104,23 +138,10 @@ function updateStatusOnPhpServer(connected, stateLabel, errorMsg) {
     };
     
     const dataString = JSON.stringify(statusPayload);
-    const apiParts = parseUrlConfig(API_URL);
-    
-    const options = {
-        hostname: apiParts.hostname,
-        port: apiParts.port,
-        path: apiParts.path,
+    makeRequest(API_URL, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(dataString)
-        }
-    };
-
-    const req = http.request(options);
-    req.on('error', () => {}); // Silenced
-    req.write(dataString);
-    req.end();
+        onError: () => {}
+    }, () => {}, dataString);
 }
 
 // Ambil konfigurasi paling update dari database
@@ -141,14 +162,17 @@ function syncConfigAndConnect() {
     console.log(`[${new Date().toISOString()}] 🔍 Mengambil konfigurasi IP & Port dari database via api.php...`);
     
     const apiParts = parseUrlConfig(API_URL);
-    const options = {
-        hostname: apiParts.hostname,
-        port: apiParts.port,
-        path: apiParts.path + (apiParts.path.includes('?') ? '&' : '?') + 'get_moxa_config=1',
-        method: 'GET'
-    };
+    const moxaConfigPath = apiParts.path + (apiParts.path.includes('?') ? '&' : '?') + 'get_moxa_config=1';
 
-    const req = http.request(options, (res) => {
+    makeRequest(API_URL, {
+        path: moxaConfigPath,
+        method: 'GET',
+        onError: (err) => {
+            console.warn(`[${new Date().toISOString()}] ⚠️ Server PHP API Offline. Menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
+            isFetchingConfig = false;
+            connectToMoxa();
+        }
+    }, (res) => {
         let body = '';
         res.on('data', (chunk) => { body += chunk; });
         res.on('end', () => {
@@ -170,14 +194,6 @@ function syncConfigAndConnect() {
             connectToMoxa();
         });
     });
-
-    req.on('error', (err) => {
-        console.warn(`[${new Date().toISOString()}] ⚠️ Server PHP API Offline. Menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
-        isFetchingConfig = false;
-        connectToMoxa();
-    });
-
-    req.end();
 }
 
 function connectToMoxa() {
@@ -191,6 +207,16 @@ function connectToMoxa() {
         try { client.destroy(); } catch (e) {}
     }
 
+    if (connectTimeoutTimer) clearTimeout(connectTimeoutTimer);
+    connectTimeoutTimer = setTimeout(() => {
+        if (isTcpConnecting) {
+            console.warn(`[${new Date().toISOString()}] ⚠️ [HANDSHAKE TIMEOUT] Gagal terhubung ke Moxa (Handshake Timeout setelah 5 detik)`);
+            isTcpConnecting = false;
+            broadcastStatus(false, 'TIMEOUT', 'Batas waktu koneksi habis (Moxa Offline)');
+            try { client.destroy(); } catch (e) {}
+        }
+    }, 5000);
+
     client = new net.Socket();
     
     // Enable TCP Keep-Alives to detect broken physical connection quickly
@@ -200,12 +226,14 @@ function connectToMoxa() {
     client.setTimeout(5000);
 
     client.on('timeout', () => {
+        if (connectTimeoutTimer) clearTimeout(connectTimeoutTimer);
         console.warn(`[${new Date().toISOString()}] ⚠️ [TCP TIMEOUT] Batas waktu koneksi/data Moxa terlampaui (${MOXA_IP}:${MOXA_PORT})!`);
         broadcastStatus(false, 'TIMEOUT', 'Batas waktu koneksi habis (Moxa Offline)');
         client.destroy(); // Destroys socket, triggering 'close' event
     });
 
     client.connect(MOXA_PORT, MOXA_IP, () => {
+        if (connectTimeoutTimer) clearTimeout(connectTimeoutTimer);
         isTcpConnecting = false;
         console.log(`[${new Date().toISOString()}] 🟢 [CONNECTED] Sukses tersambung ke Moxa!`);
         dataBuffer = '';
@@ -234,6 +262,7 @@ function connectToMoxa() {
     });
 
     client.on('close', () => {
+        if (connectTimeoutTimer) clearTimeout(connectTimeoutTimer);
         isTcpConnecting = false;
         console.log(`[${new Date().toISOString()}] 🔴 [DISCONNECTED] Koneksi ke MOXA terputus!`);
         broadcastStatus(false, 'DISCONNECTED', 'Koneksi terputus');
@@ -241,6 +270,7 @@ function connectToMoxa() {
     });
 
     client.on('error', (err) => {
+        if (connectTimeoutTimer) clearTimeout(connectTimeoutTimer);
         isTcpConnecting = false;
         console.error(`[${new Date().toISOString()}] ❌ [TCP ERROR]: ${err.message}`);
         broadcastStatus(false, 'ERROR', err.message);
@@ -271,6 +301,8 @@ function processRawPayload(rawPayload) {
         timestamp: new Date().toLocaleTimeString('id-ID'),
         data: rawPayload
     });
+
+    postRawTelemetryToExpress(rawPayload);
 
     const tokens = rawPayload.split(';');
 
@@ -316,6 +348,8 @@ function processRawPayload(rawPayload) {
         // 1. Emit live parsed telemetry ke React UI via Socket.io secara instan
         io.emit('dataUpdate', mappedRecord);
 
+        postTelemetryToExpress(mappedRecord);
+
         // 2. Pompa asinkron langsung ke PostgreSQL (via api.php) dinonaktifkan
         // Penyimpanan database sekarang dihandle oleh aplikasi frontend React agar mematuhi interval penyimpanan & averaging mode di Pengaturan
         // postToPhpGateway(mappedRecord);
@@ -325,32 +359,52 @@ function processRawPayload(rawPayload) {
     }
 }
 
+function postTelemetryToExpress(payload) {
+    let telemetryUrl = API_URL;
+    if (API_URL.includes('/api/aws-config')) {
+        telemetryUrl = API_URL.replace('/api/aws-config', '/api/telemetry');
+    } else if (API_URL.includes('/api/local-db')) {
+        telemetryUrl = API_URL.replace('/api/local-db', '/api/telemetry');
+    } else {
+        return;
+    }
+    
+    const dataString = JSON.stringify(payload);
+    makeRequest(telemetryUrl, {
+        method: 'POST',
+        onError: () => {}
+    }, () => {}, dataString);
+}
+
+function postRawTelemetryToExpress(rawPayload) {
+    let rawUrl = API_URL;
+    if (API_URL.includes('/api/aws-config')) {
+        rawUrl = API_URL.replace('/api/aws-config', '/api/raw-telemetry');
+    } else if (API_URL.includes('/api/local-db')) {
+        rawUrl = API_URL.replace('/api/local-db', '/api/raw-telemetry');
+    } else {
+        return;
+    }
+    
+    const dataString = JSON.stringify({
+        timestamp: new Date().toLocaleTimeString('id-ID'),
+        data: rawPayload
+    });
+    makeRequest(rawUrl, {
+        method: 'POST',
+        onError: () => {}
+    }, () => {}, dataString);
+}
+
 function postToPhpGateway(payload) {
     const dataString = JSON.stringify(payload);
-    const apiParts = parseUrlConfig(API_URL);
-    
-    const options = {
-        hostname: apiParts.hostname,
-        port: apiParts.port,
-        path: apiParts.path,
+    makeRequest(API_URL, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(dataString)
-        }
-    };
-
-    const req = http.request(options, (res) => {
+        onError: () => {}
+    }, (res) => {
         let responseBody = '';
         res.on('data', (chunk) => { responseBody += chunk; });
-    });
-
-    req.on('error', (err) => {
-        // Silent error
-    });
-
-    req.write(dataString);
-    req.end();
+    }, dataString);
 }
 
 // Server endpoints Express
