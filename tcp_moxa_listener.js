@@ -306,7 +306,13 @@ function connectToMoxa() {
 
 function scheduleReconnect() {
     if (reconnectTimer) clearTimeout(reconnectTimer);
-    console.log(`[${new Date().toISOString()}] ⏱️ Menjadwalkan reconnect dalam ${currentReconnectInterval / 1000} detik...`);
+    const retrySeconds = currentReconnectInterval / 1000;
+    const reconnectMsg = `Menjadwalkan koneksi ulang (reconnect) ke Moxa di IP ${MOXA_IP}:${MOXA_PORT} dalam ${retrySeconds} detik...`;
+    console.log(`[${new Date().toISOString()}] ⏱️ [RECONNECT] ${reconnectMsg}`);
+    
+    // Kirim status bahwa daemon sedang masa jeda untuk mencoba menghubungkan kembali ke IP & Port tersebut
+    broadcastStatus(false, 'RECONNECTING', `Sedang menjadwalkan koneksi ulang ke ${MOXA_IP}:${MOXA_PORT} dalam ${retrySeconds} detik...`);
+
     reconnectTimer = setTimeout(() => {
         syncConfigAndConnect();
     }, currentReconnectInterval);

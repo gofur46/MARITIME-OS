@@ -2423,8 +2423,14 @@ export default function App() {
                     <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Logger Transport Mode:</span> <span className="font-extrabold text-red-400">{config.transport}</span></div>
                     {config.transport === 'MOXA_TCP' ? (
                       <>
-                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">IP Gateway Moxa:</span> <span className="font-bold text-slate-200">{config.serialcom || '192.168.1.1'}</span></div>
-                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Port Gateway Moxa:</span> <span className="font-bold text-slate-200">{config.baudrate || '4001'}</span></div>
+                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">IP Gateway Moxa:</span> <span className="font-bold text-slate-200">{moxaStatus?.moxa_ip || config.serialcom || '192.168.1.1'}</span></div>
+                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Port Gateway Moxa:</span> <span className="font-bold text-slate-200">{moxaStatus?.moxa_port || config.baudrate || '4001'}</span></div>
+                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Daemon State:</span> <span className={`font-bold ${moxaStatus && moxaStatus.connected ? 'text-emerald-400' : 'text-amber-400 animate-pulse'}`}>{moxaStatus?.state || 'OFFLINE'}</span></div>
+                        {moxaStatus?.error && (
+                          <div className="text-[10px] text-amber-400 bg-amber-500/10 p-2.5 rounded border border-amber-500/20 whitespace-pre-wrap leading-relaxed max-w-full overflow-x-auto">
+                            💡 {moxaStatus.error}
+                          </div>
+                        )}
                       </>
                     ) : (
                       <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Serial Port / Endpoint:</span> <span className="font-bold text-slate-200">{config.serialcom || 'COM1'}</span></div>
@@ -2464,11 +2470,16 @@ export default function App() {
                   <div className="p-2.5 bg-red-500/20 border border-red-500/40 rounded-xl">
                     <AlertTriangle className="w-6 h-6 text-red-500" />
                   </div>
-                  <div className="text-left space-y-0.5">
+                  <div className="text-left space-y-1">
                     <span className="text-sm font-black text-red-400 tracking-wider font-mono block">🔴 WARNING: ALAT OFFLINE / JALUR DATA MASUK TERPUTUS</span>
                     <p className="text-xs text-slate-300 leading-normal">
                       Koneksi ke data logger aktif terputus. Dashboard saat ini menampilkan data rekaman terakhir yang tersimpan di sistem (<span className="text-amber-400 font-bold">stale data buffer</span>) untuk keamanan navigasi.
                     </p>
+                    {config.transport === 'MOXA_TCP' && (
+                      <div className="text-xs font-mono text-amber-300/95 bg-amber-500/10 px-2.5 py-1.5 rounded-lg border border-amber-500/20 inline-block">
+                        ⚡ Target IP: <strong className="text-white">{moxaStatus?.moxa_ip || config.serialcom}</strong> | Port: <strong className="text-white">{moxaStatus?.moxa_port || config.baudrate}</strong> | State: <strong className="text-amber-400 animate-pulse">{moxaStatus?.state || 'OFFLINE'}</strong> {moxaStatus?.error && `(${moxaStatus.error})`}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto">
