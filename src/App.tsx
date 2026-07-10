@@ -25,7 +25,7 @@ const CLIMATOLOGY_AVG = {
 const DEFAULT_CONFIG = {
   idStation: 'SYS1000',
   stationName: 'Automatic Weather Station',
-  transport: 'SERIAL', // SERIAL | TCP | OFF
+  transport: 'MOXA_TCP', // SERIAL | TCP | OFF
   splitchar: ';',
   serialcom: 'COM3',
   baudrate: '9600',
@@ -509,11 +509,23 @@ export default function App() {
   let parsedConfig = savedConfigStr ? JSON.parse(savedConfigStr) : null;
 
   // Auto-migrate old/stale sensor mappings in localStorage to the new correct default Moxa mappings
-  if (parsedConfig && parsedConfig.sensors) {
-    const isOldMapping = parsedConfig.sensors['ch_0'] === '2' || parsedConfig.sensors['ch_8'] === '3' || parsedConfig.sensors['ch_rain'] === '5';
-    if (isOldMapping) {
-      console.log("⚠️ Old/stale sensor mappings detected in localStorage. Auto-migrating to standard Moxa TCP/IP mappings.");
-      parsedConfig.sensors = { ...DEFAULT_CONFIG.sensors };
+  if (parsedConfig) {
+    let changed = false;
+    if (parsedConfig.sensors) {
+      const isOldMapping = parsedConfig.sensors['ch_0'] === '2' || parsedConfig.sensors['ch_8'] === '3' || parsedConfig.sensors['ch_rain'] === '5';
+      if (isOldMapping) {
+        console.log("⚠️ Old/stale sensor mappings detected in localStorage. Auto-migrating to standard Moxa TCP/IP mappings.");
+        parsedConfig.sensors = { ...DEFAULT_CONFIG.sensors };
+        changed = true;
+      }
+    }
+    // Auto-migrate transport to standard Moxa TCP/IP for instant live connection
+    if (parsedConfig.transport === 'SERIAL' || parsedConfig.transport === 'TCP') {
+      console.log("⚠️ Old transport detected in localStorage. Auto-migrating to MOXA_TCP.");
+      parsedConfig.transport = 'MOXA_TCP';
+      changed = true;
+    }
+    if (changed) {
       localStorage.setItem('aws_config', JSON.stringify(parsedConfig));
     }
   }
