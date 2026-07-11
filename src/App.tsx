@@ -47,6 +47,10 @@ const DEFAULT_CONFIG = {
   minPhThreshold: '6.5', // Default min safe pH
   maxPhThreshold: '8.5', // Default max safe pH
   rainWarningThreshold: '10.0', // Default rain warning threshold (mm)
+  windSpeedWarningThreshold: '10.0', // Default wind speed warning threshold (m/s)
+  windGustWarningThreshold: '14.0', // Default wind gust warning threshold (m/s)
+  windSpeedStormThreshold: '15.0', // Default storm wind speed threshold (m/s)
+  windGustStormThreshold: '18.0', // Default storm wind gust threshold (m/s)
   dbStorageMode: 'AVG', // 'AVG' (Rata-Rata) | 'RAW' (Instan/Setiap Detik/Sesaat)
   dbStorageInterval: 10, // 1 to 60 Minutes
   localDbApiUrl: 'http://localhost:8000/api.php',
@@ -3108,9 +3112,9 @@ useEffect(() => {
                 const wsKts = windSpeedVal * 1.94384;
                 const wgKts = windGustVal * 1.94384;
 
-                const isStormHazard = windSpeedVal >= 15.0 || windGustVal >= 18.0;
-                const isGustWarning = !isStormHazard && windGustVal >= 14.0;
-                const isAnginKencang = !isStormHazard && !isGustWarning && windSpeedVal >= 10.0;
+                const isStormHazard = windSpeedVal >= parseFloat(config.windSpeedStormThreshold || '15.0') || windGustVal >= parseFloat(config.windGustStormThreshold || '18.0');
+                const isGustWarning = !isStormHazard && windGustVal >= parseFloat(config.windGustWarningThreshold || '14.0');
+                const isAnginKencang = !isStormHazard && !isGustWarning && windSpeedVal >= parseFloat(config.windSpeedWarningThreshold || '10.0');
 
                 const relativeVesselWind = (currentData.windDirection - (parseFloat(config.pierAngle) || 0) + 360) % 360;
                 const crosswindSpeed = windSpeedVal * Math.abs(Math.sin((relativeVesselWind * Math.PI) / 180));
@@ -3190,9 +3194,9 @@ useEffect(() => {
                 {(() => {
                   const windSpeedVal = currentData.windSpeed;
                   const windGustVal = currentData.windGust ?? 0;
-                  const isStormHazard = windSpeedVal >= 15.0 || windGustVal >= 18.0;
-                  const isGustWarning = windGustVal >= 14.0;
-                  const isAnginKencang = windSpeedVal >= 10.0;
+                  const isStormHazard = windSpeedVal >= parseFloat(config.windSpeedStormThreshold || '15.0') || windGustVal >= parseFloat(config.windGustStormThreshold || '18.0');
+                  const isGustWarning = windGustVal >= parseFloat(config.windGustWarningThreshold || '14.0');
+                  const isAnginKencang = windSpeedVal >= parseFloat(config.windSpeedWarningThreshold || '10.0');
                   
                   const relativeVesselWind = (currentData.windDirection - (parseFloat(config.pierAngle) || 0) + 360) % 360;
                   const crosswindSpeed = windSpeedVal * Math.abs(Math.sin((relativeVesselWind * Math.PI) / 180));
@@ -6050,6 +6054,61 @@ header("Content-Type: application/json; charset=UTF-8");
                         onChange={(e) => setConfig({ ...config, rainWarningThreshold: e.target.value })}
                         className="w-full bg-[#050a12] border border-white/10 font-mono text-center text-xs p-2.5 text-sky-400 font-bold rounded" 
                       />
+                    </div>
+                  </div>
+
+                  {/* Wind warning and alarm limit configs */}
+                  <div className="border-t border-white/5 pt-3 space-y-3">
+                    <label className="text-xs uppercase font-bold text-amber-400 tracking-wider block font-mono mb-1">
+                      🌬️ Wind Warning & Alarm Threshold Settings
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-mono block mb-1">Wind Speed Warning (Siaga 3) [m/s]</span>
+                        <input 
+                          type="number" 
+                          step="0.1"
+                          min="0"
+                          value={config.windSpeedWarningThreshold ?? '10.0'}
+                          onChange={(e) => setConfig({ ...config, windSpeedWarningThreshold: e.target.value })}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-center text-xs p-2.5 text-amber-400 font-bold rounded" 
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-mono block mb-1">Wind Gust Warning (Siaga 2) [m/s]</span>
+                        <input 
+                          type="number" 
+                          step="0.1"
+                          min="0"
+                          value={config.windGustWarningThreshold ?? '14.0'}
+                          onChange={(e) => setConfig({ ...config, windGustWarningThreshold: e.target.value })}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-center text-xs p-2.5 text-amber-500 font-bold rounded" 
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-mono block mb-1">Storm Wind Speed (Siaga 1) [m/s]</span>
+                        <input 
+                          type="number" 
+                          step="0.1"
+                          min="0"
+                          value={config.windSpeedStormThreshold ?? '15.0'}
+                          onChange={(e) => setConfig({ ...config, windSpeedStormThreshold: e.target.value })}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-center text-xs p-2.5 text-rose-400 font-bold rounded" 
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-mono block mb-1">Storm Wind Gust (Siaga 1) [m/s]</span>
+                        <input 
+                          type="number" 
+                          step="0.1"
+                          min="0"
+                          value={config.windGustStormThreshold ?? '18.0'}
+                          onChange={(e) => setConfig({ ...config, windGustStormThreshold: e.target.value })}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-center text-xs p-2.5 text-rose-500 font-bold rounded" 
+                        />
+                      </div>
                     </div>
                   </div>
 
