@@ -320,8 +320,24 @@ const calculateAverageRecord = (buffer: WeatherData[]): WeatherData => {
   const speeds = buffer.map(item => item.windSpeed);
   const maxSpeed = speeds.length > 0 ? Math.max(...speeds) : 0;
   const minSpeed = speeds.length > 0 ? Math.min(...speeds) : 0;
-  const hasGust = (maxSpeed - minSpeed) >= 10;
-  const computedWindGust = hasGust ? parseFloat(maxSpeed.toFixed(1)) : undefined;
+  
+  // Calculate windGust for each item in the buffer using a 3-sample sliding window
+  // and select the highest computed gust in this Storage Interval
+  const gusts: number[] = [];
+  for (let i = 0; i < buffer.length; i++) {
+    if (buffer[i].windGust !== undefined && buffer[i].windGust !== null) {
+      gusts.push(buffer[i].windGust!);
+    } else {
+      const last3 = buffer.slice(Math.max(0, i - 2), i + 1);
+      const rawSpeeds = last3.map(item => item.windSpeed);
+      const maxS = Math.max(...rawSpeeds);
+      const minS = Math.min(...rawSpeeds);
+      if (maxS - minS >= 10) {
+        gusts.push(parseFloat(maxS.toFixed(1)));
+      }
+    }
+  }
+  const computedWindGust = gusts.length > 0 ? Math.max(...gusts) : undefined;
 
   const temperatures = buffer.map(item => item.temperature);
   const minTemp = temperatures.length > 0 ? Math.min(...temperatures) : 28.0;
@@ -619,6 +635,11 @@ useEffect(() => {
     const saved = localStorage.getItem('aws_history_logs');
     return saved ? JSON.parse(saved) : generateInitialLogs(45, initialConfig.dbStorageInterval || 10, initialConfig.bmkgPortSlug || 'pelabuhan_ciwandan');
   });
+
+  const historyRef = useRef<WeatherData[]>(history);
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
 
   // Database start/end period filter state for tab 3
   const [dbStartDate, setDbStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -1161,14 +1182,25 @@ useEffect(() => {
         recordToSave = calculateAverageRecord(updated);
         msgLog = `⏱️ compiled and saved standard WMO ${configRef.current.dbStorageInterval}-minute average based on ${updated.length} raw samples successfully.`;
       } else {
-        const rawSpeeds = updated.map(item => item.windSpeed);
-        const maxR = rawSpeeds.length > 0 ? Math.max(...rawSpeeds) : 0;
-        const minR = rawSpeeds.length > 0 ? Math.min(...rawSpeeds) : 0;
-        const hasRGust = (maxR - minR) >= 10;
+        const gusts: number[] = [];
+        for (let i = 0; i < updated.length; i++) {
+          if (updated[i].windGust !== undefined && updated[i].windGust !== null) {
+            gusts.push(updated[i].windGust!);
+          } else {
+            const last3 = updated.slice(Math.max(0, i - 2), i + 1);
+            const rawSpeeds = last3.map(item => item.windSpeed);
+            const maxS = Math.max(...rawSpeeds);
+            const minS = Math.min(...rawSpeeds);
+            if (maxS - minS >= 10) {
+              gusts.push(parseFloat(maxS.toFixed(1)));
+            }
+          }
+        }
+        const highestGust = gusts.length > 0 ? Math.max(...gusts) : undefined;
         
         recordToSave = { 
           ...record,
-          windGust: hasRGust ? parseFloat(maxR.toFixed(1)) : undefined
+          windGust: highestGust
         };
         msgLog = `📦 saved raw instantaneous record for ${configRef.current.dbStorageInterval}-minute interval directly to database successfully.`;
       }
@@ -1276,6 +1308,15 @@ useEffect(() => {
         windSpeedMax: parseFloat(wind_max.toFixed(1)),
         battery: parseFloat(battery_volt.toFixed(2))
       };
+
+      // Calculate wind gust based on a fixed 3-sample window (last 2 from historyRef + current record)
+      const last2History = historyRef.current.slice(-2);
+      const last3History = [...last2History, record];
+      const rawSpeeds = last3History.map(item => item.windSpeed);
+      const maxSpeed = Math.max(...rawSpeeds);
+      const minSpeed = Math.min(...rawSpeeds);
+      const hasGust = (maxSpeed - minSpeed) >= 10;
+      record.windGust = hasGust ? parseFloat(maxSpeed.toFixed(1)) : undefined;
 
       // Add mapped record to live memory history immediately
       setHistory(prev => {
@@ -1564,6 +1605,15 @@ useEffect(() => {
       if (config.transport === 'OFF') {
         const spaceMode = config.dbStorageMode || 'AVG';
         
+        // Calculate wind gust based on a fixed 3-sample window (last 2 from historyRef + current newRecord)
+        const last2History = historyRef.current.slice(-2);
+        const last3History = [...last2History, newRecord];
+        const rawSpeedsHistory = last3History.map(item => item.windSpeed);
+        const maxSpeedHistory = Math.max(...rawSpeedsHistory);
+        const minSpeedHistory = Math.min(...rawSpeedsHistory);
+        const hasGustHistory = (maxSpeedHistory - minSpeedHistory) >= 10;
+        newRecord.windGust = hasGustHistory ? parseFloat(maxSpeedHistory.toFixed(1)) : undefined;
+
         sampleBufferRef.current.push(newRecord);
         const updated = [...sampleBufferRef.current];
         setSampleBuffer(updated);
@@ -1578,14 +1628,26 @@ useEffect(() => {
             msgLog = `⏱️ compiled and saved standard WMO ${config.dbStorageInterval}-minute average based on 5 raw samples successfully.`;
           } else {
             // RAW mode: Save the latest instantaneous sample at the exact interval
-            const rawSpeeds = updated.map(item => item.windSpeed);
-            const maxR = rawSpeeds.length > 0 ? Math.max(...rawSpeeds) : 0;
-            const minR = rawSpeeds.length > 0 ? Math.min(...rawSpeeds) : 0;
-            const hasRGust = (maxR - minR) >= 10;
-            
+            // with the highest wind gust computed in this Storage Interval
+            const gusts: number[] = [];
+            for (let i = 0; i < updated.length; i++) {
+              if (updated[i].windGust !== undefined && updated[i].windGust !== null) {
+                gusts.push(updated[i].windGust!);
+              } else {
+                const last3 = updated.slice(Math.max(0, i - 2), i + 1);
+                const rawSpeeds = last3.map(item => item.windSpeed);
+                const maxS = Math.max(...rawSpeeds);
+                const minS = Math.min(...rawSpeeds);
+                if (maxS - minS >= 10) {
+                  gusts.push(parseFloat(maxS.toFixed(1)));
+                }
+              }
+            }
+            const highestGust = gusts.length > 0 ? Math.max(...gusts) : undefined;
+
             recordToSave = { 
               ...newRecord,
-              windGust: hasRGust ? parseFloat(maxR.toFixed(1)) : undefined
+              windGust: highestGust
             };
             msgLog = `📦 saved raw instantaneous record for ${config.dbStorageInterval}-minute interval directly to database successfully.`;
           }
@@ -4754,7 +4816,26 @@ useEffect(() => {
                         recordToSave = calculateAverageRecord(sampleBuffer);
                         forceMsg = `USER FORCE AVG: Saved composite average of ${sampleBuffer.length} samples successfully.`;
                       } else {
-                        recordToSave = { ...sampleBuffer[sampleBuffer.length - 1] };
+                        const gusts: number[] = [];
+                        for (let i = 0; i < sampleBuffer.length; i++) {
+                          if (sampleBuffer[i].windGust !== undefined && sampleBuffer[i].windGust !== null) {
+                            gusts.push(sampleBuffer[i].windGust!);
+                          } else {
+                            const last3 = sampleBuffer.slice(Math.max(0, i - 2), i + 1);
+                            const rawSpeeds = last3.map(item => item.windSpeed);
+                            const maxS = Math.max(...rawSpeeds);
+                            const minS = Math.min(...rawSpeeds);
+                            if (maxS - minS >= 10) {
+                              gusts.push(parseFloat(maxS.toFixed(1)));
+                            }
+                          }
+                        }
+                        const highestGust = gusts.length > 0 ? Math.max(...gusts) : undefined;
+
+                        recordToSave = { 
+                          ...sampleBuffer[sampleBuffer.length - 1],
+                          windGust: highestGust
+                        };
                         forceMsg = `USER FORCE RAW: Saved instantaneous sample from ${sampleBuffer.length} records successfully.`;
                       }
 
