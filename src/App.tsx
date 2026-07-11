@@ -603,7 +603,7 @@ export default function App() {
   const [isAudioAlarmEnabled, setIsAudioAlarmEnabled] = useState(() => {
     return localStorage.getItem('aws_audio_alarm_enabled') !== 'false'; // Default to enabled
   });
-  const [alarmSoundType, setAlarmSoundType] = useState<'siren' | 'buzzer' | 'voice' | 'both'>(() => {
+  const [alarmSoundType, setAlarmSoundType] = useState<'siren' | 'buzzer' | 'buzzer_long' | 'voice' | 'both'>(() => {
     return (localStorage.getItem('aws_alarm_sound_type') as any) || 'both'; // Default to both
   });
   const [alarmVolume, setAlarmVolume] = useState<number>(() => {
@@ -2586,6 +2586,8 @@ useEffect(() => {
         playBuzzerBeep(880, 0.12, 'square');
         setTimeout(() => playBuzzerBeep(880, 0.12, 'square'), 200);
         setTimeout(() => playBuzzerBeep(880, 0.12, 'square'), 400);
+      } else if (alarmSoundType === 'buzzer_long') {
+        playBuzzerBeep(880, 1.8, 'square');
       } else if (alarmSoundType === 'siren') {
         playSirenBeep(600, 1000, 0.6, 'sawtooth');
         setTimeout(() => playSirenBeep(1000, 600, 0.6, 'sawtooth'), 600);
@@ -6596,6 +6598,8 @@ header("Content-Type: application/json; charset=UTF-8");
                             localStorage.setItem('aws_alarm_sound_type', val);
                             if (val === 'siren' || val === 'both') {
                               playSirenBeep(600, 1000, 0.4, 'sawtooth');
+                            } else if (val === 'buzzer_long') {
+                              playBuzzerBeep(880, 0.8, 'square');
                             } else {
                               playBuzzerBeep(880, 0.15);
                             }
@@ -6604,6 +6608,7 @@ header("Content-Type: application/json; charset=UTF-8");
                         >
                           <option value="both">Sirene Nada & Laporan Suara (Voice + Beep)</option>
                           <option value="siren">Sirene Badai Kontinu (Sweep Waveform)</option>
+                          <option value="buzzer_long">Buzzer Panjang Kontinu (Continuous Buzz)</option>
                           <option value="buzzer">Buzzer Pendek Berulang (Square Wave)</option>
                           <option value="voice">Hanya Laporan Suara Bahasa Indonesia (TTS)</option>
                         </select>
@@ -6636,13 +6641,20 @@ header("Content-Type: application/json; charset=UTF-8");
                       {/* Audio Tester Panel */}
                       <div className="bg-black/35 p-2.5 rounded-lg border border-white/5 space-y-1.5">
                         <span className="text-[9px] text-slate-400 font-mono uppercase block tracking-wider">🔬 Pengujian Konsol Suara (Speaker Diagnostic)</span>
-                        <div className="grid grid-cols-3 gap-1.5">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                           <button
                             type="button"
                             onClick={() => playBuzzerBeep(880, 0.15, 'square')}
                             className="bg-white/5 hover:bg-white/10 text-slate-300 font-mono text-[9px] uppercase py-1 px-1.5 rounded transition-all cursor-pointer border border-white/5 text-center"
                           >
-                            Bip Buzzer
+                            Bip Pendek
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => playBuzzerBeep(880, 1.8, 'square')}
+                            className="bg-white/5 hover:bg-white/10 text-slate-300 font-mono text-[9px] uppercase py-1 px-1.5 rounded transition-all cursor-pointer border border-white/5 text-center font-bold text-[#00f0ff]"
+                          >
+                            Bip Panjang
                           </button>
                           <button
                             type="button"
@@ -6656,7 +6668,7 @@ header("Content-Type: application/json; charset=UTF-8");
                             onClick={() => speakIndonesianText("Sistem pengeras suara stasiun cuaca pelabuhan berfungsi normal.")}
                             className="bg-white/5 hover:bg-white/10 text-slate-300 font-mono text-[9px] uppercase py-1 px-1.5 rounded transition-all cursor-pointer border border-white/5 text-center"
                           >
-                            Uji TTS (Suara)
+                            Uji TTS
                           </button>
                         </div>
                       </div>
