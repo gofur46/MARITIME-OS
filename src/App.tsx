@@ -746,7 +746,7 @@ useEffect(() => {
             transport: serverConfig.transport || 'MOXA_TCP',
             serialcom: serverConfig.moxa_ip || prev.serialcom,
             baudrate: serverConfig.moxa_port ? String(serverConfig.moxa_port) : prev.baudrate,
-            sensors: moxaSensors // Paksa client pakai mapping moxa agar angka sama
+            sensors: prev.sensors || moxaSensors // Gunakan sensor mapping kustom pengguna jika ada, jika tidak fallback ke Moxa
           };
           localStorage.setItem('aws_config', JSON.stringify(newConfig));
           return newConfig;
