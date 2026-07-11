@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Thermometer, Droplets, Droplet, Wind, Navigation, Gauge, Sun, CloudRain, 
+  Thermometer, Droplets, Droplet, Wind, Navigation, Gauge, Sun, CloudRain, Cloud, CloudSun,
   Waves, MoveDown, LayoutDashboard, History, Settings, FileText,
   AlertTriangle, Play, RefreshCw, Send, CheckCircle, Database,
   Anchor, ArrowUpRight, Eye, Compass, X, ExternalLink, Maximize2, BookOpen,
@@ -607,6 +607,7 @@ useEffect(() => {
 // --- AKHIR TAMBAHAN ---
 
   const [currentClockTime, setCurrentClockTime] = useState<Date>(new Date());
+  const [windUnit, setWindUnit] = useState<'ms' | 'kt'>('ms');
   useEffect(() => {
     const clockTimer = setInterval(() => {
       setCurrentClockTime(new Date());
@@ -2006,6 +2007,217 @@ useEffect(() => {
     return isNaN(dp) ? 21.5 : parseFloat(dp.toFixed(1));
   };
 
+  // Predict rain probability (0 - 100%) based on 1-hour trend of pressure, humidity, temperature, and solar radiation
+  const calculateRainProbability = (current: WeatherData, logs: WeatherData[]): { probability: number; trend: string; details: string } => {
+    if (!current) return { probability: 0, trend: 'Normal', details: 'Belum ada data' };
+
+    // If it's already raining significantly, probability is 100%
+    if (current.rainfall > 0) {
+      return { 
+        probability: 100, 
+        trend: 'Sedang Hujan', 
+        details: `Saat ini sedang terjadi curah hujan setinggi ${current.rainfall.toFixed(1)} mm.` 
+      };
+    }
+
+    // Look back 1 hour (3600 seconds = 3600000 ms)
+    const oneHourAgo = current.timestamp - 3600 * 1000;
+    // Find records in logs within the last hour
+    const pastRecords = logs.filter(log => log.timestamp >= oneHourAgo && log.timestamp < current.timestamp);
+    
+    // Fallback: if we don't have enough history records within the last hour, take the last 6 records of logs
+    const referenceRecords = pastRecords.length >= 2 ? pastRecords : logs.slice(-6, -1);
+
+    let baseProb = 20; // Default base probability for coastal climate
+    let trendDesc = 'Stabil';
+    let detailsList: string[] = [];
+
+    // Base high humidity adjustments
+    if (current.humidity > 85) {
+      baseProb += 25;
+      detailsList.push(`Kelembaban tinggi (${current.humidity}%)`);
+    } else if (current.humidity > 75) {
+      baseProb += 15;
+      detailsList.push(`Kelembaban sedang-tinggi (${current.humidity}%)`);
+    }
+
+    if (referenceRecords.length > 0) {
+      // Find the oldest record in our reference set to calculate 1-hour deltas
+      const oldestRef = referenceRecords[0];
+
+      const deltaPress = current.pressure - oldestRef.pressure;
+      const deltaHum = current.humidity - oldestRef.humidity;
+      const deltaTemp = current.temperature - oldestRef.temperature;
+      const deltaSolar = current.solarRadiation - oldestRef.solarRadiation;
+
+      let pressurePoints = 0;
+      let humidityPoints = 0;
+      let tempPoints = 0;
+      let solarPoints = 0;
+
+      // 1. Air Pressure Trend (Crucial for stormy/rainy weather)
+      if (deltaPress < -1.5) {
+        pressurePoints = 30;
+        detailsList.push(`Tekanan udara turun tajam (${deltaPress.toFixed(1)} hPa/jam)`);
+      } else if (deltaPress < -0.5) {
+        pressurePoints = 15;
+        detailsList.push(`Tekanan udara turun (${deltaPress.toFixed(1)} hPa/jam)`);
+      } else if (deltaPress > 1.0) {
+        pressurePoints = -15;
+        detailsList.push(`Tekanan udara naik (+${deltaPress.toFixed(1)} hPa/jam)`);
+      }
+
+      // 2. Humidity Trend
+      if (deltaHum > 10) {
+        humidityPoints = 25;
+        detailsList.push(`Kelembaban naik pesat (+${Math.round(deltaHum)}%/jam)`);
+      } else if (deltaHum > 3) {
+        humidityPoints = 15;
+        detailsList.push(`Kelembaban meningkat (+${Math.round(deltaHum)}%/jam)`);
+      } else if (deltaHum < -5) {
+        humidityPoints = -15;
+        detailsList.push(`Kelembaban menurun (${Math.round(deltaHum)}%/jam)`);
+      }
+
+      // 3. Temperature Trend
+      if (deltaTemp < -1.5) {
+        tempPoints = 20;
+        detailsList.push(`Suhu udara turun dingin (${deltaTemp.toFixed(1)}°C/jam)`);
+      } else if (deltaTemp < -0.5) {
+        tempPoints = 10;
+        detailsList.push(`Suhu udara mendingin (${deltaTemp.toFixed(1)}°C/jam)`);
+      }
+
+      // 4. Solar Radiation Trend (Cloud cover estimation during daytime)
+      // Check if it's currently daytime (solar radiation > 30 W/m2 in current or previous hour)
+      const isDaytime = current.solarRadiation > 30 || oldestRef.solarRadiation > 30;
+      if (isDaytime) {
+        if (deltaSolar < -150) {
+          solarPoints = 20;
+          detailsList.push(`Mendung tebal mendadak (${Math.round(deltaSolar)} W/m²/jam)`);
+        } else if (current.solarRadiation < 80) {
+          solarPoints = 15;
+          detailsList.push('Cahaya matahari redup / awan tebal');
+        }
+      }
+
+      // Calculate total adjustments
+      const totalAdj = pressurePoints + humidityPoints + tempPoints + solarPoints;
+      baseProb += totalAdj;
+
+      // Determine overall trend string
+      if (pressurePoints > 0 && humidityPoints > 0) {
+        trendDesc = 'Sangat Berpotensi Hujan (Tekanan ↓, Lembab ↑)';
+      } else if (pressurePoints > 0 || humidityPoints > 0 || solarPoints > 0) {
+        trendDesc = 'Berawan / Potensi Hujan Ringan';
+      } else if (pressurePoints < 0 && humidityPoints < 0) {
+        trendDesc = 'Cerah Berawan (Tekanan ↑, Lembab ↓)';
+      } else {
+        trendDesc = 'Kondisi Stabil';
+      }
+    } else {
+      detailsList.push('Menunggu kalibrasi data historis...');
+    }
+
+    // Clamp between 5% and 95% to avoid absolute certainty unless currently raining
+    let finalProb = Math.max(5, Math.min(95, baseProb));
+    
+    // Standardize details string
+    const details = detailsList.length > 0 
+      ? detailsList.slice(0, 3).join(', ') 
+      : 'Kondisi atmosfer terpantau normal.';
+
+    return {
+      probability: Math.round(finalProb),
+      trend: trendDesc,
+      details
+    };
+  };
+
+  // Get current weather state based on rain detection and forecast trends
+  const getCurrentWeatherState = (): { state: 'sunny' | 'cloudy' | 'overcast' | 'rain'; label: string; probability: number; iconName: 'Sun' | 'CloudSun' | 'Cloud' | 'CloudRain' } => {
+    if (!currentData) {
+      return {
+        state: 'sunny',
+        label: 'Cerah',
+        probability: 0,
+        iconName: 'Sun'
+      };
+    }
+
+    const rainPred = calculateRainProbability(currentData, history);
+    const prob = rainPred.probability;
+
+    // Check if the rain data from the logger detects rain
+    let isActivelyRaining = false;
+    if (currentData.rainfall > 0) {
+      // Find history logs in the last 10 minutes (600,000 ms)
+      const tenMinutesAgo = currentData.timestamp - 10 * 60 * 1000;
+      const recentLogs = history.filter(log => log.timestamp >= tenMinutesAgo && log.timestamp < currentData.timestamp);
+      
+      if (recentLogs.length > 0) {
+        // Check if current rainfall is greater than the rainfall 10 minutes ago
+        const oldestRecent = recentLogs[0];
+        if (currentData.rainfall > oldestRecent.rainfall) {
+          isActivelyRaining = true; // Rainfall is actively increasing!
+        } else {
+          // If the rainfall value has NOT changed (is flat/equal) in the last 10 minutes,
+          // then it is NOT actively raining anymore. So we fall back to prediction.
+          isActivelyRaining = false;
+        }
+      } else {
+        // If there's no history log within the last 10 minutes, check immediate previous history log
+        const prevLog = history.length > 0 ? history[history.length - 1] : null;
+        if (prevLog && currentData.rainfall > prevLog.rainfall) {
+          isActivelyRaining = true;
+        } else {
+          // If no previous log, but currentData.rainfall > 0, assume active rain initially
+          isActivelyRaining = currentData.rainfall > 0;
+        }
+      }
+    }
+
+    if (isActivelyRaining) {
+      return {
+        state: 'rain',
+        label: 'Hujan',
+        probability: prob,
+        iconName: 'CloudRain'
+      };
+    }
+
+    // Otherwise, follow the prediction trend based on probability
+    if (prob > 70) {
+      return {
+        state: 'rain',
+        label: 'Potensi Hujan',
+        probability: prob,
+        iconName: 'CloudRain'
+      };
+    } else if (prob > 40) {
+      return {
+        state: 'overcast',
+        label: 'Mendung',
+        probability: prob,
+        iconName: 'Cloud'
+      };
+    } else if (prob > 20) {
+      return {
+        state: 'cloudy',
+        label: 'Cerah Berawan',
+        probability: prob,
+        iconName: 'CloudSun'
+      };
+    } else {
+      return {
+        state: 'sunny',
+        label: 'Cerah',
+        probability: prob,
+        iconName: 'Sun'
+      };
+    }
+  };
+
   // Convert wind speed value to relative string rose
   const getWindRoseString = (deg: number) => {
     if (deg >= 337.5 || deg < 22.5) return 'N';
@@ -2346,10 +2558,10 @@ useEffect(() => {
         <div className="mt-auto flex flex-col items-center gap-4 w-full px-2.5">
           <button 
             onClick={() => setIsManualModalOpen(true)}
-            className="w-full py-2 px-1 rounded-xl flex flex-col items-center gap-1.5 transition-all text-[10px] font-black uppercase tracking-wider font-sans border text-amber-400 border-amber-500/30 bg-amber-500/10 hover:bg-amber-400 hover:text-black hover:border-amber-400 cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.15)] group"
+            className="w-full py-2 px-1 rounded-xl flex flex-col items-center gap-1.5 transition-all text-[10px] font-black uppercase tracking-wider font-sans border text-white border-white/10 bg-white/5 hover:bg-white hover:text-black hover:border-white cursor-pointer shadow-[0_0_12px_rgba(255,255,255,0.05)] group"
             title="Klik untuk membuka Manual Pengoperasian & Buku Panduan"
           >
-            <BookOpen className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+            <BookOpen className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
             <span className="text-center text-[9px] leading-tight">MANUAL BOOK</span>
           </button>
           
@@ -2394,7 +2606,34 @@ useEffect(() => {
           </div>
 
           <div className="flex items-center gap-6 self-stretch lg:self-auto justify-between lg:justify-end border-t lg:border-t-0 border-white/5 pt-3 lg:pt-0">
-            <div className="hidden xl:flex gap-6 text-right">
+            <div className="hidden xl:flex gap-6 items-center text-right">
+              {/* CURRENT WEATHER STATUS */}
+              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-left">
+                <div className="flex items-center justify-center">
+                  {(() => {
+                    const weather = getCurrentWeatherState();
+                    if (weather.iconName === 'Sun') {
+                      return <Sun className="w-5 h-5 text-amber-400 animate-pulse" />;
+                    } else if (weather.iconName === 'CloudSun') {
+                      return <CloudSun className="w-5 h-5 text-sky-300" />;
+                    } else if (weather.iconName === 'Cloud') {
+                      return <Cloud className="w-5 h-5 text-slate-400 animate-pulse" />;
+                    } else {
+                      return <CloudRain className="w-5 h-5 text-blue-400 animate-bounce" />;
+                    }
+                  })()}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase font-bold opacity-50 tracking-wider text-[#00f0ff] leading-none">CUACA</span>
+                  <span className="text-[11px] font-extrabold text-white leading-tight whitespace-nowrap mt-0.5">
+                    {(() => {
+                      const weather = getCurrentWeatherState();
+                      return `${weather.label} (${weather.probability}%)`;
+                    })()}
+                  </span>
+                </div>
+              </div>
+
               <div>
                 <div className="text-xs uppercase font-bold opacity-40 tracking-wider text-[#00f0ff]">DB STATUS</div>
                 {config.transport !== 'OFF' && !isLiveActive ? (
@@ -2534,39 +2773,39 @@ useEffect(() => {
             <div className="lg:col-span-3 flex flex-col space-y-4 h-full">
               
               {/* Thermal group - Card 1 */}
-              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between space-y-3">
-                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
-                  <Thermometer className="w-3.5 h-3.5 text-[#22c55e]" />
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-[#00f0ff]/20 flex-1 flex flex-col justify-between space-y-3 shadow-[0_0_12px_rgba(0,240,255,0.05)]">
+                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2 drop-shadow-[0_0_6px_rgba(0,240,255,0.3)]">
+                  <Thermometer className="w-3.5 h-3.5 text-[#00f0ff]" />
                   <span>Thermal Sensors</span>
                 </div>
 
                 <div className="flex-1 flex flex-col justify-center space-y-2.5">
                   {/* Primary Air temp StatCard */}
-                  <div className="bg-[#0b1424] border border-[#22c55e]/10 p-3 rounded-xl text-center transition-colors hover:border-[#22c55e]/20">
-                    <div className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">currently</div>
-                    <div className="text-2xl md:text-3xl font-bold font-mono text-[#22c55e]">
-                      {currentData.temperature.toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">°C</span>
+                  <div className="bg-[#0b1424] border border-[#00f0ff]/10 p-3 rounded-xl text-center transition-colors hover:border-[#00f0ff]/20">
+                    <div className="text-xs uppercase text-[#00f0ff]/80 font-bold tracking-wide block mb-1 font-sans">currently</div>
+                    <div className="text-2xl md:text-3xl font-bold font-mono text-white">
+                      {currentData.temperature.toFixed(1)} <span className="text-xs font-semibold text-[#00f0ff]/70 ml-0.5">°C</span>
                     </div>
                   </div>
 
                   {/* Avg, Max, Min grid row inside column 1 */}
                   <div className="grid grid-cols-3 gap-1.5">
                     <div className="bg-[#0b1424] border border-white/5 py-1.5 px-1 rounded-lg transition-colors hover:border-white/10 text-center">
-                      <div className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Avg</div>
-                      <div className="text-base font-bold font-mono text-[#e0f2fe]">
-                        {tempStats.avg} <span className="text-xs font-semibold text-slate-400 ml-0.5">°C</span>
+                      <div className="text-xs uppercase text-sky-400 font-bold tracking-wide block mb-1 font-sans">Avg</div>
+                      <div className="text-base font-bold font-mono text-white">
+                        {tempStats.avg} <span className="text-xs font-semibold text-sky-400/70 ml-0.5">°C</span>
                       </div>
                     </div>
-                    <div className="bg-[#0b1424] border border-rose-500/10 py-1.5 px-1 rounded-lg transition-colors hover:border-rose-500/20 text-center">
-                      <div className="text-xs uppercase text-rose-400 font-semibold tracking-wide block mb-1 font-sans">Max</div>
-                      <div className="text-base font-bold font-mono text-rose-400">
-                        {tempStats.max} <span className="text-xs font-semibold text-slate-400 ml-0.5">°C</span>
+                    <div className="bg-[#0b1424] border border-white/5 py-1.5 px-1 rounded-lg transition-colors hover:border-white/10 text-center">
+                      <div className="text-xs uppercase text-sky-400 font-bold tracking-wide block mb-1 font-sans">Max</div>
+                      <div className="text-base font-bold font-mono text-white">
+                        {tempStats.max} <span className="text-xs font-semibold text-sky-400/70 ml-0.5">°C</span>
                       </div>
                     </div>
-                    <div className="bg-[#0b1424] border border-teal-500/10 py-1.5 px-1 rounded-lg transition-colors hover:border-teal-500/20 text-center">
-                      <div className="text-xs uppercase text-teal-400 font-semibold tracking-wide block mb-1 font-sans">Min</div>
-                      <div className="text-base font-bold font-mono text-teal-400">
-                        {tempStats.min} <span className="text-xs font-semibold text-slate-400 ml-0.5">°C</span>
+                    <div className="bg-[#0b1424] border border-white/5 py-1.5 px-1 rounded-lg transition-colors hover:border-white/10 text-center">
+                      <div className="text-xs uppercase text-sky-400 font-bold tracking-wide block mb-1 font-sans">Min</div>
+                      <div className="text-base font-bold font-mono text-white">
+                        {tempStats.min} <span className="text-xs font-semibold text-sky-400/70 ml-0.5">°C</span>
                       </div>
                     </div>
                   </div>
@@ -2574,39 +2813,39 @@ useEffect(() => {
               </div>
 
               {/* Hygro, Solar & Rain Group - Card 2 */}
-              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between space-y-3 font-sans">
-                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2 font-sans">
-                  <Droplets className="w-3.5 h-3.5 text-[#00ff66]" />
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-sky-400/20 flex-1 flex flex-col justify-between space-y-3 font-sans shadow-[0_0_12px_rgba(56,189,248,0.05)]">
+                <div className="text-xs font-bold text-sky-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2 font-sans drop-shadow-[0_0_6px_rgba(56,189,248,0.3)]">
+                  <Droplets className="w-3.5 h-3.5 text-sky-400" />
                   <span>Hygro, Solar & Rain</span>
                 </div>
                 
                 <div className="flex-1 flex flex-col justify-between gap-2">
-                  <div className="bg-[#0b1424] border border-white/5 rounded-xl p-2.5 flex justify-between items-center transition-colors hover:border-[#00ff66]/10">
-                    <span className="text-xs uppercase font-semibold tracking-wide text-slate-300 font-sans">Humidity</span>
+                  <div className="bg-[#0b1424] border border-white/5 p-2.5 flex justify-between items-center transition-colors hover:border-white/10 rounded-xl">
+                    <span className="text-xs uppercase font-bold tracking-wide text-sky-400 font-sans">Humidity</span>
                     <div className="text-right">
                       <span className="text-xl font-bold font-mono text-white">{currentData.humidity}</span>
-                      <span className="text-xs text-[#00f0ff] ml-1 font-bold">%</span>
+                      <span className="text-xs text-sky-400/80 ml-1 font-bold">%</span>
                     </div>
                   </div>
 
-                  <div className="bg-[#0b1424] border border-white/5 rounded-xl p-2.5 flex justify-between items-center transition-colors hover:border-[#00ff66]/10">
-                    <span className="text-xs uppercase font-semibold tracking-wide text-slate-300 font-sans">Dew Point</span>
+                  <div className="bg-[#0b1424] border border-white/5 p-2.5 flex justify-between items-center transition-colors hover:border-white/10 rounded-xl">
+                    <span className="text-xs uppercase font-bold tracking-wide text-sky-400 font-sans">Dew Point</span>
                     <div className="text-right">
                       <span className="text-xl font-bold font-mono text-white">
                         {computeDewPoint(currentData.temperature, currentData.humidity)}
                       </span>
-                      <span className="text-xs text-[#00f0ff] ml-1 font-bold">°C</span>
+                      <span className="text-xs text-sky-400/80 ml-1 font-bold">°C</span>
                     </div>
                   </div>
 
-                  <div className="bg-[#0b1424] border border-amber-500/10 rounded-xl p-2.5 flex justify-between items-center transition-colors hover:border-amber-500/25">
-                    <span className="text-xs uppercase font-semibold tracking-wide text-amber-400 font-sans">Irradiance</span>
+                  <div className="bg-[#0b1424] border border-white/5 p-2.5 flex justify-between items-center transition-colors hover:border-white/10 rounded-xl">
+                    <span className="text-xs uppercase font-bold tracking-wide text-sky-400 font-sans">Irradiance</span>
                     <div className="text-right flex flex-col items-end">
                       <div>
-                        <span className="text-xl font-bold font-mono text-amber-400">{currentData.solarRadiation}</span>
-                        <span className="text-xs text-amber-500 ml-1 font-bold">W/m²</span>
+                        <span className="text-xl font-bold font-mono text-white">{currentData.solarRadiation}</span>
+                        <span className="text-xs text-sky-400/80 ml-1 font-bold">W/m²</span>
                       </div>
-                      <span className="text-[10px] text-amber-500/70 font-mono">
+                      <span className="text-[10px] text-sky-500/80 font-mono">
                         Max: {currentData.solarRadiationMax ?? Math.round(currentData.solarRadiation * 1.15)} W/m²
                       </span>
                     </div>
@@ -2617,14 +2856,58 @@ useEffect(() => {
                     const threshold = parseFloat(config.rainWarningThreshold || '10.0');
                     const isHeavyRain = rainVal >= threshold;
                     return (
-                      <div className={`bg-[#0b1424] border rounded-xl p-2.5 flex justify-between items-center transition-colors ${isHeavyRain ? 'border-sky-500/50 bg-sky-950/20 shadow-[0_0_10px_rgba(14,165,233,0.15)] animate-pulse' : 'border-sky-500/10 hover:border-sky-500/25'}`}>
-                        <span className="text-xs uppercase font-semibold tracking-wide text-sky-400 font-sans flex items-center gap-1.5">
-                          <CloudRain className="w-3.5 h-3.5 text-sky-400" />
-                          Rainfall {isHeavyRain && <span className="text-[9px] bg-sky-500/20 text-sky-300 px-1 py-0.2 rounded font-mono font-bold animate-bounce">LEBAT</span>}
+                      <div className={`bg-[#0b1424] border rounded-xl p-2.5 flex justify-between items-center transition-colors ${isHeavyRain ? 'border-red-500/50 bg-red-950/20 shadow-[0_0_10px_rgba(239,68,68,0.15)] animate-pulse' : 'border-white/5 hover:border-white/10'}`}>
+                        <span className={`text-xs uppercase font-bold tracking-wide font-sans flex items-center gap-1.5 ${isHeavyRain ? 'text-red-500' : 'text-sky-400'}`}>
+                          <CloudRain className={`w-3.5 h-3.5 ${isHeavyRain ? 'text-red-500' : 'text-sky-400'}`} />
+                          Rainfall {isHeavyRain && <span className="text-[9px] bg-red-500/20 text-red-500 px-1 py-0.2 rounded font-mono font-bold animate-bounce">LEBAT</span>}
                         </span>
                         <div className="text-right">
-                          <span className="text-xl font-bold font-mono text-sky-400">{rainVal.toFixed(1)}</span>
-                          <span className="text-xs text-sky-500 ml-1 font-bold">mm</span>
+                          <span className={`text-xl font-bold font-mono ${isHeavyRain ? 'text-red-500' : 'text-white'}`}>{rainVal.toFixed(1)}</span>
+                          <span className={`text-xs ml-1 font-bold ${isHeavyRain ? 'text-red-500' : 'text-sky-400/80'}`}>mm</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Rain Probability Prediction Panel */}
+                  {(() => {
+                    const rainPred = calculateRainProbability(currentData, history);
+                    // Decide color based on probability
+                    let badgeColor = 'text-emerald-400 border-emerald-500/20 bg-emerald-950/20';
+                    let progressColor = 'bg-emerald-500';
+                    if (rainPred.probability > 70) {
+                      badgeColor = 'text-red-400 border-red-500/20 bg-red-950/20 animate-pulse';
+                      progressColor = 'bg-red-500';
+                    } else if (rainPred.probability > 40) {
+                      badgeColor = 'text-amber-400 border-amber-500/20 bg-amber-950/20';
+                      progressColor = 'bg-amber-500';
+                    }
+
+                    return (
+                      <div className="bg-[#050a12]/80 border border-white/5 p-2.5 rounded-xl flex flex-col space-y-1.5 mt-0.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] uppercase font-bold text-sky-400/80 tracking-wider">
+                            Peluang Hujan (1 Jam Terakhir Trend)
+                          </span>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded border font-mono font-bold ${badgeColor}`}>
+                            {rainPred.probability}%
+                          </span>
+                        </div>
+                        {/* Progress Bar */}
+                        <div className="w-full bg-slate-800/60 h-1.5 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-500 ${progressColor}`} 
+                            style={{ width: `${rainPred.probability}%` }}
+                          />
+                        </div>
+                        {/* Details */}
+                        <div className="text-[10px] leading-relaxed text-slate-400 flex flex-col space-y-0.5">
+                          <span className="font-bold text-white text-[10px] block truncate">
+                            Status: {rainPred.trend}
+                          </span>
+                          <span className="text-slate-400 block text-[9.5px] leading-tight">
+                            Analisis: {rainPred.details}
+                          </span>
                         </div>
                       </div>
                     );
@@ -2640,30 +2923,30 @@ useEffect(() => {
                 const isPhUnsafe = phValue < minPh || phValue > maxPh;
                 
                 return (
-                  <div className={`bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border transition-all ${isPhUnsafe ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)] animate-pulse' : 'border-white/5'} flex-1 flex flex-col justify-between space-y-3`}>
+                  <div className={`bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border transition-all ${isPhUnsafe ? 'border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.15)] animate-pulse' : 'border-teal-400/20 shadow-[0_0_12px_rgba(20,184,166,0.05)]'} flex-1 flex flex-col justify-between space-y-3`}>
                     <div>
-                      <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center justify-between border-b border-white/5 pb-2">
+                      <div className={`text-xs font-bold ${isPhUnsafe ? 'text-red-500' : 'text-teal-400'} uppercase tracking-[0.2em] flex items-center justify-between border-b border-white/5 pb-2 ${!isPhUnsafe && 'drop-shadow-[0_0_6px_rgba(20,184,166,0.3)]'}`}>
                         <div className="flex items-center gap-2">
-                          <Droplet className={`w-3.5 h-3.5 ${isPhUnsafe ? 'text-amber-400 font-bold' : 'text-pink-400'}`} />
+                          <Droplet className={`w-3.5 h-3.5 ${isPhUnsafe ? 'text-red-500 font-bold' : 'text-teal-400'}`} />
                           <span>Kualitas Air</span>
                         </div>
-                        <span className="text-[10px] font-mono text-slate-500">INTEGRATED</span>
+                        <span className={`text-[10px] font-mono ${isPhUnsafe ? 'text-red-500/70' : 'text-teal-500/70'}`}>INTEGRATED</span>
                       </div>
                     </div>
 
                     <div className="flex-1 flex flex-col justify-center">
                       <div className="bg-[#050a12]/80 border border-white/5 p-3 rounded-xl space-y-2">
-                        <span className="text-xs uppercase font-semibold tracking-wider text-slate-300 block border-b border-white/10 pb-1 font-sans">🌊 Live Water Quality Index</span>
+                        <span className="text-xs uppercase font-bold tracking-wider text-teal-400 block border-b border-white/10 pb-1 font-sans">🌊 Live Water Quality Index</span>
                         <div className="grid grid-cols-2 gap-2 text-center">
-                          <div className="bg-[#0b1424] border border-pink-500/10 py-1.5 px-2 rounded-lg transition-colors hover:border-pink-500/20">
-                            <span className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">pH Value</span>
-                            <span className={`text-lg font-bold font-mono ${isPhUnsafe ? 'text-amber-400' : 'text-pink-400'}`}>
-                              {phValue.toFixed(2)} <span className="text-xs font-bold text-slate-400 ml-0.5">pH</span>
+                          <div className={`bg-[#0b1424] border py-1.5 px-2 rounded-lg transition-colors ${isPhUnsafe ? 'border-red-500/20 hover:border-red-500/30' : 'border-white/5 hover:border-white/10'}`}>
+                            <span className="text-xs uppercase text-teal-400/80 font-bold block mb-1 font-sans">pH Value</span>
+                            <span className={`text-lg font-bold font-mono ${isPhUnsafe ? 'text-red-500' : 'text-white'}`}>
+                              {phValue.toFixed(2)} <span className={`text-xs font-bold ${isPhUnsafe ? 'text-red-500' : 'text-teal-400/80'} ml-0.5`}>pH</span>
                             </span>
                           </div>
-                          <div className="bg-[#0b1424] border border-white/5 py-1.5 px-2 rounded-lg flex flex-col justify-center items-center transition-colors hover:border-white/10">
-                            <span className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Status</span>
-                            <span className={`text-xs md:text-sm font-bold font-mono uppercase ${isPhUnsafe ? 'text-amber-400' : phValue < 7.0 ? 'text-rose-400' : phValue > 8.5 ? 'text-pink-400' : 'text-emerald-400'}`}>
+                          <div className={`bg-[#0b1424] border py-1.5 px-2 rounded-lg flex flex-col justify-center items-center transition-colors ${isPhUnsafe ? 'border-red-500/20 hover:border-red-500/30' : 'border-white/5 hover:border-white/10'}`}>
+                            <span className="text-xs uppercase text-teal-400/80 font-bold block mb-1 font-sans">Status</span>
+                            <span className={`text-xs md:text-sm font-bold font-mono uppercase ${isPhUnsafe ? 'text-red-500 animate-pulse' : 'text-white'}`}>
                               {isPhUnsafe ? "⚠️ BAHAYA" : phValue < 7.0 ? "Asam" : phValue > 8.5 ? "Basa" : "Ideal"}
                             </span>
                           </div>
@@ -2672,24 +2955,24 @@ useEffect(() => {
 
                       {/* Suhu Air / Water Temp Panel */}
                       <div className="bg-[#050a12]/80 border border-white/5 p-3 rounded-xl space-y-2 mt-3">
-                        <span className="text-xs uppercase font-semibold tracking-wider text-slate-300 block border-b border-white/10 pb-1 font-sans">🌡️ Temperatur Air / Water Temp</span>
+                        <span className="text-xs uppercase font-bold tracking-wider text-sky-400 block border-b border-white/10 pb-1 font-sans">🌡️ Temperatur Air / Water Temp</span>
                         <div className="grid grid-cols-3 gap-2 text-center">
-                          <div className="bg-[#0b1424] border border-[#38bdf8]/10 py-1 px-2 rounded-lg transition-colors hover:border-[#38bdf8]/20 col-span-3 sm:col-span-1 flex flex-col justify-center items-center">
-                            <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wide block mb-0.5 font-sans">Saat Ini</span>
-                            <span className="text-sm font-extrabold font-mono text-[#38bdf8]">
-                              {(currentData.waterTemp ?? (currentData.temperature - 1.2)).toFixed(1)} <span className="text-[10px] font-bold text-slate-400">°C</span>
+                          <div className="bg-[#0b1424] border border-white/5 py-1 px-2 rounded-lg transition-colors hover:border-white/10 col-span-3 sm:col-span-1 flex flex-col justify-center items-center">
+                            <span className="text-[10px] uppercase text-sky-400 font-bold block mb-0.5 font-sans">Saat Ini</span>
+                            <span className="text-sm font-extrabold font-mono text-white">
+                              {(currentData.waterTemp ?? (currentData.temperature - 1.2)).toFixed(1)} <span className="text-[10px] font-bold text-sky-400/80">°C</span>
                             </span>
                           </div>
                           <div className="bg-[#0b1424] border border-white/5 py-1 px-2 rounded-lg flex flex-col justify-center items-center transition-colors hover:border-white/10">
-                            <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wide block mb-0.5 font-sans">Min</span>
-                            <span className="text-xs font-bold font-mono text-cyan-400">
-                              {waterTempStats.min} <span className="text-[10px] text-slate-500">°C</span>
+                            <span className="text-[10px] uppercase text-[#00f0ff] font-bold block mb-0.5 font-sans">Min</span>
+                            <span className="text-xs font-bold font-mono text-white">
+                              {waterTempStats.min} <span className="text-[10px] text-[#00f0ff]/80">°C</span>
                             </span>
                           </div>
                           <div className="bg-[#0b1424] border border-white/5 py-1 px-2 rounded-lg flex flex-col justify-center items-center transition-colors hover:border-white/10">
-                            <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wide block mb-0.5 font-sans">Max</span>
-                            <span className="text-xs font-bold font-mono text-rose-400">
-                              {waterTempStats.max} <span className="text-[10px] text-slate-500">°C</span>
+                            <span className="text-[10px] uppercase text-[#00f0ff] font-bold block mb-0.5 font-sans">Max</span>
+                            <span className="text-xs font-bold font-mono text-white">
+                              {waterTempStats.max} <span className="text-[10px] text-[#00f0ff]/80">°C</span>
                             </span>
                           </div>
                         </div>
@@ -2702,15 +2985,39 @@ useEffect(() => {
 
              {/* COLUMN 2: COMMAND CENTER WIND COMPASS (width 5/12 on large screens) */}
             <div className="lg:col-span-5 bg-gradient-to-br from-[#0d1726]/80 to-bg border border-[#00f0ff]/20 p-6 rounded-3xl relative min-h-[500px] flex flex-col justify-between shadow-[0_30px_70px_rgba(0,0,0,0.9)] h-full">
-              <div className="absolute top-0 right-0 w-24 h-[1px] bg-gradient-to-r from-transparent via-[#00f0ff]/30 to-transparent" />
+              <div className="absolute top-0 right-0 w-24 h-[1px] bg-gradient-to-r from-transparent via-[#00f0ff]/20 to-transparent" />
               
               <div className="text-center font-bold">
-                <h3 className="text-xs uppercase font-extrabold tracking-[0.25em] text-[#00f0ff] flex items-center justify-center gap-2 mb-1">
+                <h3 className="text-xs uppercase font-extrabold tracking-[0.25em] text-[#00f0ff] flex items-center justify-center gap-2 mb-1 drop-shadow-[0_0_8px_rgba(0,240,255,0.4)]">
                   🌐 Live Wind Vector & Port Orientation ({config.pierAngle}°)
                 </h3>
-                <span className="text-xs font-mono text-slate-500 uppercase tracking-widest bg-white/5 py-0.5 px-3 rounded">
-                  CONSOLE_INTEGRATION_ONLINE
-                </span>
+                <div className="flex flex-wrap items-center justify-center gap-3 mt-1.5">
+                  <span className="text-xs font-mono text-[#00f0ff]/70 uppercase tracking-widest bg-[#00f0ff]/5 py-0.5 px-3 rounded border border-[#00f0ff]/10">
+                    CONSOLE_INTEGRATION_ONLINE
+                  </span>
+                  <div className="flex items-center bg-[#050a12]/80 border border-[#00f0ff]/30 rounded-lg p-0.5">
+                    <button
+                      onClick={() => setWindUnit('ms')}
+                      className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all duration-200 ${
+                        windUnit === 'ms'
+                          ? 'bg-[#00f0ff] text-slate-900 font-extrabold shadow-[0_0_8px_rgba(0,240,255,0.5)]'
+                          : 'text-[#00f0ff]/60 hover:text-[#00f0ff]'
+                      }`}
+                    >
+                      m/s
+                    </button>
+                    <button
+                      onClick={() => setWindUnit('kt')}
+                      className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all duration-200 ${
+                        windUnit === 'kt'
+                          ? 'bg-[#00f0ff] text-slate-900 font-extrabold shadow-[0_0_8px_rgba(0,240,255,0.5)]'
+                          : 'text-[#00f0ff]/60 hover:text-[#00f0ff]'
+                      }`}
+                    >
+                      KNOT
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Dynamic Maritime Hazard Alert Panel (EWS) */}
@@ -2733,57 +3040,57 @@ useEffect(() => {
 
                 if (isStormHazard) {
                   return (
-                    <div className="mx-auto mt-2.5 px-4 py-2 border border-rose-500/50 bg-rose-950/40 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.25)] select-none">
+                    <div className="mx-auto mt-2.5 px-4 py-2 border border-red-500/50 bg-red-950/40 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.25)] select-none">
                       <span className="flex h-2.5 w-2.5 relative">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
                       </span>
-                      <span className="text-xs font-extrabold text-rose-400 uppercase tracking-wider font-mono text-center">
+                      <span className="text-xs font-extrabold text-red-500 uppercase tracking-wider font-mono text-center">
                         🔥 SIAGA 1: BADAI EKSTRIM ({windSpeedVal.toFixed(1)} m/s / {wsKts.toFixed(0)} kt • Gust: {windGustVal > 0 ? windGustVal.toFixed(1) + ' m/s' : '—'})
                       </span>
                     </div>
                   );
                 } else if (isGustWarning) {
                   return (
-                    <div className="mx-auto mt-2.5 px-4 py-2 border border-orange-500/50 bg-orange-950/30 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse select-none shadow-[0_0_10px_rgba(249,115,22,0.15)]">
+                    <div className="mx-auto mt-2.5 px-4 py-2 border border-red-500/50 bg-red-950/30 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse select-none shadow-[0_0_10px_rgba(239,68,68,0.15)]">
                       <span className="flex h-2 w-2 relative">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                       </span>
-                      <span className="text-xs font-extrabold text-orange-400 uppercase tracking-wider font-mono text-center">
+                      <span className="text-xs font-extrabold text-red-500 uppercase tracking-wider font-mono text-center">
                         💨 SIAGA 2: WIND GUST HEMBUSAN ({windGustVal.toFixed(1)} m/s / {wgKts.toFixed(0)} kt)
                       </span>
                     </div>
                   );
                 } else if (isAnginKencang) {
                   return (
-                    <div className="mx-auto mt-2.5 px-4 py-2 border border-amber-500/45 bg-amber-950/20 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse select-none shadow-[0_0_10px_rgba(245,158,11,0.15)]">
+                    <div className="mx-auto mt-2.5 px-4 py-2 border border-red-500/50 bg-red-950/20 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse select-none shadow-[0_0_10px_rgba(239,68,68,0.15)]">
                       <span className="flex h-2 w-2 relative">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                       </span>
-                      <span className="text-xs font-extrabold text-amber-400 uppercase tracking-wider font-mono text-center">
+                      <span className="text-xs font-extrabold text-red-500 uppercase tracking-wider font-mono text-center">
                         ⚠️ SIAGA 3: ANGIN KENCANG ({windSpeedVal.toFixed(1)} m/s / {wsKts.toFixed(0)} kt)
                       </span>
                     </div>
                   );
                 } else if (isCrosswindHazard) {
                   return (
-                    <div className="mx-auto mt-2.5 px-4 py-2 border border-cyan-500/50 bg-[#082f49]/40 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse select-none shadow-[0_0_10px_rgba(6,182,212,0.15)]">
+                    <div className="mx-auto mt-2.5 px-4 py-2 border border-red-500/50 bg-red-950/20 rounded-xl flex items-center gap-2.5 justify-center max-w-sm animate-pulse select-none shadow-[0_0_10px_rgba(239,68,68,0.15)]">
                       <span className="flex h-2 w-2 relative">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                       </span>
-                      <span className="text-xs font-extrabold text-cyan-400 uppercase tracking-wider font-mono text-center">
+                      <span className="text-xs font-extrabold text-red-500 uppercase tracking-wider font-mono text-center">
                         ⚠️ WARNING: ANGIN SAMPING / CROSSWIND ({crosswindSpeed.toFixed(1)} m/s / {crossKts.toFixed(0)} kt)
                       </span>
                     </div>
                   );
                 } else {
                   return (
-                    <div className="mx-auto mt-2.5 px-4 py-1.5 border border-emerald-500/20 bg-emerald-950/10 rounded-xl flex items-center gap-2 justify-center max-w-xs select-none">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider font-mono text-center">
+                    <div className="mx-auto mt-2.5 px-4 py-1.5 border border-white/10 bg-white/5 rounded-xl flex items-center gap-2 justify-center max-w-xs select-none">
+                      <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                      <span className="text-xs font-bold text-white uppercase tracking-wider font-mono text-center">
                         🟢 STATUS OPERASI: AMAN & NORMAL
                       </span>
                     </div>
@@ -2795,9 +3102,9 @@ useEffect(() => {
               <div className="flex justify-center items-center my-6 relative">
                 
                 {/* STARBOARD side panel labels (on the left) */}
-                <div className="absolute left-1 md:left-2 lg:left-0.5 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-2 rounded-xl max-w-[100px] shadow-xl select-none font-sans z-10 scale-90 lg:scale-80 xl:scale-100">
-                  <div className="text-[10px] md:text-xs font-black text-[#22c55e] uppercase tracking-wider mb-0.5">STARBOARD</div>
-                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kanan / Right</div>
+                <div className="absolute left-1 md:left-2 lg:left-0.5 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/95 border border-emerald-500/30 p-2 rounded-xl max-w-[100px] shadow-xl select-none font-sans z-10 scale-90 lg:scale-80 xl:scale-100">
+                  <div className="text-[10px] md:text-xs font-black text-emerald-400 uppercase tracking-wider mb-0.5">STARBOARD</div>
+                  <div className="text-[8px] md:text-[9px] text-emerald-400/80 font-bold uppercase leading-none">Kanan / Right</div>
                 </div>
 
                 {/* Compass Ring wrapper with dynamic warning colors */}
@@ -2811,32 +3118,37 @@ useEffect(() => {
                   const relativeVesselWind = (currentData.windDirection - (parseFloat(config.pierAngle) || 0) + 360) % 360;
                   const crosswindSpeed = windSpeedVal * Math.abs(Math.sin((relativeVesselWind * Math.PI) / 180));
                   const isCrosswindHazard = crosswindSpeed >= 8.0;
+                  const hasWarning = isStormHazard || isGustWarning || isAnginKencang || isCrosswindHazard;
                   
-                  let ringBorderColor = "border-slate-700 shadow-[#00f0ff]/5";
+                  let ringBorderColor = "border-white/10 shadow-white/5";
                   if (isStormHazard) {
-                    ringBorderColor = "border-rose-900/80 shadow-[0_0_20px_rgba(239,68,68,0.3)] animate-pulse";
+                    ringBorderColor = "border-red-900/80 shadow-[0_0_20px_rgba(239,68,68,0.3)] animate-pulse";
                   } else if (isGustWarning || isAnginKencang) {
-                    ringBorderColor = "border-amber-700/80 shadow-[0_0_15px_rgba(245,158,11,0.2)]";
+                    ringBorderColor = "border-red-700/80 shadow-[0_0_15px_rgba(239,68,68,0.2)]";
                   } else if (isCrosswindHazard) {
-                    ringBorderColor = "border-cyan-800/80 shadow-[0_0_15px_rgba(6,182,212,0.15)]";
+                    ringBorderColor = "border-red-800/80 shadow-[0_0_15px_rgba(239,68,68,0.15)]";
                   }
 
                   return (
-                    <div className={`relative w-80 h-80 rounded-full border-8 transition-all duration-700 flex items-center justify-center bg-radial-gradient from-[#00f0ff]/10 to-[#0284c7]/30 shadow-[inset_0_0_40px_rgba(0,0,0,0.85)] ${ringBorderColor}`}>
+                    <div className={`relative w-80 h-80 rounded-full border-8 transition-all duration-700 flex items-center justify-center bg-transparent shadow-[inset_0_0_40px_rgba(0,0,0,0.85)] ${ringBorderColor}`}>
                       {/* Water ring container inside - enlarged proportionally */}
                       <div className="absolute w-[200px] h-[200px] rounded-full border border-white/5 bg-transparent pointer-events-none" />
 
                       {/* Direction characters - slightly repositioned for larger dial size */}
-                      <span className="absolute top-2.5 text-slate-200 text-xs font-black tracking-widest font-sans">N</span>
-                      <span className="absolute bottom-2.5 text-slate-200 text-xs font-black tracking-widest font-sans">S</span>
-                      <span className="absolute right-4 text-slate-200 text-xs font-black tracking-widest font-sans font-extrabold">E</span>
-                      <span className="absolute left-4 text-slate-200 text-xs font-black tracking-widest font-sans font-extrabold">W</span>
+                      <span className="absolute top-2.5 text-[#00f0ff] text-xs font-black tracking-widest font-sans drop-shadow-[0_0_5px_rgba(0,240,255,0.7)]">N</span>
+                      <span className="absolute bottom-2.5 text-[#00f0ff] text-xs font-black tracking-widest font-sans drop-shadow-[0_0_5px_rgba(0,240,255,0.7)]">S</span>
+                      <span className="absolute right-4 text-[#00f0ff] text-xs font-black tracking-widest font-sans font-extrabold drop-shadow-[0_0_5px_rgba(0,240,255,0.7)]">E</span>
+                      <span className="absolute left-4 text-[#00f0ff] text-xs font-black tracking-widest font-sans font-extrabold drop-shadow-[0_0_5px_rgba(0,240,255,0.7)]">W</span>
 
                       {/* Center Wind Speed Badge HUD (upright overlay) - Enlarged for optimal visibility */}
-                      <div className="absolute w-20 h-20 rounded-full bg-[#030712]/95 border-2 border-[#00ff66]/50 flex flex-col items-center justify-center shadow-[0_0_18px_rgba(0,255,102,0.35)] z-30 font-mono pointer-events-none transition-all duration-300">
-                        <span className="text-[9px] uppercase tracking-widest text-[#00ff66]/70 font-extrabold leading-none mb-1">WIND</span>
-                        <span className="text-xl font-black text-[#00ff66] leading-none mb-0.5">{currentData.windSpeed.toFixed(1)}</span>
-                        <span className="text-[8px] text-slate-400 font-sans leading-none font-bold text-center">m/s ({(currentData.windSpeed * 1.94384).toFixed(1)} kt)</span>
+                      <div className={`absolute w-20 h-20 rounded-full bg-[#030712]/95 border-2 flex flex-col items-center justify-center shadow-[0_0_18px_rgba(255,255,255,0.05)] z-30 font-mono pointer-events-none transition-all duration-300 ${hasWarning ? 'border-red-500/50 shadow-[0_0_18px_rgba(239,68,68,0.25)]' : 'border-white/20'}`}>
+                        <span className={`text-[9px] uppercase tracking-widest font-extrabold leading-none mb-1 ${hasWarning ? 'text-red-500' : 'text-slate-400'}`}>WIND</span>
+                        <span className={`text-xl font-black leading-none mb-0.5 ${hasWarning ? 'text-red-500' : 'text-white'}`}>
+                          {windUnit === 'ms' ? currentData.windSpeed.toFixed(1) : (currentData.windSpeed * 1.94384).toFixed(1)}
+                        </span>
+                        <span className="text-[8px] text-slate-400 font-sans leading-none font-bold text-center">
+                          {windUnit === 'ms' ? 'm/s' : 'knot'}
+                        </span>
                       </div>
 
                       {/* Port/Darat vs Sea/Open Water Boundary Divider Line rotated with visual pierAngle state */}
@@ -2846,21 +3158,21 @@ useEffect(() => {
                       >
                         <div className="relative w-full h-full flex items-center justify-center">
                           {/* High-contrast thick rectangular block/pier separating PORT and OPEN SEA */}
-                          <div className="absolute h-[304px] w-[18px] bg-gradient-to-r from-cyan-600 via-cyan-400 to-cyan-600 rounded-sm border-2 border-cyan-300 shadow-[0_0_18px_rgba(6,182,212,0.75)]" />
+                          <div className="absolute h-[304px] w-[18px] bg-gradient-to-r from-slate-600 via-slate-400 to-slate-600 rounded-sm border-2 border-slate-300 shadow-[0_0_10px_rgba(255,255,255,0.2)]" />
                           {/* Inner technical center dashed guide line */}
                           <div className="absolute h-[304px] w-[2px] bg-white/30 border-l border-dashed border-white/40" />
                           
                           {/* Anchor dock markers at the edges of the line - aligned carefully */}
-                          <div className="absolute top-[10px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
-                          <div className="absolute bottom-[10px] w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
+                          <div className="absolute top-[10px] w-1.5 h-1.5 rounded-full bg-slate-400 shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
+                          <div className="absolute bottom-[10px] w-1.5 h-1.5 rounded-full bg-slate-400 shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
 
                           {/* Left side region: LAUT LEPAS / OPEN SEA */}
-                          <div className="absolute left-[40px] top-[110px] text-[7.5px] uppercase font-black text-emerald-400/60 font-sans tracking-[0.25em] -rotate-90">
+                          <div className="absolute left-[40px] top-[110px] text-[7.5px] uppercase font-black text-white/40 font-sans tracking-[0.25em] -rotate-90">
                             LAUT LEPAS / OPEN SEA
                           </div>
                           
                           {/* Right side region: DERMAGA / AREA DARAT */}
-                          <div className="absolute right-[40px] top-[110px] text-[7.5px] uppercase font-black text-cyan-400/60 font-sans tracking-[0.25em] rotate-90">
+                          <div className="absolute right-[40px] top-[110px] text-[7.5px] uppercase font-black text-white/40 font-sans tracking-[0.25em] rotate-90">
                             DERMAGA / AREA DARAT
                           </div>
                         </div>
@@ -2875,7 +3187,7 @@ useEffect(() => {
                         <div className="absolute top-[4px] bottom-[4px] w-[2px] bg-gradient-to-b from-[#00ff66]/70 via-[#00ff66]/10 to-transparent flex flex-col items-center">
                           {/* Custom vector Navigation arrowhead pointing downwards towards center of compass */}
                           <svg 
-                            className="w-12 h-12 text-[#00ff66] fill-[#00ff66]/35 drop-shadow-[0_0_15px_#00ff66] -mt-3" 
+                            className="w-12 h-12 text-[#00ff66] fill-[#00ff66]/25 drop-shadow-[0_0_15px_#00ff66] -mt-3" 
                             viewBox="0 0 24 24"
                             stroke="currentColor"
                             strokeWidth="3"
@@ -2891,59 +3203,73 @@ useEffect(() => {
                 })()}
 
                 {/* PORT side panel labels (on the right) */}
-                <div className="absolute right-1 md:right-2 lg:right-0.5 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/90 border border-white/10 p-2 rounded-xl max-w-[100px] shadow-xl select-none font-sans z-10 scale-90 lg:scale-80 xl:scale-100">
-                  <div className="text-[10px] md:text-xs font-black text-[#ef4444] uppercase tracking-wider mb-0.5">PORT</div>
-                  <div className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase leading-none">Kiri / Left</div>
+                <div className="absolute right-1 md:right-2 lg:right-0.5 top-1/2 -translate-y-1/2 text-center bg-[#0b1424]/95 border border-red-500/30 p-2 rounded-xl max-w-[100px] shadow-xl select-none font-sans z-10 scale-90 lg:scale-80 xl:scale-100">
+                  <div className="text-[10px] md:text-xs font-black text-red-400 uppercase tracking-wider mb-0.5">PORT</div>
+                  <div className="text-[8px] md:text-[9px] text-red-400/80 font-bold uppercase leading-none">Kiri / Left</div>
                 </div>
 
               </div>
 
               {/* Angle display relative wind and wind digital specifications */}
-              <div className="grid grid-cols-2 gap-4 items-center mb-6 max-w-md mx-auto bg-[#050a12]/70 p-3.5 rounded-2xl border border-white/5 text-center font-mono text-xs">
+              <div className="grid grid-cols-2 gap-4 items-center mb-6 max-w-md mx-auto bg-[#050a12]/70 p-3.5 rounded-2xl border border-[#00f0ff]/20 text-center font-mono text-xs shadow-[0_0_12px_rgba(0,240,255,0.05)]">
                 <div className="border-r border-white/10 pr-2">
-                  <span className="text-slate-400 uppercase text-xs tracking-wider block font-sans">Relative Wind</span>
-                  <span className="text-sm font-extrabold text-[#00f0ff]">{relativeVesselWind.toFixed(0)}° Azimuth</span>
+                  <span className="text-[#00f0ff] uppercase text-xs tracking-wider block font-sans font-bold">Relative Wind</span>
+                  <span className="text-sm font-extrabold text-white">{relativeVesselWind.toFixed(0)}° Azimuth</span>
                 </div>
                 <div className="pl-2">
-                  <span className="text-slate-400 uppercase text-xs tracking-wider block font-sans">Arah & Rose</span>
-                  <span className="text-sm font-extrabold text-[#f59e0b]">{currentData.windDirection}° ({getWindRoseString(currentData.windDirection)})</span>
+                  <span className="text-[#00f0ff] uppercase text-xs tracking-wider block font-sans font-bold">Arah & Rose</span>
+                  <span className="text-sm font-extrabold text-white">{currentData.windDirection}° ({getWindRoseString(currentData.windDirection)})</span>
                 </div>
               </div>
 
               {/* Bottom horizontal grid showing: Marine & Wind Data digital */}
-              <div className="border border-[#00f0ff]/15 bg-gradient-to-b from-[#0b1424]/70 to-bg p-4.5 rounded-2xl relative">
-                <div className="text-xs uppercase tracking-[0.25em] font-extrabold text-slate-300 mb-3 font-sans flex items-center justify-between">
+              <div className="border border-[#00f0ff]/25 bg-gradient-to-b from-[#0b1424]/70 to-bg p-4.5 rounded-2xl relative shadow-[0_0_15px_rgba(0,240,255,0.05)]">
+                <div className="text-xs uppercase tracking-[0.25em] font-extrabold text-[#00f0ff] mb-3 font-sans flex items-center justify-between drop-shadow-[0_0_6px_rgba(0,240,255,0.3)]">
                   <span>⚓ Marine & Wind Digital Indicators</span>
                   <span className="text-xs font-mono text-[#00f0ff]/50">ACC_SYS_01</span>
                 </div>
 
                 <div className="grid grid-cols-4 gap-2.5">
-                  <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center">
-                    <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Wind Dir</span>
-                    <span className="text-base font-black font-mono text-[#00f0ff]">{currentData.windDirection}°</span>
+                  <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center flex flex-col justify-center items-center">
+                    <span className="text-xs uppercase tracking-wider text-[#00f0ff] font-bold block mb-1">Wind Dir</span>
+                    <span className="text-base font-black font-mono text-white">{currentData.windDirection}°</span>
                   </div>
                   <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center flex flex-col justify-center items-center">
-                    <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Wind Spd</span>
-                    <span className="text-base font-black font-mono text-[#00f0ff]">{currentData.windSpeed.toFixed(1)} <span className="text-xs font-sans font-normal text-slate-400">m/s</span></span>
-                    <span className="text-xs font-bold text-emerald-400 font-sans mt-0.5">({(currentData.windSpeed * 1.94384).toFixed(1)} kt)</span>
-                  </div>
-                  <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center flex flex-col justify-center items-center">
-                    <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Wind Gust</span>
-                    <span className="text-base font-black font-mono text-amber-400">
-                      {currentData.windGust !== undefined && currentData.windGust !== null ? (
+                    <span className="text-xs uppercase tracking-wider text-[#00f0ff] font-bold block mb-1">Wind Spd</span>
+                    <span className="text-base font-black font-mono text-white">
+                      {windUnit === 'ms' ? (
                         <>
-                          {currentData.windGust.toFixed(1)} <span className="text-xs font-sans font-normal text-slate-400">m/s</span>
-                          <span className="text-xs text-emerald-400 font-sans block font-bold mt-0.5">({(currentData.windGust * 1.94384).toFixed(1)} kt)</span>
+                          {currentData.windSpeed.toFixed(1)} <span className="text-xs font-sans font-normal text-[#00f0ff]/70">m/s</span>
                         </>
+                      ) : (
+                        <>
+                          {(currentData.windSpeed * 1.94384).toFixed(1)} <span className="text-xs font-sans font-normal text-[#00f0ff]/70">knot</span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center flex flex-col justify-center items-center">
+                    <span className="text-xs uppercase tracking-wider text-[#00f0ff] font-bold block mb-1">Wind Gust</span>
+                    <span className="text-base font-black font-mono text-white">
+                      {currentData.windGust !== undefined && currentData.windGust !== null ? (
+                        windUnit === 'ms' ? (
+                          <>
+                            {currentData.windGust.toFixed(1)} <span className="text-xs font-sans font-normal text-[#00f0ff]/70">m/s</span>
+                          </>
+                        ) : (
+                          <>
+                            {(currentData.windGust * 1.94384).toFixed(1)} <span className="text-xs font-sans font-normal text-[#00f0ff]/70">knot</span>
+                          </>
+                        )
                       ) : (
                         "—"
                       )}
                     </span>
                   </div>
                   <div className="bg-[#050a12] border border-white/5 p-3 rounded-xl text-center flex flex-col justify-center items-center">
-                    <span className="text-xs uppercase tracking-wider text-slate-500 font-bold block mb-1">Water Level</span>
-                    <span className="text-base font-black font-mono text-[#3b82f6]">{(currentData.seaLevel / 100).toFixed(3)}m</span>
-                    <span className="text-[10px] font-bold text-[#ec4899] font-sans mt-0.5">
+                    <span className="text-xs uppercase tracking-wider text-[#00f0ff] font-bold block mb-1">Water Level</span>
+                    <span className="text-base font-black font-mono text-white">{(currentData.seaLevel / 100).toFixed(3)}m</span>
+                    <span className="text-[10px] font-bold text-[#00f0ff]/80 font-sans mt-0.5">
                       Pasut: {(((currentData.seaLevel / 100) - calcMslHeight) >= 0 ? '+' : '')}{((currentData.seaLevel / 100) - calcMslHeight).toFixed(3)}m
                     </span>
                   </div>
@@ -2956,39 +3282,39 @@ useEffect(() => {
             <div className="lg:col-span-4 flex flex-col space-y-4 h-full">
               
               {/* Pressure ATN group (compact & premium layout) - Shrunk & moved to top */}
-              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-3.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between space-y-2">
-                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2">
-                  <Gauge className="w-3.5 h-3.5 text-amber-500" />
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-3.5 rounded-2xl border border-sky-500/20 flex-1 flex flex-col justify-between space-y-2 shadow-[0_0_12px_rgba(56,189,248,0.05)] font-sans">
+                <div className="text-xs font-bold text-sky-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-2 drop-shadow-[0_0_6px_rgba(56,189,248,0.3)]">
+                  <Gauge className="w-3.5 h-3.5 text-sky-400" />
                   <span>Pressure ATN Info</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 font-sans flex-1 flex items-center">
-                  <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center w-full">
-                    <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mb-0.5 truncate" title="Barometer">Barometer</span>
-                    <span className="text-xs font-black font-mono text-[#00f0ff] block">{currentData.pressure.toFixed(1)} <span className="text-[8px] font-sans text-slate-400 font-normal w-full">hPa</span></span>
+                  <div className="bg-[#0b1424] border border-sky-500/10 p-2 rounded-xl text-center w-full">
+                    <span className="text-[9px] uppercase tracking-wider text-sky-400 font-extrabold block mb-0.5 truncate" title="Barometer">Barometer</span>
+                    <span className="text-xs font-black font-mono text-white block">{currentData.pressure.toFixed(1)} <span className="text-[8px] font-sans text-sky-400/80 font-normal w-full">hPa</span></span>
                   </div>
-                  <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center w-full">
-                    <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mb-0.5 truncate" title="QFF">QFF</span>
-                    <span className="text-xs font-black font-mono text-emerald-400 block">{(currentData.pressure + 2.1).toFixed(1)} <span className="text-[8px] font-sans text-slate-400 font-normal w-full">hPa</span></span>
+                  <div className="bg-[#0b1424] border border-sky-500/10 p-2 rounded-xl text-center w-full">
+                    <span className="text-[9px] uppercase tracking-wider text-sky-400 font-extrabold block mb-0.5 truncate" title="QFF">QFF</span>
+                    <span className="text-xs font-black font-mono text-white block">{(currentData.pressure + 2.1).toFixed(1)} <span className="text-[8px] font-sans text-sky-400/80 font-normal w-full">hPa</span></span>
                   </div>
-                  <div className="bg-[#0b1424] border border-white/5 p-2 rounded-xl text-center w-full">
-                    <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold block mb-0.5 truncate" title="QFE">QFE</span>
-                    <span className="text-xs font-black font-mono text-[#00f0ff] block">{currentData.pressure.toFixed(1)} <span className="text-[8px] font-sans text-slate-400 font-normal w-full">hPa</span></span>
+                  <div className="bg-[#0b1424] border border-sky-500/10 p-2 rounded-xl text-center w-full">
+                    <span className="text-[9px] uppercase tracking-wider text-sky-400 font-extrabold block mb-0.5 truncate" title="QFE">QFE</span>
+                    <span className="text-xs font-black font-mono text-white block">{currentData.pressure.toFixed(1)} <span className="text-[8px] font-sans text-sky-400/80 font-normal w-full">hPa</span></span>
                   </div>
                 </div>
               </div>
 
               {/* System Power & Battery Status Card */}
-              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-3.5 rounded-2xl border border-white/5 flex-1 flex flex-col justify-between space-y-2">
-                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center justify-between border-b border-white/5 pb-2">
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-3.5 rounded-2xl border border-sky-500/20 flex-1 flex flex-col justify-between space-y-2 shadow-[0_0_12px_rgba(56,189,248,0.05)]">
+                <div className="text-xs font-bold text-sky-400 uppercase tracking-[0.2em] flex items-center justify-between border-b border-white/5 pb-2 drop-shadow-[0_0_6px_rgba(56,189,248,0.3)]">
                   <div className="flex items-center gap-2">
                     {currentData.solarRadiation > 50 ? (
-                      <BatteryCharging className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                      <BatteryCharging className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
                     ) : (
-                      <Battery className="w-3.5 h-3.5 text-teal-400" />
+                      <Battery className="w-3.5 h-3.5 text-sky-400" />
                     )}
                     <span>Status Baterai & Daya</span>
                   </div>
-                  <span className="text-[10px] font-mono text-slate-500">POWER MODULE</span>
+                  <span className="text-[10px] font-mono text-sky-400/70">POWER MODULE</span>
                 </div>
                 
                 {(() => {
@@ -2996,18 +3322,18 @@ useEffect(() => {
                   const pct = Math.max(0, Math.min(100, Math.round(((volt - 11.5) / 1.1) * 100)));
                   const isCharging = currentData.solarRadiation > 50;
                   
-                  let statusText = "Optimal";
-                  let statusColor = "text-emerald-400 border-emerald-500/20";
-                  let barColor = "bg-emerald-500";
+                  let statusText = "Ideal";
+                  let statusColor = "text-emerald-400 border-emerald-500/35 shadow-[0_0_8px_rgba(16,185,129,0.15)]";
+                  let barColor = "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]";
                   
-                  if (volt < 11.8) {
-                    statusText = "⚠️ Low Volt";
-                    statusColor = "text-rose-400 border-rose-500/20";
-                    barColor = "bg-rose-500";
-                  } else if (volt < 12.1) {
+                  if (volt < 11.0) {
+                    statusText = "Critical";
+                    statusColor = "text-red-400 border-red-500/35 shadow-[0_0_8px_rgba(239,68,68,0.15)]";
+                    barColor = "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.4)]";
+                  } else if (volt < 12.0) {
                     statusText = "Sufficient";
-                    statusColor = "text-amber-400 border-amber-500/20";
-                    barColor = "bg-amber-500";
+                    statusColor = "text-yellow-400 border-yellow-500/35 shadow-[0_0_8px_rgba(234,179,8,0.15)]";
+                    barColor = "bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.4)]";
                   }
                   
                   return (
@@ -3016,10 +3342,10 @@ useEffect(() => {
                       <div className="col-span-8 space-y-2">
                         <div className="flex justify-between items-center">
                           <span className="text-lg font-black font-mono text-white tracking-tight">
-                            {volt.toFixed(2)} <span className="text-xs font-normal text-slate-400">V</span>
+                            {volt.toFixed(2)} <span className="text-xs font-normal text-sky-400/80">V</span>
                           </span>
-                          <span className="text-xs font-bold text-slate-300 font-mono">
-                            {pct}% {isCharging && <span className="text-[10px] text-emerald-400 font-bold ml-1">▲ Solar Charge</span>}
+                          <span className="text-xs font-bold text-sky-400/80 font-mono">
+                            {pct}% {isCharging && <span className="text-[10px] text-amber-400 font-bold ml-1">▲ Solar Charge</span>}
                           </span>
                         </div>
                         {/* Custom progress bar */}
@@ -3036,7 +3362,7 @@ useEffect(() => {
                         <div className={`border p-1.5 rounded-lg font-mono text-[10px] font-bold uppercase ${statusColor} bg-[#0b1424]`}>
                           {statusText}
                         </div>
-                        <span className="text-[8px] uppercase tracking-wider text-slate-500 mt-1 block">Telemetry</span>
+                        <span className="text-[8px] uppercase tracking-wider text-sky-400/80 mt-1 block">Telemetry</span>
                       </div>
                     </div>
                   );
@@ -3045,9 +3371,9 @@ useEffect(() => {
 
               {/* Wind Rose Visual Card (High Polished Polar Chart) */}
               <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4 rounded-2xl border border-white/5 flex flex-col flex-[2] justify-between space-y-2.5">
-                <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-[0.2em] flex items-center justify-between border-b border-white/5 pb-2">
+                <div className="text-xs font-bold text-white uppercase tracking-[0.2em] flex items-center justify-between border-b border-white/5 pb-2">
                   <div className="flex items-center gap-2">
-                    <Navigation className="w-3.5 h-3.5 text-amber-500 transform rotate-45" />
+                    <Navigation className="w-3.5 h-3.5 text-white transform rotate-45" />
                     <span>Wind Rose (24H)</span>
                   </div>
                   <span className="text-[10px] font-mono text-slate-500">POLE GRID</span>
@@ -3116,7 +3442,7 @@ useEffect(() => {
                           <line x1={cx - maxR} y1={cy} x2={cx + maxR} y2={cy} stroke="rgba(255,255,255,0.05)" strokeWidth={0.7} />
                           
                           {/* Ring labels */}
-                          <text x={cx + 2} y={cy - maxR + 8} fill="rgba(0,240,255,0.4)" fontSize={5.5} className="font-mono font-bold">{maxPctScope.toFixed(0)}%</text>
+                          <text x={cx + 2} y={cy - maxR + 8} fill="rgba(255,255,255,0.4)" fontSize={5.5} className="font-mono font-bold">{maxPctScope.toFixed(0)}%</text>
                           <text x={cx + 2} y={cy - (maxR * 0.5) + 6} fill="rgba(255,255,255,0.25)" fontSize={5.5} className="font-mono">{(maxPctScope / 2).toFixed(0)}%</text>
 
                           {/* Cardinal Labels */}
@@ -3194,7 +3520,7 @@ useEffect(() => {
 
                   {/* Right Column: Vertically arranged Speed Legend */}
                   <div className="flex-1 max-w-[140px] bg-[#050a12]/50 border border-white/5 rounded-xl p-2.5 flex flex-col justify-center space-y-2 font-mono text-[10px] md:text-sm text-slate-300 font-extrabold shadow-sm select-none">
-                    <span className="text-[9px] uppercase tracking-[0.1em] text-[#00f0ff] font-bold block mb-1 font-sans border-b border-white/5 pb-1">Wind Speed</span>
+                    <span className="text-[9px] uppercase tracking-[0.1em] text-white font-bold block mb-1 font-sans border-b border-white/5 pb-1">Wind Speed</span>
                     <div className="flex items-center gap-2 hover:text-white transition-colors" title="Speed 0 to 4 m/s">
                       <span className="w-3.5 h-2 rounded bg-[#4a628a]" />
                       <span>0 – 4 <span className="text-[9px] font-sans text-slate-500 font-bold">m/s</span></span>
@@ -3228,12 +3554,12 @@ useEffect(() => {
               </div>
 
               {/* Wind Limits & Gust Events (Moved under Wind Rose) */}
-              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-white/5 flex-grow flex-1 flex flex-col justify-between space-y-3.5">
+              <div className="bg-gradient-to-b from-[#0b1424]/40 to-bg p-4.5 rounded-2xl border border-[#00f0ff]/20 flex-grow flex-1 flex flex-col justify-between space-y-3.5 shadow-[0_0_12px_rgba(0,240,255,0.05)]">
                 <div>
                   {/* Title */}
-                  <div className="text-xs font-bold text-amber-400 uppercase tracking-widest flex justify-between items-center pb-2 border-b border-white/5 mb-3 font-sans">
+                  <div className="text-xs font-bold text-[#00f0ff] uppercase tracking-widest flex justify-between items-center pb-2 border-b border-white/5 mb-3 font-sans drop-shadow-[0_0_6px_rgba(0,240,255,0.3)]">
                     <div className="flex items-center gap-2">
-                      <Wind className="w-3.5 h-3.5 text-amber-500" />
+                      <Wind className="w-3.5 h-3.5 text-[#00f0ff]" />
                       <span>Wind Stats & Gust Events</span>
                     </div>
                     <span className="text-[10px] font-mono text-[#00f0ff]/50 font-bold">SYSTEM</span>
@@ -3247,13 +3573,29 @@ useEffect(() => {
                         <div className="bg-[#0b1424] border border-emerald-500/10 py-1.5 px-2 rounded-lg transition-colors hover:border-emerald-500/20">
                           <span className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Wind Max</span>
                           <span className="text-base font-bold font-mono text-emerald-400">
-                            {windStats.max.toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">m/s</span>
+                            {windUnit === 'ms' ? (
+                              <>
+                                {windStats.max.toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">m/s</span>
+                              </>
+                            ) : (
+                              <>
+                                {(windStats.max * 1.94384).toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">knot</span>
+                              </>
+                            )}
                           </span>
                         </div>
                         <div className="bg-[#0b1424] border border-[#38bdf8]/10 py-1.5 px-2 rounded-lg transition-colors hover:border-[#38bdf8]/20">
                           <span className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Wind Min</span>
                           <span className="text-base font-bold font-mono text-[#38bdf8]">
-                            {windStats.min.toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">m/s</span>
+                            {windUnit === 'ms' ? (
+                              <>
+                                {windStats.min.toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">m/s</span>
+                              </>
+                            ) : (
+                              <>
+                                {(windStats.min * 1.94384).toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">knot</span>
+                              </>
+                            )}
                           </span>
                         </div>
                       </div>
@@ -3261,23 +3603,29 @@ useEffect(() => {
 
                     {/* Last Wind Gust info */}
                     <div className="bg-[#050a12]/80 border border-white/5 p-3 rounded-xl space-y-2">
-                      <span className="text-xs uppercase font-semibold tracking-wider text-amber-500 block border-b border-white/10 pb-1 font-sans">⚡ Last Gust Occurrence Event</span>
+                      <span className="text-xs uppercase font-semibold tracking-wider text-[#00f0ff] block border-b border-white/10 pb-1 font-sans drop-shadow-[0_0_6px_rgba(0,240,255,0.3)]">⚡ Last Gust Occurrence Event</span>
                       <div className="grid grid-cols-2 gap-2 text-center font-sans">
-                        <div className="bg-[#0b1424] border border-amber-500/5 py-1.5 px-2 rounded-lg transition-colors hover:border-amber-500/20">
+                        <div className="bg-[#0b1424] border border-[#00f0ff]/10 py-1.5 px-2 rounded-lg transition-colors hover:border-[#00f0ff]/20">
                           <span className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Gust Speed</span>
-                          <span className="text-base font-bold font-mono text-amber-400">
+                          <span className="text-base font-bold font-mono text-[#00f0ff]">
                             {lastWindGustVal !== null ? (
-                              <>
-                                {lastWindGustVal.toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">m/s</span>
-                              </>
+                              windUnit === 'ms' ? (
+                                <>
+                                  {lastWindGustVal.toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">m/s</span>
+                                </>
+                              ) : (
+                                <>
+                                  {(lastWindGustVal * 1.94384).toFixed(1)} <span className="text-xs font-semibold text-slate-400 ml-0.5">knot</span>
+                                </>
+                              )
                             ) : (
                               "—"
                             )}
                           </span>
                         </div>
-                        <div className="bg-[#0b1424] border border-amber-500/5 py-1.5 px-2 rounded-lg flex flex-col justify-center items-center transition-colors hover:border-amber-500/20">
+                        <div className="bg-[#0b1424] border border-[#00f0ff]/10 py-1.5 px-2 rounded-lg flex flex-col justify-center items-center transition-colors hover:border-[#00f0ff]/20">
                           <span className="text-xs uppercase text-slate-400 font-semibold tracking-wide block mb-1 font-sans">Time of Gust</span>
-                          <span className="text-xs md:text-sm font-bold font-mono text-amber-300 truncate">
+                          <span className="text-xs md:text-sm font-bold font-mono text-[#00f0ff] truncate">
                             {lastWindGustTime !== null ? lastWindGustTime : "—"}
                           </span>
                         </div>
@@ -3335,12 +3683,15 @@ useEffect(() => {
 
                       {/* Speed Pill with warm yellowish-orange border & text */}
                       <div className="w-full bg-[#1c1206] border border-[#f59e0b]/20 py-1 px-2.5 rounded-lg text-center">
-                        <span className="text-xs font-extrabold text-[#f59e0b] font-mono tracking-normal block">
-                          {row.windSpeed.toFixed(1)} <span className="text-[10px] font-sans font-normal text-amber-500/50">m/s</span>
-                        </span>
-                        <span className="text-[10px] font-bold text-emerald-400 font-sans block mt-0.5">
-                          ({(row.windSpeed * 1.94384).toFixed(1)} kt)
-                        </span>
+                        {windUnit === 'ms' ? (
+                          <span className="text-xs font-extrabold text-[#f59e0b] font-mono tracking-normal block">
+                            {row.windSpeed.toFixed(1)} <span className="text-[10px] font-sans font-normal text-amber-500/50">m/s</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs font-extrabold text-[#f59e0b] font-mono tracking-normal block">
+                            {(row.windSpeed * 1.94384).toFixed(1)} <span className="text-[10px] font-sans font-normal text-amber-500/50">knot</span>
+                          </span>
+                        )}
                       </div>
 
                     </div>
@@ -3359,19 +3710,19 @@ useEffect(() => {
           <div className="space-y-6">
             
             {/* Sourced database info banner */}
-            <div className="bg-[#050d1a] border border-[#00f0ff]/20 px-5 py-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#050d1a] border border-white/10 px-5 py-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-[#00f0ff]/10 border border-[#00f0ff]/20 rounded-xl text-[#00f0ff]">
+                <div className="p-2 bg-white/10 border border-white/20 rounded-xl text-white">
                   <Database className="w-5 h-5" />
                 </div>
                 <div className="text-left">
-                  <span className="text-xs font-black text-[#00f0ff] uppercase tracking-wider font-mono block">📊 ANALISIS HISTORIS DATA DATABASE</span>
+                  <span className="text-xs font-black text-white uppercase tracking-wider font-mono block">📊 ANALISIS HISTORIS DATA DATABASE</span>
                 </div>
               </div>
-              <div className="flex items-center gap-2 font-mono text-[11px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-xl">
+              <div className="flex items-center gap-2 font-mono text-[11px] bg-white/5 border border-white/10 text-white px-3 py-1.5 rounded-xl">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
                 </span>
                 <span>LOAD: {analystLogs.length} Paket</span>
               </div>
@@ -3381,26 +3732,26 @@ useEffect(() => {
             <div className="bg-gradient-to-b from-[#0b1424] to-bg p-5 rounded-2xl border border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5">
               <div className="flex flex-wrap gap-4 items-end">
                 <div>
-                  <label className="text-[10px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1.5 font-sans">Start Analysis Date</label>
+                  <label className="text-[10px] uppercase font-bold text-white tracking-wider block mb-1.5 font-sans">Start Analysis Date</label>
                   <input 
                     type="date" 
                     value={dbStartDate}
                     onChange={(e) => setDbStartDate(e.target.value)}
-                    className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-1.5 px-3 rounded-lg outline-none focus:border-[#00f0ff] transition" 
+                    className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-1.5 px-3 rounded-lg outline-none focus:border-white/30 transition" 
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase font-bold text-[#00f0ff] tracking-wider block mb-1.5 font-sans">End Analysis Date</label>
+                  <label className="text-[10px] uppercase font-bold text-white tracking-wider block mb-1.5 font-sans">End Analysis Date</label>
                   <input 
                     type="date" 
                     value={dbEndDate}
                     onChange={(e) => setDbEndDate(e.target.value)}
-                    className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-1.5 px-3 rounded-lg outline-none focus:border-[#00f0ff] transition" 
+                    className="bg-[#050a12] border border-white/10 text-white text-xs font-mono py-1.5 px-3 rounded-lg outline-none focus:border-white/30 transition" 
                   />
                 </div>
                 <button 
                   onClick={filterLogsData}
-                  className="bg-[#00f0ff] hover:bg-[#00d0f0] transition text-[#050a12] text-xs font-bold font-mono py-2 px-5 rounded-lg uppercase flex items-center justify-center gap-2 cursor-pointer h-9"
+                  className="bg-white hover:bg-slate-200 transition text-black text-xs font-bold font-mono py-2 px-5 rounded-lg uppercase flex items-center justify-center gap-2 cursor-pointer h-9"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   REFRESH DATA
@@ -3411,9 +3762,9 @@ useEffect(() => {
               <div className="flex flex-wrap items-center gap-3 self-stretch sm:self-auto justify-end">
                 <button
                   onClick={() => setActiveTab('telemetry')}
-                  className="bg-transparent hover:bg-emerald-500/10 border border-emerald-500/40 hover:border-emerald-400 transition text-emerald-400 text-xs font-bold font-mono py-2 px-4 rounded-xl flex items-center gap-2 cursor-pointer h-10 shadow-[0_0_10px_rgba(16,185,129,0.1)] hover:shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                  className="bg-transparent hover:bg-white/10 border border-white/20 hover:border-white transition text-white text-xs font-bold font-mono py-2 px-4 rounded-xl flex items-center gap-2 cursor-pointer h-10 shadow-[0_0_10px_rgba(255,255,255,0.05)] hover:shadow-[0_0_15px_rgba(255,255,255,0.1)]"
                 >
-                  <Maximize2 className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
+                  <Maximize2 className="w-3.5 h-3.5 animate-pulse text-white" />
                   <span className="uppercase tracking-wider text-[10px] font-black">Buka Telemetri 24 Jam (AWS)</span>
                 </button>
 
@@ -3435,16 +3786,16 @@ useEffect(() => {
             </div>
 
             {/* INTERACTIVE CALIBRATION & REFERENCE FOR TIDAL / WATER LEVEL (FULL WIDTH ROW) */}
-            <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-[#00f0ff]/30 p-6 rounded-2xl shadow-[0_4px_30px_rgba(0,240,255,0.05)] space-y-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-[#00f0ff]/20 pb-3 gap-3">
+            <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/15 p-6 rounded-2xl shadow-none space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-white/10 pb-3 gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-[#00f0ff]/10 border border-[#00f0ff]/20 rounded-xl text-[#00f0ff]">
+                  <div className="p-2 bg-white/10 border border-white/15 rounded-xl text-white">
                     <RefreshCw className="w-5 h-5 animate-spin-slow" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-black text-[#00f0ff] uppercase tracking-wider font-mono flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-black text-white uppercase tracking-wider font-mono flex flex-wrap items-center gap-2">
                       <span>🧭 SKEMATIK FISIK DERMAGA &amp; SIMULASI PASUT WIDESCREEN</span>
-                      <span className="text-emerald-400 text-[9px] font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded animate-pulse">⛵ KAPAL BERLABUH AKTIF</span>
+                      <span className="text-white text-[9px] font-bold bg-white/5 border border-white/10 px-2 py-0.5 rounded animate-pulse">⛵ KAPAL BERLABUH AKTIF</span>
                     </h3>
                   </div>
                 </div>
