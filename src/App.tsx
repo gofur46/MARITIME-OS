@@ -5,7 +5,7 @@ import {
   AlertTriangle, Play, RefreshCw, Send, CheckCircle, Database,
   Anchor, ArrowUpRight, Eye, Compass, X, ExternalLink, Maximize2, BookOpen,
   Battery, BatteryCharging, BellRing, ShieldAlert, Activity, Save, Check,
-  Lock, Unlock, User, Shield
+  Lock, Unlock, User, Shield, Volume2, VolumeX
 } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { WeatherData, AlertLevel, PortInstruction } from './types';
@@ -514,8 +514,45 @@ export default function App() {
   });
   const [isAdminLoginModalOpen, setIsAdminLoginModalOpen] = useState(false);
   const [pendingTab, setPendingTab] = useState<'realtime' | 'analyst' | 'telemetry' | 'database' | 'settings' | 'bmkg' | null>(null);
+  
+  // Custom Admin Accounts List (Persistent in LocalStorage)
+  const [adminAccounts, setAdminAccounts] = useState<Array<{username: string, passcode: string}>>(() => {
+    const saved = localStorage.getItem('aws_admin_accounts');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // Fallback
+      }
+    }
+    // Check old style single password if exists
+    const oldPasscode = localStorage.getItem('aws_admin_passcode');
+    if (oldPasscode) {
+      return [{ username: 'admin', passcode: oldPasscode }];
+    }
+    return [{ username: 'admin', passcode: 'admin123' }];
+  });
+
+  const [loginUsernameVal, setLoginUsernameVal] = useState('admin');
   const [passcodeVal, setPasscodeVal] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
+
+  // Admin Modal Registration & Management Modes
+  const [adminModalMode, setAdminModalMode] = useState<'login' | 'register'>('login');
+  const [registerUsername, setRegisterUsername] = useState('');
+  const [registerPasscode, setRegisterPasscode] = useState('');
+  const [registerConfirmPasscode, setRegisterConfirmPasscode] = useState('');
+  const [registerError, setRegisterError] = useState('');
+
+  // Change password states inside settings tab
+  const [changePassUsername, setChangePassUsername] = useState(() => {
+    return localStorage.getItem('aws_active_admin_username') || 'admin';
+  });
+  const [currentPasscode, setCurrentPasscode] = useState('');
+  const [newPasscode, setNewPasscode] = useState('');
+  const [confirmNewPasscode, setConfirmNewPasscode] = useState('');
+  const [changePassError, setChangePassError] = useState('');
+  const [changePassSuccess, setChangePassSuccess] = useState('');
   
   // Fallback check to ensure non-admins cannot stay on restricted tabs
   useEffect(() => {
@@ -561,6 +598,95 @@ export default function App() {
   };
 
   const [config, setConfig] = useState(initialConfig);
+
+  // Audio alarm configurations & state management (Speaker & Siren EWS)
+  const [isAudioAlarmEnabled, setIsAudioAlarmEnabled] = useState(() => {
+    return localStorage.getItem('aws_audio_alarm_enabled') !== 'false'; // Default to enabled
+  });
+  const [alarmSoundType, setAlarmSoundType] = useState<'siren' | 'buzzer' | 'voice' | 'both'>(() => {
+    return (localStorage.getItem('aws_alarm_sound_type') as any) || 'both'; // Default to both
+  });
+  const [alarmVolume, setAlarmVolume] = useState<number>(() => {
+    const saved = localStorage.getItem('aws_alarm_volume');
+    return saved !== null ? parseInt(saved, 10) : 50; // Default: 50%
+  });
+  const [isAlarmSilenced, setIsAlarmSilenced] = useState(false);
+  const [lastSpokenWarning, setLastSpokenWarning] = useState<string>('');
+  const [lastSpokenTime, setLastSpokenTime] = useState<number>(0);
+
+  // Clean Web Audio API synthesis functions (Fully synthetic, zero-dependencies)
+  const playSirenBeep = (freq1 = 600, freq2 = 1000, duration = 0.6, oscType: OscillatorType = 'sawtooth') => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      osc.type = oscType;
+      osc.frequency.setValueAtTime(freq1, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(freq2, ctx.currentTime + duration);
+      
+      const vol = (alarmVolume / 100) * 0.15; // Safe maximum volume limit
+      gainNode.gain.setValueAtTime(vol, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      
+      osc.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch (e) {
+      console.error('Buzzer error:', e);
+    }
+  };
+
+  const playBuzzerBeep = (frequency = 880, duration = 0.15, oscType: OscillatorType = 'square') => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      osc.type = oscType;
+      osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+      
+      const vol = (alarmVolume / 100) * 0.12; // Safe maximum volume limit
+      gainNode.gain.setValueAtTime(vol, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      
+      osc.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch (e) {
+      console.error('Buzzer error:', e);
+    }
+  };
+
+  const speakIndonesianText = (text: string) => {
+    try {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel(); // Stop any pending speech
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'id-ID';
+      utterance.volume = alarmVolume / 100;
+      utterance.rate = 0.95; // Readable broadcast velocity
+      
+      const voices = window.speechSynthesis.getVoices();
+      const idVoice = voices.find(v => v.lang.includes('ID') || v.lang.toLowerCase().includes('indonesia'));
+      if (idVoice) {
+        utterance.voice = idVoice;
+      }
+      
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.error('TTS error:', e);
+    }
+  };
 // --- MULAI TAMBAHAN: AUTO-SYNC CLIENT KE SERVER (VERSI SEMPURNA) ---
 useEffect(() => {
   const initClientState = async () => {
@@ -1435,20 +1561,107 @@ useEffect(() => {
   // Handle Admin Passcode verification
   const handlePasscodeSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (passcodeVal === 'admin123') {
+    const matchedAccount = adminAccounts.find(
+      acc => acc.username.trim().toLowerCase() === loginUsernameVal.trim().toLowerCase() && 
+             acc.passcode === passcodeVal
+    );
+
+    if (matchedAccount) {
       setCurrentUserRole('admin');
       localStorage.setItem('aws_user_role', 'admin');
+      localStorage.setItem('aws_active_admin_username', matchedAccount.username);
       setIsAdminLoginModalOpen(false);
       setPasscodeVal('');
       setPasscodeError('');
-      showToastNotification("Akses Admin Terverifikasi!");
+      showToastNotification(`Akses Admin "${matchedAccount.username}" Terverifikasi!`);
       if (pendingTab) {
         setActiveTab(pendingTab);
         setPendingTab(null);
       }
     } else {
-      setPasscodeError("Passcode salah! Silakan coba lagi.");
+      setPasscodeError("Username atau Passcode salah! Silakan coba lagi.");
     }
+  };
+
+  // Handle Admin Registration
+  const handleRegisterAdmin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegisterError('');
+    
+    if (!registerUsername.trim()) {
+      setRegisterError('Username tidak boleh kosong!');
+      return;
+    }
+    if (registerPasscode.length < 4) {
+      setRegisterError('Passcode minimal harus 4 karakter!');
+      return;
+    }
+    if (registerPasscode !== registerConfirmPasscode) {
+      setRegisterError('Konfirmasi passcode tidak cocok!');
+      return;
+    }
+    
+    const exists = adminAccounts.some(acc => acc.username.trim().toLowerCase() === registerUsername.trim().toLowerCase());
+    if (exists) {
+      setRegisterError('Username ini sudah terdaftar!');
+      return;
+    }
+    
+    const newAccounts = [...adminAccounts, { username: registerUsername.trim(), passcode: registerPasscode }];
+    setAdminAccounts(newAccounts);
+    localStorage.setItem('aws_admin_accounts', JSON.stringify(newAccounts));
+    
+    showToastNotification(`Registrasi Admin "${registerUsername}" Berhasil! Silakan Login.`);
+    setLoginUsernameVal(registerUsername.trim());
+    setPasscodeVal(registerPasscode);
+    setRegisterUsername('');
+    setRegisterPasscode('');
+    setRegisterConfirmPasscode('');
+    setAdminModalMode('login');
+  };
+
+  // Handle Changing Admin Passcode
+  const handleChangePasscodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePassError('');
+    setChangePassSuccess('');
+
+    if (!currentPasscode || !newPasscode || !confirmNewPasscode) {
+      setChangePassError('Semua kolom harus diisi!');
+      return;
+    }
+
+    const accountIndex = adminAccounts.findIndex(acc => acc.username.trim().toLowerCase() === changePassUsername.trim().toLowerCase());
+    if (accountIndex === -1) {
+      setChangePassError(`Admin "${changePassUsername}" tidak ditemukan!`);
+      return;
+    }
+
+    if (adminAccounts[accountIndex].passcode !== currentPasscode) {
+      setChangePassError('Passcode lama salah!');
+      return;
+    }
+
+    if (newPasscode.length < 4) {
+      setChangePassError('Passcode baru minimal 4 karakter!');
+      return;
+    }
+
+    if (newPasscode !== confirmNewPasscode) {
+      setChangePassError('Konfirmasi passcode baru tidak cocok!');
+      return;
+    }
+
+    const updatedAccounts = [...adminAccounts];
+    updatedAccounts[accountIndex].passcode = newPasscode;
+    setAdminAccounts(updatedAccounts);
+    localStorage.setItem('aws_admin_accounts', JSON.stringify(updatedAccounts));
+
+    setCurrentPasscode('');
+    setNewPasscode('');
+    setConfirmNewPasscode('');
+    setChangePassSuccess('Passcode berhasil diperbarui!');
+    showToastNotification('🟢 Passcode Admin berhasil diubah!');
   };
 
   // Save changes helper
@@ -2293,6 +2506,120 @@ useEffect(() => {
     }
   };
 
+  // Warning status evaluator (Sirene/Buzzer EWS checks)
+  const warningStatus = (() => {
+    const windSpeedVal = currentData.windSpeed;
+    const windGustVal = currentData.windGust ?? 0;
+    
+    const isStormHazard = windSpeedVal >= parseFloat(config.windSpeedStormThreshold || '15.0') || windGustVal >= parseFloat(config.windGustStormThreshold || '18.0');
+    const isGustWarning = !isStormHazard && windGustVal >= parseFloat(config.windGustWarningThreshold || '14.0');
+    const isAnginKencang = !isStormHazard && !isGustWarning && windSpeedVal >= parseFloat(config.windSpeedWarningThreshold || '10.0');
+
+    const relativeVesselWind = (currentData.windDirection - (parseFloat(config.pierAngle) || 0) + 360) % 360;
+    const crosswindSpeed = windSpeedVal * Math.abs(Math.sin((relativeVesselWind * Math.PI) / 180));
+    const isCrosswindHazard = !isStormHazard && !isGustWarning && !isAnginKencang && crosswindSpeed >= 8.0;
+
+    const rainVal = currentData.rainfall;
+    const isHeavyRain = rainVal >= parseFloat(config.rainWarningThreshold || '10.0');
+
+    const phValue = currentData.waterPh ?? 7.8;
+    const isPhHazard = phValue < parseFloat(config.minPhThreshold || '6.5') || phValue > parseFloat(config.maxPhThreshold || '8.5');
+
+    const list: string[] = [];
+    let ttsText = '';
+
+    if (isStormHazard) {
+      list.push('Badai Ekstrim (Siaga 1)');
+      ttsText = 'Peringatan! Siaga Satu Badai Ekstrim Terdeteksi!';
+    } else if (isGustWarning) {
+      list.push('Hembusan Angin Tinggi (Siaga 2)');
+      ttsText = 'Peringatan! Siaga Dua Hembusan Angin Tinggi Terdeteksi!';
+    } else if (isAnginKencang) {
+      list.push('Angin Kencang (Siaga 3)');
+      ttsText = 'Peringatan! Siaga Tiga Angin Kencang Terdeteksi!';
+    }
+
+    if (isCrosswindHazard) {
+      list.push('Bahaya Angin Samping');
+      if (!ttsText) ttsText = 'Peringatan! Bahaya Angin Samping Pelabuhan!';
+    }
+
+    if (isHeavyRain) {
+      list.push('Hujan Lebat Terdeteksi');
+      if (!ttsText) ttsText = 'Peringatan! Hujan Lebat Terdeteksi!';
+    }
+
+    if (isPhHazard) {
+      list.push('pH Air Tidak Aman');
+      if (!ttsText) ttsText = 'Peringatan! Kualitas pH Air di luar batas aman!';
+    }
+
+    return {
+      hasWarning: list.length > 0,
+      warnings: list,
+      ttsText,
+      isStormHazard,
+      isGustWarning,
+      isAnginKencang,
+      isCrosswindHazard,
+      isHeavyRain,
+      isPhHazard
+    };
+  })();
+
+  // Reset silence when warning clears
+  useEffect(() => {
+    if (!warningStatus.hasWarning) {
+      setIsAlarmSilenced(false);
+    }
+  }, [warningStatus.hasWarning]);
+
+  // Main Audio Warning alarm scheduler
+  useEffect(() => {
+    if (!warningStatus.hasWarning || !isAudioAlarmEnabled || isAlarmSilenced) {
+      return;
+    }
+
+    const playAlarmCycle = () => {
+      // 1. Play Alarm Tones
+      if (alarmSoundType === 'buzzer' || alarmSoundType === 'both') {
+        playBuzzerBeep(880, 0.12, 'square');
+        setTimeout(() => playBuzzerBeep(880, 0.12, 'square'), 200);
+        setTimeout(() => playBuzzerBeep(880, 0.12, 'square'), 400);
+      } else if (alarmSoundType === 'siren') {
+        playSirenBeep(600, 1000, 0.6, 'sawtooth');
+        setTimeout(() => playSirenBeep(1000, 600, 0.6, 'sawtooth'), 600);
+      }
+
+      // 2. Play Indonesian Voice Broadcast if enabled
+      const now = Date.now();
+      if ((alarmSoundType === 'voice' || alarmSoundType === 'both') && warningStatus.ttsText) {
+        if (now - lastSpokenTime > 12000 || lastSpokenWarning !== warningStatus.ttsText) {
+          setTimeout(() => {
+            speakIndonesianText(warningStatus.ttsText);
+          }, 800);
+          setLastSpokenTime(now);
+          setLastSpokenWarning(warningStatus.ttsText);
+        }
+      }
+    };
+
+    playAlarmCycle();
+
+    const timer = setInterval(playAlarmCycle, 5000);
+
+    return () => clearInterval(timer);
+  }, [
+    warningStatus.hasWarning,
+    warningStatus.ttsText,
+    isAudioAlarmEnabled,
+    isAlarmSilenced,
+    alarmSoundType,
+    alarmVolume,
+    lastSpokenWarning,
+    lastSpokenTime
+  ]);
+
   // Convert wind speed value to relative string rose
   const getWindRoseString = (deg: number) => {
     if (deg >= 337.5 || deg < 22.5) return 'N';
@@ -2844,6 +3171,85 @@ useEffect(() => {
                     className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-mono text-[10px] font-black tracking-widest px-4 py-2.5 rounded-lg uppercase transition-all whitespace-nowrap shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer"
                   >
                     🔧 Jalankan Simulasi (OFF)
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 3. ACTIVE TELEMETRY WARNING ALARM BANNER (EWS SIRENE & SPEAKER) */}
+            {warningStatus.hasWarning && (
+              <div className={`mb-6 bg-gradient-to-r ${warningStatus.isStormHazard ? 'from-red-950/80 via-red-900/60 to-red-950/80 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.25)]' : 'from-amber-950/80 via-amber-900/60 to-amber-950/80 border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)]'} border-2 rounded-2xl p-4.5 flex flex-col lg:flex-row items-center justify-between gap-4 select-none`}>
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 ${warningStatus.isStormHazard ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'} border rounded-xl animate-bounce`}>
+                    <Volume2 className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <div className="text-left space-y-1">
+                    <span className="text-xs font-black uppercase tracking-widest text-[#00f0ff] font-mono flex items-center gap-1.5">
+                      🚨 SISTEM SIRENE & AUDIO ALARM AKTIF (EWS)
+                    </span>
+                    <div className="flex flex-wrap gap-1.5 items-center mt-1">
+                      {warningStatus.warnings.map((warn, i) => (
+                        <span key={i} className={`text-[10px] font-extrabold px-2.5 py-1 rounded uppercase font-mono tracking-wider ${warningStatus.isStormHazard ? 'bg-red-500/30 text-red-200 border border-red-500/50' : 'bg-amber-500/30 text-amber-200 border border-amber-500/50'} animate-pulse`}>
+                          ⚠️ {warn}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex flex-wrap sm:flex-nowrap gap-2.5 w-full lg:w-auto items-center">
+                  <div className="flex items-center gap-2 bg-black/40 border border-white/10 px-3.5 py-2.5 rounded-xl font-mono text-[10px] text-slate-300 w-full sm:w-auto justify-center">
+                    <span className="text-slate-400 uppercase">STATUS AUDIO:</span>
+                    {!isAudioAlarmEnabled ? (
+                      <span className="text-slate-500 font-black">OFF / MATI</span>
+                    ) : isAlarmSilenced ? (
+                      <span className="text-amber-400 font-black animate-pulse">SILENCE</span>
+                    ) : (
+                      <span className="text-emerald-400 font-black animate-pulse flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+                        BERBUNYI
+                      </span>
+                    )}
+                  </div>
+
+                  {isAudioAlarmEnabled && (
+                    <button 
+                      onClick={() => {
+                        const next = !isAlarmSilenced;
+                        setIsAlarmSilenced(next);
+                        if (next) {
+                          // Stop any pending voice
+                          if ('speechSynthesis' in window) {
+                            window.speechSynthesis.cancel();
+                          }
+                        } else {
+                          playBuzzerBeep(880, 0.2);
+                        }
+                      }}
+                      className={`w-full sm:w-auto font-mono text-[10px] font-black tracking-widest px-4 py-2.5 rounded-xl uppercase transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 border ${isAlarmSilenced ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border-emerald-500/30' : 'bg-rose-500 hover:bg-rose-600 text-white border-transparent shadow-[0_0_15px_rgba(239,68,68,0.35)]'}`}
+                    >
+                      {isAlarmSilenced ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                      {isAlarmSilenced ? 'BUNYIKAN SUARA' : 'SILENCE SIRENE'}
+                    </button>
+                  )}
+
+                  <button 
+                    onClick={() => {
+                      const next = !isAudioAlarmEnabled;
+                      setIsAudioAlarmEnabled(next);
+                      localStorage.setItem('aws_audio_alarm_enabled', String(next));
+                      if (next) {
+                        setIsAlarmSilenced(false);
+                        playBuzzerBeep(880, 0.2);
+                      } else {
+                        if ('speechSynthesis' in window) {
+                          window.speechSynthesis.cancel();
+                        }
+                      }
+                    }}
+                    className={`w-full sm:w-auto font-mono text-[10px] font-black tracking-widest px-4 py-2.5 rounded-xl uppercase transition-all whitespace-nowrap cursor-pointer border ${isAudioAlarmEnabled ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-white/10' : 'bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-black border-transparent shadow-[0_0_15px_rgba(20,184,166,0.3)]'}`}
+                  >
+                    {isAudioAlarmEnabled ? 'MATIKAN SPEAKER' : 'AKTIFKAN SPEAKER'}
                   </button>
                 </div>
               </div>
@@ -6148,6 +6554,115 @@ header("Content-Type: application/json; charset=UTF-8");
                     </div>
                   </div>
 
+                  {/* 🔊 SPEAKER & SIRENE ALARM EWS SETTINGS */}
+                  <div className="border-t border-white/5 pt-3 space-y-3 bg-[#07101e]/40 p-4 rounded-xl border border-white/5 shadow-md">
+                    <label className="text-xs uppercase font-bold text-[#00f0ff] tracking-wider block font-sans flex items-center gap-1.5">
+                      <Volume2 className="w-4 h-4 text-[#00f0ff]" />
+                      🔊 Speaker & Sirene EWS Settings
+                    </label>
+                    
+                    <div className="space-y-3">
+                      {/* Master Enable toggle */}
+                      <div className="flex justify-between items-center bg-[#050a12] p-2.5 rounded-lg border border-white/10">
+                        <div>
+                          <span className="text-[10px] text-slate-300 font-extrabold uppercase font-mono block">Master Speaker Audio</span>
+                          <span className="text-[9px] text-slate-500 block">Aktifkan alarm suara otomatis jika ambang batas terlampaui</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = !isAudioAlarmEnabled;
+                            setIsAudioAlarmEnabled(next);
+                            localStorage.setItem('aws_audio_alarm_enabled', String(next));
+                            if (next) {
+                              setIsAlarmSilenced(false);
+                              playBuzzerBeep(1000, 0.15);
+                            }
+                          }}
+                          className={`px-3 py-1 text-[10px] font-mono font-bold uppercase rounded-lg border transition-all cursor-pointer ${isAudioAlarmEnabled ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-slate-800 text-slate-500 border-white/10'}`}
+                        >
+                          {isAudioAlarmEnabled ? 'ON (AKTIF)' : 'OFF (NONAKTIF)'}
+                        </button>
+                      </div>
+
+                      {/* Alarm Type Dropdown */}
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-mono block mb-1">Mode & Karakter Suara Alarm</span>
+                        <select
+                          value={alarmSoundType}
+                          onChange={(e) => {
+                            const val = e.target.value as any;
+                            setAlarmSoundType(val);
+                            localStorage.setItem('aws_alarm_sound_type', val);
+                            if (val === 'siren' || val === 'both') {
+                              playSirenBeep(600, 1000, 0.4, 'sawtooth');
+                            } else {
+                              playBuzzerBeep(880, 0.15);
+                            }
+                          }}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-white font-bold rounded outline-none focus:border-[#00f0ff]"
+                        >
+                          <option value="both">Sirene Nada & Laporan Suara (Voice + Beep)</option>
+                          <option value="siren">Sirene Badai Kontinu (Sweep Waveform)</option>
+                          <option value="buzzer">Buzzer Pendek Berulang (Square Wave)</option>
+                          <option value="voice">Hanya Laporan Suara Bahasa Indonesia (TTS)</option>
+                        </select>
+                      </div>
+
+                      {/* Volume Slider */}
+                      <div>
+                        <div className="flex justify-between items-center text-[10px] font-mono text-slate-400 mb-1">
+                          <span className="uppercase">Volume Speaker Utama</span>
+                          <span className="text-[#00f0ff] font-bold">{alarmVolume}%</span>
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                          <VolumeX className="w-4 h-4 text-slate-500" />
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={alarmVolume}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              setAlarmVolume(val);
+                              localStorage.setItem('aws_alarm_volume', String(val));
+                            }}
+                            className="flex-1 accent-[#00f0ff] h-1.5 bg-white/10 rounded-lg cursor-pointer"
+                          />
+                          <Volume2 className="w-4 h-4 text-[#00f0ff]" />
+                        </div>
+                      </div>
+
+                      {/* Audio Tester Panel */}
+                      <div className="bg-black/35 p-2.5 rounded-lg border border-white/5 space-y-1.5">
+                        <span className="text-[9px] text-slate-400 font-mono uppercase block tracking-wider">🔬 Pengujian Konsol Suara (Speaker Diagnostic)</span>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => playBuzzerBeep(880, 0.15, 'square')}
+                            className="bg-white/5 hover:bg-white/10 text-slate-300 font-mono text-[9px] uppercase py-1 px-1.5 rounded transition-all cursor-pointer border border-white/5 text-center"
+                          >
+                            Bip Buzzer
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => playSirenBeep(500, 1100, 0.8, 'sawtooth')}
+                            className="bg-white/5 hover:bg-white/10 text-slate-300 font-mono text-[9px] uppercase py-1 px-1.5 rounded transition-all cursor-pointer border border-white/5 text-center"
+                          >
+                            Sirene Badai
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => speakIndonesianText("Sistem pengeras suara stasiun cuaca pelabuhan berfungsi normal.")}
+                            className="bg-white/5 hover:bg-white/10 text-slate-300 font-mono text-[9px] uppercase py-1 px-1.5 rounded transition-all cursor-pointer border border-white/5 text-center"
+                          >
+                            Uji TTS (Suara)
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Database Storage custom configurations */}
                   <div className="border-t border-white/5 pt-3 space-y-2">
                     <label className="text-xs uppercase font-bold text-teal-400 tracking-wider block">
@@ -6229,7 +6744,178 @@ header("Content-Type: application/json; charset=UTF-8");
 
               </div>
 
+              {/* 🔒 ADMIN CREDENTIALS & SECURITY MANAGEMENT */}
+              <div className="bg-gradient-to-b from-[#0b1424] to-bg border border-white/10 rounded-2xl p-5 space-y-4 shadow-xl">
+                <div className="text-xs md:text-sm uppercase font-bold text-[#00f0ff] tracking-[0.2em] border-b border-white/5 pb-2 flex items-center gap-2">
+                  <span>🔒 Admin Security Management</span>
+                </div>
 
+                <div className="space-y-4">
+                  {/* Forms toggler/tabs inside panel */}
+                  <div className="flex border border-white/10 p-0.5 bg-black/40 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdminModalMode('login');
+                        setChangePassError('');
+                        setChangePassSuccess('');
+                        setRegisterError('');
+                      }}
+                      className={`flex-1 py-1.5 text-[10px] font-bold uppercase rounded-lg text-center transition-all cursor-pointer ${adminModalMode === 'login' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border border-[#00f0ff]/30' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      Ganti Password
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdminModalMode('register');
+                        setChangePassError('');
+                        setChangePassSuccess('');
+                        setRegisterError('');
+                      }}
+                      className={`flex-1 py-1.5 text-[10px] font-bold uppercase rounded-lg text-center transition-all cursor-pointer ${adminModalMode === 'register' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      Registrasi Admin Baru
+                    </button>
+                  </div>
+
+                  {adminModalMode === 'login' ? (
+                    <form onSubmit={handleChangePasscodeSubmit} className="space-y-3">
+                      <div>
+                        <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-1">Pilih Akun Admin</label>
+                        <select
+                          value={changePassUsername}
+                          onChange={(e) => {
+                            setChangePassUsername(e.target.value);
+                            setChangePassError('');
+                            setChangePassSuccess('');
+                          }}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-white rounded outline-none focus:border-[#00f0ff]"
+                        >
+                          {adminAccounts.map((acc, index) => (
+                            <option key={index} value={acc.username}>
+                              {acc.username} {acc.username === localStorage.getItem('aws_active_admin_username') ? '(Aktif)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-1">Passcode Lama</label>
+                        <input
+                          type="password"
+                          placeholder="••••••••"
+                          value={currentPasscode}
+                          onChange={(e) => setCurrentPasscode(e.target.value)}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2.5 text-white rounded-lg outline-none focus:border-[#00f0ff] tracking-widest"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-1">Passcode Baru</label>
+                        <input
+                          type="password"
+                          placeholder="••••••••"
+                          value={newPasscode}
+                          onChange={(e) => setNewPasscode(e.target.value)}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2.5 text-white rounded-lg outline-none focus:border-[#00f0ff] tracking-widest"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-1">Konfirmasi Passcode Baru</label>
+                        <input
+                          type="password"
+                          placeholder="••••••••"
+                          value={confirmNewPasscode}
+                          onChange={(e) => setConfirmNewPasscode(e.target.value)}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2.5 text-white rounded-lg outline-none focus:border-[#00f0ff] tracking-widest"
+                        />
+                      </div>
+
+                      {changePassError && (
+                        <p className="text-[10px] font-mono text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2 rounded text-center">
+                          ⚠️ {changePassError}
+                        </p>
+                      )}
+
+                      {changePassSuccess && (
+                        <p className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-2 rounded text-center font-bold">
+                          ✅ {changePassSuccess}
+                        </p>
+                      )}
+
+                      <button
+                        type="submit"
+                        className="w-full bg-[#00f0ff] hover:bg-[#00d0e0] text-black font-black py-2.5 rounded-xl text-[10px] uppercase tracking-wider transition-all cursor-pointer font-sans"
+                      >
+                        SIMPAN PERUBAHAN PASSWORD
+                      </button>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleRegisterAdmin} className="space-y-3">
+                      <div>
+                        <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-1">Username Admin Baru</label>
+                        <input
+                          type="text"
+                          placeholder="Contoh: admin_kbs"
+                          value={registerUsername}
+                          onChange={(e) => setRegisterUsername(e.target.value)}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2.5 text-white rounded-lg outline-none focus:border-[#00f0ff]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-1">Passcode Baru</label>
+                        <input
+                          type="password"
+                          placeholder="••••••••"
+                          value={registerPasscode}
+                          onChange={(e) => setRegisterPasscode(e.target.value)}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2.5 text-white rounded-lg outline-none focus:border-[#00f0ff] tracking-widest"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-1">Konfirmasi Passcode</label>
+                        <input
+                          type="password"
+                          placeholder="••••••••"
+                          value={registerConfirmPasscode}
+                          onChange={(e) => setRegisterConfirmPasscode(e.target.value)}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2.5 text-white rounded-lg outline-none focus:border-[#00f0ff] tracking-widest"
+                        />
+                      </div>
+
+                      {registerError && (
+                        <p className="text-[10px] font-mono text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2 rounded text-center">
+                          ⚠️ {registerError}
+                        </p>
+                      )}
+
+                      <button
+                        type="submit"
+                        className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-2.5 rounded-xl text-[10px] uppercase tracking-wider transition-all cursor-pointer font-sans"
+                      >
+                        DAFTARKAN ADMIN BARU
+                      </button>
+                    </form>
+                  )}
+
+                  {/* List of registered admins */}
+                  <div className="bg-black/30 p-3 rounded-xl border border-white/5 space-y-1.5">
+                    <span className="text-[9px] font-mono text-slate-400 uppercase tracking-widest block">👥 Daftar Admin Terdaftar ({adminAccounts.length})</span>
+                    <div className="max-h-[80px] overflow-y-auto space-y-1">
+                      {adminAccounts.map((acc, index) => (
+                        <div key={index} className="flex justify-between items-center text-[10px] font-mono text-slate-300 bg-white/5 py-1 px-2 rounded">
+                          <span className="font-bold text-[#00f0ff]">{acc.username}</span>
+                          <span className="text-slate-500">••••••••</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
             </div>
 
@@ -8674,7 +9360,9 @@ header("Content-Type: application/json; charset=UTF-8");
                   <Lock className="w-5 h-5 text-rose-400" />
                 </div>
                 <div>
-                  <h2 className="text-md font-black tracking-wider uppercase text-white">LOGIN OTORISASI ADMIN</h2>
+                  <h2 className="text-md font-black tracking-wider uppercase text-white">
+                    {adminModalMode === 'login' ? 'LOGIN OTORISASI ADMIN' : 'REGISTRASI ADMIN BARU'}
+                  </h2>
                   <p className="text-[9px] font-mono text-[#00f0ff] uppercase tracking-widest mt-0.5">Sistem Penguncian Parameter AWS</p>
                 </div>
               </div>
@@ -8683,70 +9371,198 @@ header("Content-Type: application/json; charset=UTF-8");
                   setIsAdminLoginModalOpen(false);
                   setPasscodeVal('');
                   setPasscodeError('');
+                  setRegisterError('');
+                  setAdminModalMode('login');
                 }}
                 className="p-1.5 rounded-lg border border-white/10 hover:border-red-500/40 text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer flex items-center justify-center"
-                title="Batal Login"
+                title="Batal"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Modal Body */}
-            <form onSubmit={handlePasscodeSubmit} className="p-6 space-y-4">
-              <div className="space-y-1 text-center py-1">
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Masukkan passcode otorisasi Admin KBS untuk membuka akses tab <strong className="text-white">DATABASE LOGS</strong> dan <strong className="text-white">SYSTEM CONFIGURATIONS (OPTION)</strong>.
-                </p>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-mono uppercase font-bold text-slate-400 block tracking-wider">Passcode Otorisasi</label>
-                <div className="relative">
-                  <input 
-                    type="password"
-                    value={passcodeVal}
-                    onChange={(e) => {
-                      setPasscodeVal(e.target.value);
-                      if (passcodeError) setPasscodeError('');
-                    }}
-                    placeholder="••••••••"
-                    autoFocus
-                    className="w-full bg-black/50 border border-white/15 focus:border-[#00f0ff] font-mono text-center text-sm p-3 rounded-xl outline-none transition-all tracking-widest text-[#00f0ff] placeholder-slate-600 shadow-inner"
-                  />
-                </div>
-                
-                {passcodeError && (
-                  <p className="text-[10px] font-mono text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2 rounded-lg text-center font-bold">
-                    ⚠️ {passcodeError}
-                  </p>
-                )}
-              </div>
-
-              <div className="text-center bg-black/40 p-2.5 rounded-xl border border-white/5">
-                <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block">💡 Petunjuk Otorisasi</span>
-                <span className="text-[10px] font-mono text-slate-400 mt-1 block">Passcode Default: <strong className="text-teal-400 font-bold">admin123</strong></span>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button 
+            <div className="p-6 space-y-4">
+              
+              {/* Toggle Login vs Register */}
+              <div className="flex border border-white/10 p-0.5 bg-black/40 rounded-xl">
+                <button
                   type="button"
                   onClick={() => {
-                    setIsAdminLoginModalOpen(false);
-                    setPasscodeVal('');
+                    setAdminModalMode('login');
                     setPasscodeError('');
+                    setRegisterError('');
                   }}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer border border-white/5 text-center"
+                  className={`flex-1 py-1.5 text-[10px] font-bold uppercase rounded-lg text-center transition-all cursor-pointer ${adminModalMode === 'login' ? 'bg-[#00f0ff]/15 text-[#00f0ff] border border-[#00f0ff]/30' : 'text-slate-400 hover:text-white'}`}
                 >
-                  Batal
+                  MASUK (LOGIN)
                 </button>
-                <button 
-                  type="submit"
-                  className="flex-1 bg-[#00f0ff] hover:bg-[#00d0e0] text-black font-black py-3 px-4 rounded-xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_15px_rgba(0,240,255,0.3)] text-center"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminModalMode('register');
+                    setPasscodeError('');
+                    setRegisterError('');
+                  }}
+                  className={`flex-1 py-1.5 text-[10px] font-bold uppercase rounded-lg text-center transition-all cursor-pointer ${adminModalMode === 'register' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
                 >
-                  VERIFIKASI
+                  DAFTAR (REGISTRASI)
                 </button>
               </div>
-            </form>
+
+              {adminModalMode === 'login' ? (
+                <form onSubmit={handlePasscodeSubmit} className="space-y-4">
+                  <div className="space-y-1 text-center py-1">
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Masukkan kredensial Admin KBS untuk membuka akses tab <strong className="text-white">DATABASE LOGS</strong> dan <strong className="text-white">SYSTEM CONFIGURATIONS</strong>.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase font-bold text-slate-400 block tracking-wider">Username Admin</label>
+                      <input 
+                        type="text"
+                        value={loginUsernameVal}
+                        onChange={(e) => {
+                          setLoginUsernameVal(e.target.value);
+                          if (passcodeError) setPasscodeError('');
+                        }}
+                        placeholder="Contoh: admin"
+                        className="w-full bg-black/50 border border-white/15 focus:border-[#00f0ff] text-sm p-3 rounded-xl outline-none transition-all text-[#00f0ff] placeholder-slate-600 shadow-inner"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase font-bold text-slate-400 block tracking-wider">Passcode Otorisasi</label>
+                      <input 
+                        type="password"
+                        value={passcodeVal}
+                        onChange={(e) => {
+                          setPasscodeVal(e.target.value);
+                          if (passcodeError) setPasscodeError('');
+                        }}
+                        placeholder="••••••••"
+                        className="w-full bg-black/50 border border-white/15 focus:border-[#00f0ff] font-mono text-center text-sm p-3 rounded-xl outline-none transition-all tracking-widest text-[#00f0ff] placeholder-slate-600 shadow-inner"
+                      />
+                    </div>
+                    
+                    {passcodeError && (
+                      <p className="text-[10px] font-mono text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2 rounded-lg text-center font-bold">
+                        ⚠️ {passcodeError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="text-center bg-black/40 p-2.5 rounded-xl border border-white/5">
+                    <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block">💡 Petunjuk Otorisasi</span>
+                    <span className="text-[10px] font-mono text-slate-400 mt-1 block">Default: <strong className="text-teal-400 font-bold">admin</strong> / passcode: <strong className="text-teal-400 font-bold">admin123</strong></span>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setIsAdminLoginModalOpen(false);
+                        setPasscodeVal('');
+                        setPasscodeError('');
+                        setAdminModalMode('login');
+                      }}
+                      className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer border border-white/5 text-center"
+                    >
+                      Batal
+                    </button>
+                    <button 
+                      type="submit"
+                      className="flex-1 bg-[#00f0ff] hover:bg-[#00d0e0] text-black font-black py-3 px-4 rounded-xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_15px_rgba(0,240,255,0.3)] text-center"
+                    >
+                      MASUK
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleRegisterAdmin} className="space-y-4">
+                  <div className="space-y-1 text-center py-1">
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Buat kredensial administrator baru secara instan di bawah ini untuk mengelola parameter sistem stasiun AWS KBS.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase font-bold text-slate-400 block tracking-wider">Username Admin Baru</label>
+                      <input 
+                        type="text"
+                        value={registerUsername}
+                        onChange={(e) => {
+                          setRegisterUsername(e.target.value);
+                          if (registerError) setRegisterError('');
+                        }}
+                        placeholder="Contoh: admin_kbs"
+                        className="w-full bg-black/50 border border-white/15 focus:border-emerald-500 text-sm p-3 rounded-xl outline-none transition-all text-[#00f0ff] placeholder-slate-600 shadow-inner"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase font-bold text-slate-400 block tracking-wider">Passcode Baru</label>
+                      <input 
+                        type="password"
+                        value={registerPasscode}
+                        onChange={(e) => {
+                          setRegisterPasscode(e.target.value);
+                          if (registerError) setRegisterError('');
+                        }}
+                        placeholder="••••••••"
+                        className="w-full bg-black/50 border border-white/15 focus:border-emerald-500 font-mono text-center text-sm p-3 rounded-xl outline-none transition-all tracking-widest text-emerald-400 placeholder-slate-600 shadow-inner"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase font-bold text-slate-400 block tracking-wider">Konfirmasi Passcode</label>
+                      <input 
+                        type="password"
+                        value={registerConfirmPasscode}
+                        onChange={(e) => {
+                          setRegisterConfirmPasscode(e.target.value);
+                          if (registerError) setRegisterError('');
+                        }}
+                        placeholder="••••••••"
+                        className="w-full bg-black/50 border border-white/15 focus:border-emerald-500 font-mono text-center text-sm p-3 rounded-xl outline-none transition-all tracking-widest text-emerald-400 placeholder-slate-600 shadow-inner"
+                      />
+                    </div>
+                    
+                    {registerError && (
+                      <p className="text-[10px] font-mono text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2 rounded-lg text-center font-bold">
+                        ⚠️ {registerError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setAdminModalMode('login');
+                        setRegisterUsername('');
+                        setRegisterPasscode('');
+                        setRegisterConfirmPasscode('');
+                        setRegisterError('');
+                      }}
+                      className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer border border-white/5 text-center"
+                    >
+                      Batal
+                    </button>
+                    <button 
+                      type="submit"
+                      className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3 px-4 rounded-xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_15px_rgba(16,185,129,0.3)] text-center"
+                    >
+                      REGISTRASI
+                    </button>
+                  </div>
+                </form>
+              )}
+
+            </div>
 
           </div>
         </div>
