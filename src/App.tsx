@@ -603,7 +603,7 @@ export default function App() {
   const [isAudioAlarmEnabled, setIsAudioAlarmEnabled] = useState(() => {
     return localStorage.getItem('aws_audio_alarm_enabled') !== 'false'; // Default to enabled
   });
-  const [alarmSoundType, setAlarmSoundType] = useState<'siren' | 'buzzer' | 'buzzer_long' | 'voice' | 'both'>(() => {
+  const [alarmSoundType, setAlarmSoundType] = useState<'siren' | 'buzzer' | 'buzzer_long' | 'ambulance' | 'voice' | 'both'>(() => {
     return (localStorage.getItem('aws_alarm_sound_type') as any) || 'both'; // Default to both
   });
   const [alarmVolume, setAlarmVolume] = useState<number>(() => {
@@ -663,6 +663,38 @@ export default function App() {
       osc.stop(ctx.currentTime + duration);
     } catch (e) {
       console.error('Buzzer error:', e);
+    }
+  };
+
+  const playAmbulanceSiren = (duration = 1.0) => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      osc.type = 'triangle'; // Smooth double pitch dual tone waveform
+      
+      const now = ctx.currentTime;
+      // Alternate high/low pitch back-and-forth every 0.25s
+      osc.frequency.setValueAtTime(450, now);
+      osc.frequency.setValueAtTime(650, now + 0.25);
+      osc.frequency.setValueAtTime(450, now + 0.5);
+      osc.frequency.setValueAtTime(650, now + 0.75);
+      
+      const vol = (alarmVolume / 100) * 0.15;
+      gainNode.gain.setValueAtTime(vol, now);
+      gainNode.gain.setValueAtTime(vol, now + duration - 0.1);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      
+      osc.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      osc.start();
+      osc.stop(now + duration);
+    } catch (e) {
+      console.error('Ambulance siren error:', e);
     }
   };
 
@@ -2591,6 +2623,8 @@ useEffect(() => {
       } else if (alarmSoundType === 'siren') {
         playSirenBeep(600, 1000, 0.6, 'sawtooth');
         setTimeout(() => playSirenBeep(1000, 600, 0.6, 'sawtooth'), 600);
+      } else if (alarmSoundType === 'ambulance') {
+        playAmbulanceSiren(1.0);
       }
 
       // 2. Play Indonesian Voice Broadcast if enabled
@@ -6600,6 +6634,8 @@ header("Content-Type: application/json; charset=UTF-8");
                               playSirenBeep(600, 1000, 0.4, 'sawtooth');
                             } else if (val === 'buzzer_long') {
                               playBuzzerBeep(880, 0.8, 'square');
+                            } else if (val === 'ambulance') {
+                              playAmbulanceSiren(1.0);
                             } else {
                               playBuzzerBeep(880, 0.15);
                             }
@@ -6608,6 +6644,7 @@ header("Content-Type: application/json; charset=UTF-8");
                         >
                           <option value="both">Sirene Nada & Laporan Suara (Voice + Beep)</option>
                           <option value="siren">Sirene Badai Kontinu (Sweep Waveform)</option>
+                          <option value="ambulance">Sirene Ambulans / Polisi (Alternating Dual-Tone)</option>
                           <option value="buzzer_long">Buzzer Panjang Kontinu (Continuous Buzz)</option>
                           <option value="buzzer">Buzzer Pendek Berulang (Square Wave)</option>
                           <option value="voice">Hanya Laporan Suara Bahasa Indonesia (TTS)</option>
@@ -6641,7 +6678,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       {/* Audio Tester Panel */}
                       <div className="bg-black/35 p-2.5 rounded-lg border border-white/5 space-y-1.5">
                         <span className="text-[9px] text-slate-400 font-mono uppercase block tracking-wider">🔬 Pengujian Konsol Suara (Speaker Diagnostic)</span>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
                           <button
                             type="button"
                             onClick={() => playBuzzerBeep(880, 0.15, 'square')}
@@ -6662,6 +6699,13 @@ header("Content-Type: application/json; charset=UTF-8");
                             className="bg-white/5 hover:bg-white/10 text-slate-300 font-mono text-[9px] uppercase py-1 px-1.5 rounded transition-all cursor-pointer border border-white/5 text-center"
                           >
                             Sirene Badai
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => playAmbulanceSiren(1.2)}
+                            className="bg-white/5 hover:bg-white/10 text-slate-300 font-mono text-[9px] uppercase py-1 px-1.5 rounded transition-all cursor-pointer border border-white/5 text-center font-bold text-rose-400"
+                          >
+                            Ambulans
                           </button>
                           <button
                             type="button"
@@ -9332,6 +9376,98 @@ header("Content-Type: application/json; charset=UTF-8");
                         <p className="leading-relaxed">
                           Pastikan Moxa NPort Gateway dipasang dalam kotak panel IP66 yang kedap air dari paparan air laut asin (salt mist/korosi). Lakukan restart berkala pada router Moxa melalui web interface admin atau mematikan steker listrik selama 10 detik apabila koneksi daemon mengalami penurunan kecepatan atau kehilangan transmisi paket data (packet loss).
                         </p>
+                      </div>
+                    </div>
+
+                    {/* 📢 UPDATE FITUR TERBARU: AUDIO ALARM EWS & SIRENE */}
+                    <div className="bg-gradient-to-r from-[#0d1f38] via-[#091629] to-[#0d1f38] p-5.5 rounded-2xl border border-[#00f0ff]/30 space-y-4">
+                      <div className="flex items-center gap-2.5 text-xs font-black text-[#00f0ff] uppercase tracking-wider">
+                        <Volume2 className="w-5 h-5 text-[#00f0ff] animate-pulse" />
+                        <span>📢 UPDATE FITUR TERBARU: AUDIO EWS, SIRENE & PENGUMUMAN SUARA</span>
+                      </div>
+
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Sistem kini dilengkapi dengan modul <strong>EWS (Early Warning System) Audio Synthesizer</strong> berbasis Web Audio API dan Speech Synthesis bawaan berstandar industri. Modul ini membunyikan alarm otomatis secara real-time apabila parameter penting melampaui ambang batas bahaya, memberikan panduan audio yang cepat untuk operator lapangan.
+                      </p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] text-slate-300">
+                        <div className="bg-slate-950/60 p-4 rounded-xl border border-white/5 space-y-2">
+                          <strong className="text-[#00f0ff] uppercase font-bold block">🚨 PILIHAN MODUL SUARA TERBARU</strong>
+                          <ul className="space-y-2 list-none">
+                            <li className="flex items-start gap-1.5">
+                              <span className="text-rose-400 font-bold font-mono">1.</span>
+                              <div>
+                                <strong className="text-white">Sirene Ambulans / Polisi (Alternating Dual-Tone):</strong>
+                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                  Menghasilkan nada ganda yang bergantian tinggi dan rendah (450 Hz & 650 Hz) secara dinamis menyerupai kendaraan darurat medis/keamanan. Sangat efektif menarik perhatian kru port.
+                                </p>
+                              </div>
+                            </li>
+                            <li className="flex items-start gap-1.5">
+                              <span className="text-amber-400 font-bold font-mono">2.</span>
+                              <div>
+                                <strong className="text-white">Sirene Badai Kontinu (Sweep Waveform):</strong>
+                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                  Suara frekuensi menyapu naik-turun dari 600 Hz ke 1000 Hz, dirancang khusus untuk mensimulasikan sirene peringatan badai ekstrim (tornado/siaga tinggi).
+                                </p>
+                              </div>
+                            </li>
+                            <li className="flex items-start gap-1.5">
+                              <span className="text-teal-400 font-bold font-mono">3.</span>
+                              <div>
+                                <strong className="text-white">Buzzer Panjang Kontinu (Continuous Buzz):</strong>
+                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                  Suara bip tunggal terus menerus (1.8 detik) pada gelombang kotak (square wave) berkepadatan tinggi untuk memberikan peringatan keras.
+                                </p>
+                              </div>
+                            </li>
+                            <li className="flex items-start gap-1.5">
+                              <span className="text-emerald-400 font-bold font-mono">4.</span>
+                              <div>
+                                <strong className="text-white">Buzzer Pendek Berulang (Square Wave):</strong>
+                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                  Seri 3 bip pendek berkepala tajam, ideal sebagai penanda awal bahaya ringan atau peringatan periodik.
+                                </p>
+                              </div>
+                            </li>
+                            <li className="flex items-start gap-1.5">
+                              <span className="text-[#00f0ff] font-bold font-mono">5.</span>
+                              <div>
+                                <strong className="text-white">Laporan Suara Bahasa Indonesia (TTS Voice Broadcast):</strong>
+                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                  Membacakan deskripsi ancaman secara verbal (Contoh: <em>"Peringatan! Siaga Satu Badai Ekstrim Terdeteksi!"</em>) menggunakan aksen bahasa Indonesia yang jernih.
+                                </p>
+                              </div>
+                            </li>
+                          </ul>
+                        </div>
+
+                        <div className="bg-slate-950/60 p-4 rounded-xl border border-white/5 space-y-2.5">
+                          <strong className="text-emerald-400 uppercase font-bold block">🎛️ PANEL KONTROL & DIAGNOSTIK UTAMA</strong>
+                          
+                          <div className="space-y-2">
+                            <div className="border-l border-[#00f0ff]/30 pl-2">
+                              <strong className="text-white block text-[10px]">🖥️ Banner Info Alarm Aktif</strong>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                Muncul di halaman utama jika batas aman dilampaui. Menyediakan opsi penonaktifan instan (Master Speaker Toggle) dan tombol senyap sementara (Silence Alarm) untuk mematikan suara secara cepat tanpa mereset sistem deteksi.
+                              </p>
+                            </div>
+
+                            <div className="border-l border-[#00f0ff]/30 pl-2">
+                              <strong className="text-white block text-[10px]">⚙️ Pengaturan EWS (Settings Tab)</strong>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                Operator dapat menguji langsung setiap jenis suara di panel <strong>Speaker Diagnostic</strong> (Uji TTS, Uji Bip Panjang, Uji Ambulans, dsb), serta mengatur penggeser tingkat volume suara (0% s/d 100%) sesuai kebutuhan bising lapangan pelabuhan.
+                              </p>
+                            </div>
+
+                            <div className="border-l border-[#00f0ff]/30 pl-2">
+                              <strong className="text-white block text-[10px]">💡 Kebijakan Penyulut Suara Verbal</strong>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                Untuk mencegah penumpukan audio yang mengganggu, laporan verbal bahasa Indonesia diatur dengan sistem pembatasan jeda (throttling) berdurasi minimal 12 detik antar ucapan, kecuali jika jenis peringatan terbaru berubah.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
