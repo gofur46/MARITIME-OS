@@ -2135,18 +2135,20 @@ useEffect(() => {
   };
 
   // Get current weather state based on rain detection and forecast trends
-  const getCurrentWeatherState = (): { state: 'sunny' | 'cloudy' | 'overcast' | 'rain'; label: string; probability: number; iconName: 'Sun' | 'CloudSun' | 'Cloud' | 'CloudRain' } => {
+  const getCurrentWeatherState = (): { state: 'sunny' | 'cloudy' | 'overcast' | 'rain'; label: string; probability: number; iconName: 'Sun' | 'CloudSun' | 'Cloud' | 'CloudRain'; isHeavyRain: boolean } => {
     if (!currentData) {
       return {
         state: 'sunny',
         label: 'Cerah',
         probability: 0,
-        iconName: 'Sun'
+        iconName: 'Sun',
+        isHeavyRain: false
       };
     }
 
     const rainPred = calculateRainProbability(currentData, history);
     const prob = rainPred.probability;
+    const threshold = parseFloat(config.rainWarningThreshold || '10.0');
 
     // Check if the rain data from the logger detects rain
     let isActivelyRaining = false;
@@ -2177,12 +2179,15 @@ useEffect(() => {
       }
     }
 
+    const isHeavy = currentData.rainfall >= threshold;
+
     if (isActivelyRaining) {
       return {
         state: 'rain',
-        label: 'Hujan',
+        label: isHeavy ? 'Hujan Lebat' : 'Hujan',
         probability: prob,
-        iconName: 'CloudRain'
+        iconName: 'CloudRain',
+        isHeavyRain: isHeavy
       };
     }
 
@@ -2190,30 +2195,34 @@ useEffect(() => {
     if (prob > 70) {
       return {
         state: 'rain',
-        label: 'Potensi Hujan',
+        label: isHeavy ? 'Hujan Lebat' : 'Potensi Hujan',
         probability: prob,
-        iconName: 'CloudRain'
+        iconName: 'CloudRain',
+        isHeavyRain: isHeavy
       };
     } else if (prob > 40) {
       return {
         state: 'overcast',
         label: 'Mendung',
         probability: prob,
-        iconName: 'Cloud'
+        iconName: 'Cloud',
+        isHeavyRain: false
       };
     } else if (prob > 20) {
       return {
         state: 'cloudy',
         label: 'Cerah Berawan',
         probability: prob,
-        iconName: 'CloudSun'
+        iconName: 'CloudSun',
+        isHeavyRain: false
       };
     } else {
       return {
         state: 'sunny',
         label: 'Cerah',
         probability: prob,
-        iconName: 'Sun'
+        iconName: 'Sun',
+        isHeavyRain: false
       };
     }
   };
@@ -2608,31 +2617,39 @@ useEffect(() => {
           <div className="flex items-center gap-6 self-stretch lg:self-auto justify-between lg:justify-end border-t lg:border-t-0 border-white/5 pt-3 lg:pt-0">
             <div className="hidden xl:flex gap-6 items-center text-right">
               {/* CURRENT WEATHER STATUS */}
-              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-left">
-                <div className="flex items-center justify-center">
-                  {(() => {
-                    const weather = getCurrentWeatherState();
-                    if (weather.iconName === 'Sun') {
-                      return <Sun className="w-5 h-5 text-amber-400 animate-pulse" />;
-                    } else if (weather.iconName === 'CloudSun') {
-                      return <CloudSun className="w-5 h-5 text-sky-300" />;
-                    } else if (weather.iconName === 'Cloud') {
-                      return <Cloud className="w-5 h-5 text-slate-400 animate-pulse" />;
-                    } else {
-                      return <CloudRain className="w-5 h-5 text-blue-400 animate-bounce" />;
-                    }
-                  })()}
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[9px] uppercase font-bold opacity-50 tracking-wider text-[#00f0ff] leading-none">CUACA</span>
-                  <span className="text-[11px] font-extrabold text-white leading-tight whitespace-nowrap mt-0.5">
-                    {(() => {
-                      const weather = getCurrentWeatherState();
-                      return `${weather.label} (${weather.probability}%)`;
-                    })()}
-                  </span>
-                </div>
-              </div>
+              {(() => {
+                const weather = getCurrentWeatherState();
+                const containerClass = weather.isHeavyRain 
+                  ? "flex items-center gap-2 bg-red-950/20 border border-red-500/30 rounded-xl px-3 py-1.5 text-left animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.15)]"
+                  : "flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-left";
+                
+                return (
+                  <div className={containerClass}>
+                    <div className="flex items-center justify-center">
+                      {(() => {
+                        if (weather.isHeavyRain) {
+                          return <CloudRain className="w-5 h-5 text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-bounce" />;
+                        }
+                        if (weather.iconName === 'Sun') {
+                          return <Sun className="w-5 h-5 text-amber-400 animate-pulse" />;
+                        } else if (weather.iconName === 'CloudSun') {
+                          return <CloudSun className="w-5 h-5 text-sky-300" />;
+                        } else if (weather.iconName === 'Cloud') {
+                          return <Cloud className="w-5 h-5 text-slate-400 animate-pulse" />;
+                        } else {
+                          return <CloudRain className="w-5 h-5 text-blue-400 animate-bounce" />;
+                        }
+                      })()}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className={`text-[9px] uppercase font-bold tracking-wider leading-none ${weather.isHeavyRain ? 'text-red-400' : 'text-[#00f0ff] opacity-50'}`}>CUACA</span>
+                      <span className={`text-[11px] font-extrabold leading-tight whitespace-nowrap mt-0.5 ${weather.isHeavyRain ? 'text-red-400 font-black' : 'text-white'}`}>
+                        {weather.label} ({weather.probability}%)
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div>
                 <div className="text-xs uppercase font-bold opacity-40 tracking-wider text-[#00f0ff]">DB STATUS</div>
