@@ -5021,6 +5021,18 @@ WHERE a.id < b.id AND a.station_id = b.station_id AND a.timestamp = b.timestamp;
 
 -- 2. Tambahkan batasan unik agar duplikasi tidak pernah terjadi lagi
 ALTER TABLE tbl_sensor_logs ADD CONSTRAINT unique_station_timestamp UNIQUE (station_id, timestamp);
+
+-- 3. Tambahkan kolom baru jika belum ada (misal kolom Suhu Air Laut)
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS temp_min NUMERIC(5,2) DEFAULT 0.00;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS temp_max NUMERIC(5,2) DEFAULT 0.00;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS sea_level_min NUMERIC(5,1) DEFAULT 0.0;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS sea_level_max NUMERIC(5,1) DEFAULT 0.0;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_ph NUMERIC(4,2) DEFAULT 7.50;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp NUMERIC(4,1) DEFAULT 25.0;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp_min NUMERIC(4,1) DEFAULT 24.0;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp_max NUMERIC(4,1) DEFAULT 26.0;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS wind_speed_min NUMERIC(4,1) DEFAULT 0.0;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS wind_speed_max NUMERIC(4,1) DEFAULT 0.0;
 */`;
                           navigator.clipboard.writeText(sqlText);
                           showToastNotification("PostgreSQL Query & Migration scripts successfully copied to clipboard!");
@@ -5069,6 +5081,18 @@ WHERE a.id < b.id AND a.station_id = b.station_id AND a.timestamp = b.timestamp;
 
 -- 2. Tambahkan batasan unik agar duplikasi tidak terjadi lagi
 ALTER TABLE tbl_sensor_logs ADD CONSTRAINT unique_station_timestamp UNIQUE (station_id, timestamp);
+
+-- 3. Tambahkan kolom baru jika belum ada (misal kolom Suhu Air Laut)
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS temp_min NUMERIC(5,2) DEFAULT 0.00;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS temp_max NUMERIC(5,2) DEFAULT 0.00;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS sea_level_min NUMERIC(5,1) DEFAULT 0.0;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS sea_level_max NUMERIC(5,1) DEFAULT 0.0;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_ph NUMERIC(4,2) DEFAULT 7.50;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp NUMERIC(4,1) DEFAULT 25.0;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp_min NUMERIC(4,1) DEFAULT 24.0;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp_max NUMERIC(4,1) DEFAULT 26.0;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS wind_speed_min NUMERIC(4,1) DEFAULT 0.0;
+ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS wind_speed_max NUMERIC(4,1) DEFAULT 0.0;
 */`}
                     </pre>
                   </div>
@@ -5171,7 +5195,19 @@ try {
         CONSTRAINT unique_station_timestamp UNIQUE (station_id, timestamp)
     );";
     
-    \$conn->exec(\$sql_table);
+    $conn->exec($sql_table);
+
+    // Auto-migrate: Pastikan kolom-kolom baru (seperti suhu air laut, pasut min/max, ph, dll) ditambahkan jika tabel lama sudah ada
+    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS temp_min NUMERIC(5,2) DEFAULT 0.00;");
+    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS temp_max NUMERIC(5,2) DEFAULT 0.00;");
+    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS sea_level_min NUMERIC(5,1) DEFAULT 0.0;");
+    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS sea_level_max NUMERIC(5,1) DEFAULT 0.0;");
+    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_ph NUMERIC(4,2) DEFAULT 7.50;");
+    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp NUMERIC(4,1) DEFAULT 25.0;");
+    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp_min NUMERIC(4,1) DEFAULT 24.0;");
+    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp_max NUMERIC(4,1) DEFAULT 26.0;");
+    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS wind_speed_min NUMERIC(4,1) DEFAULT 0.0;");
+    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS wind_speed_max NUMERIC(4,1) DEFAULT 0.0;");
 } catch (PDOException \$e) {
     http_response_code(500);
     echo json_encode(["status" => "error", "message" => "PostgreSQL Setup Failed: " . \$e->getMessage()]);
