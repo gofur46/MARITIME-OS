@@ -1890,12 +1890,34 @@ useEffect(() => {
           action: 'save_moxa_config',
           moxa_ip: moxaIp,
           moxa_port: moxaPort,
-          transport: newConfig.transport
+          transport: newConfig.transport,
+          db_storage_interval: newConfig.dbStorageInterval === undefined ? 10 : newConfig.dbStorageInterval,
+          db_storage_mode: newConfig.dbStorageMode || 'AVG'
         }),
       });
       console.log('Successfully synchronized Moxa hardware configuration to api.php');
     } catch (e) {
       console.warn('Could not sync Moxa config to PHP (PHP server offline or CORS restricted):', e);
+    }
+
+    // Post to local daemon's Express server /save-config endpoint to update immediately without requiring daemon restart!
+    try {
+      const daemonUrl = newConfig.moxaDaemonUrl || 'http://localhost:8080';
+      await fetch(`${daemonUrl}/save-config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ip: moxaIp,
+          port: moxaPort,
+          db_storage_interval: newConfig.dbStorageInterval === undefined ? 10 : newConfig.dbStorageInterval,
+          db_storage_mode: newConfig.dbStorageMode || 'AVG'
+        }),
+      });
+      console.log('Successfully updated Moxa local daemon configuration instantly!');
+    } catch (e) {
+      console.warn('Could not update local daemon config (Daemon offline or CORS restricted):', e);
     }
   };
 

@@ -186,9 +186,19 @@ try {
         state VARCHAR(50) NOT NULL,
         error TEXT,
         last_seen VARCHAR(50) NOT NULL,
+        db_storage_interval INTEGER DEFAULT 10,
+        db_storage_mode VARCHAR(10) DEFAULT 'AVG',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );";
     $conn->exec($sql_status_table);
+
+    // AUTO-MIGRATOR: Tambahkan kolom baru jika sudah ada versi tabel lama
+    try {
+        $conn->exec("ALTER TABLE tbl_moxa_status ADD COLUMN IF NOT EXISTS db_storage_interval INTEGER DEFAULT 10");
+        $conn->exec("ALTER TABLE tbl_moxa_status ADD COLUMN IF NOT EXISTS db_storage_mode VARCHAR(10) DEFAULT 'AVG'");
+    } catch (PDOException $ex) {
+        // Kolom sudah ada atau query ALTER gagal, abaikan
+    }
 
 } catch (PDOException $e) {
     http_response_code(500);
@@ -230,6 +240,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (PDOException $e) {
             http_response_code(500);
             echo json_encode(["status" => "error", "message" => "Gagal menyimpan status Moxa: " . $e->getMessage()]);
+            exit();
+        }
+    }
+
+    // Menyimpan Konfigurasi Moxa
+    if (isset($data['action']) && $data['action'] === 'save_moxa_config') {
+        try {
+            $stmt = $conn->query("SELECT id FROM tbl_moxa_status ORDER BY id DESC LIMIT 1");
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                $stmt_update = $conn->prepare("UPDATE tbl_moxa_status SET 
+                    moxa_ip = :moxa_ip, 
+                    moxa_port = :moxa_port,
+                    db_storage_interval = :db_storage_interval,
+                    db_storage_mode = :db_storage_mode
+                    WHERE id = :id");
+                $stmt_update->execute([
+                    ':moxa_ip' => $data['moxa_ip'],
+                    ':moxa_port' => (int)$data['moxa_port'],
+                    ':db_storage_interval' => isset($data['db_storage_interval']) ? (int)$data['db_storage_interval'] : 10,
+                    ':db_storage_mode' => isset($data['db_storage_mode']) ? $data['db_storage_mode'] : 'AVG',
+                    ':id' => $row['id']
+                ]);
+            } else {
+                $stmt_insert = $conn->prepare("INSERT INTO tbl_moxa_status (
+                    connected, moxa_ip, moxa_port, state, error, last_seen, db_storage_interval, db_storage_mode
+                ) VALUES (
+                    0, :moxa_ip, :moxa_port, 'DISCONNECTED', 'Configured via dashboard', :last_seen, :db_storage_interval, :db_storage_mode
+                )");
+                $stmt_insert->execute([
+                    ':moxa_ip' => $data['moxa_ip'],
+                    ':moxa_port' => (int)$data['moxa_port'],
+                    ':last_seen' => date('H:i:s'),
+                    ':db_storage_interval' => isset($data['db_storage_interval']) ? (int)$data['db_storage_interval'] : 10,
+                    ':db_storage_mode' => isset($data['db_storage_mode']) ? $data['db_storage_mode'] : 'AVG'
+                ]);
+            }
+            echo json_encode(["status" => "success", "message" => "Konfigurasi Moxa berhasil disimpan ke database lokal!"]);
+            exit();
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(["status" => "error", "message" => "Gagal menyimpan konfigurasi Moxa: " . $e->getMessage()]);
             exit();
         }
     }
@@ -320,12 +372,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($row) {
                 echo json_encode([
                     "moxa_ip" => $row['moxa_ip'],
-                    "moxa_port" => $row['moxa_port']
+                    "moxa_port" => (int)$row['moxa_port'],
+                    "db_storage_interval" => isset($row['db_storage_interval']) ? (int)$row['db_storage_interval'] : 10,
+                    "db_storage_mode" => isset($row['db_storage_mode']) ? $row['db_storage_mode'] : 'AVG'
                 ]);
             } else {
                 echo json_encode([
                     "moxa_ip" => "192.168.1.254",
-                    "moxa_port" => 4001
+                    "moxa_port" => 4001,
+                    "db_storage_interval" => 10,
+                    "db_storage_mode" => "AVG"
                 ]);
             }
             exit();

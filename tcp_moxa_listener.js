@@ -62,6 +62,12 @@ let lastStatus = {
     error: 'Initializing daemon...'
 };
 
+// Pengaturan Penyimpanan Database Lokal PostgreSQL via api.php
+let dbStorageInterval = 10; // Default: 10 menit. 0 = Instan.
+let dbStorageMode = 'AVG'; // Default: AVG. RAW = Mentah.
+let sampleBuffer = [];
+let lastDbSaveTime = Date.now();
+
 // Parser URL cerdas untuk posting database (Mendukung http dan https)
 function parseUrlConfig(targetUrl) {
     try {
@@ -206,10 +212,20 @@ function syncConfigAndConnect() {
             try {
                 if (res.statusCode === 200 && body.trim().startsWith('{')) {
                     const config = JSON.parse(body);
-                    if (config && config.moxa_ip) {
-                        MOXA_IP = config.moxa_ip;
-                        MOXA_PORT = parseInt(config.moxa_port) || 4001;
-                        console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC]: IP Moxa : ${MOXA_IP} | Port Moxa : ${MOXA_PORT} (Sesuai Database!)`);
+                    if (config) {
+                        if (config.moxa_ip) {
+                            MOXA_IP = config.moxa_ip;
+                            MOXA_PORT = parseInt(config.moxa_port) || 4001;
+                            console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC]: IP Moxa : ${MOXA_IP} | Port Moxa : ${MOXA_PORT} (Sesuai Database!)`);
+                        }
+                        if (config.db_storage_interval !== undefined) {
+                            dbStorageInterval = parseInt(config.db_storage_interval);
+                            console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC]: DB Storage Interval : ${dbStorageInterval} Menit`);
+                        }
+                        if (config.db_storage_mode) {
+                            dbStorageMode = config.db_storage_mode;
+                            console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC]: DB Storage Mode : ${dbStorageMode}`);
+                        }
                     }
                 } else {
                     console.log(`[${new Date().toISOString()}] ⚠️ Respon API tidak valid, menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
@@ -394,13 +410,123 @@ function processRawPayload(rawPayload) {
 
         postTelemetryToExpress(mappedRecord);
 
-        // 2. Pompa asinkron langsung ke PostgreSQL (via api.php) dinonaktifkan
-        // Penyimpanan database sekarang dihandle oleh aplikasi frontend React agar mematuhi interval penyimpanan & averaging mode di Pengaturan
-        // postToPhpGateway(mappedRecord);
+        // 2. Simpan ke database lokal PostgreSQL via api.php mematuhi dbStorageInterval & dbStorageMode
+        const now = Date.now();
+        const intervalMs = dbStorageInterval * 60 * 1000;
+
+        if (dbStorageInterval === 0) {
+            // Instant Logging: Simpan langsung seketika!
+            console.log(`[${new Date().toISOString()}] 🚀 [INSTANT LOGGING] Menyimpan data langsung ke database PostgreSQL via api.php...`);
+            postToPhpGateway(mappedRecord);
+            lastDbSaveTime = now;
+            sampleBuffer = [];
+        } else {
+            const currentBlock = Math.floor(now / intervalMs);
+            const lastSaveBlock = Math.floor(lastDbSaveTime / intervalMs);
+
+            if (currentBlock > lastSaveBlock) {
+                // Saatnya kompilasi rata-rata / raw dan simpan!
+                lastDbSaveTime = currentBlock * intervalMs;
+                const updated = [...sampleBuffer, mappedRecord];
+                let recordToSave;
+                let logMsg = '';
+
+                if (dbStorageMode === 'AVG') {
+                    recordToSave = calculateAverageDaemonRecord(updated);
+                    logMsg = `Menyimpan composite average standar WMO ${dbStorageInterval} menit berdasarkan ${updated.length} sampel ke database.`;
+                } else {
+                    // RAW mode: Ambil sampel instan terakhir dengan hembusan angin tertinggi
+                    const gusts = [];
+                    for (let i = 0; i < updated.length; i++) {
+                        const last3 = updated.slice(Math.max(0, i - 2), i + 1);
+                        const rawSpeeds = last3.map(item => item.wind_speed);
+                        const maxS = Math.max(...rawSpeeds);
+                        const minS = Math.min(...rawSpeeds);
+                        if (maxS - minS >= 10) {
+                            gusts.push(parseFloat(maxS.toFixed(1)));
+                        }
+                    }
+                    const highestGust = gusts.length > 0 ? Math.max(...gusts) : undefined;
+                    
+                    recordToSave = {
+                        ...mappedRecord,
+                        wind_gust: highestGust
+                    };
+                    logMsg = `Menyimpan data instan mentah interval ${dbStorageInterval} menit ke database.`;
+                }
+
+                if (recordToSave) {
+                    // Format timestamp agar presisi di batas interval
+                    const d = new Date(currentBlock * intervalMs);
+                    const pad = (n) => n.toString().padStart(2, '0');
+                    recordToSave.timestamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+
+                    console.log(`[${new Date().toISOString()}] ⏱️ [INTERVAL LOGGING] ${logMsg}`);
+                    postToPhpGateway(recordToSave);
+                }
+                sampleBuffer = [];
+            } else {
+                // Buffer sampel
+                sampleBuffer.push(mappedRecord);
+            }
+        }
 
     } catch (err) {
         console.error(`[${new Date().toISOString()}] ❌ [PARSER CRASH] Gagal mengolah payload: ${err.message}`);
     }
+}
+
+// Menghitung Rata-rata Komposit Standar WMO di Sisi Daemon
+function calculateAverageDaemonRecord(buffer) {
+    if (buffer.length === 0) return null;
+    
+    const count = buffer.length;
+    let sumTemp = 0;
+    let sumHum = 0;
+    let sumSpeed = 0;
+    let sumPress = 0;
+    let sumSolar = 0;
+    let sumRain = 0;
+    let sumWave = 0;
+    let sumSea = 0;
+    let sumPh = 0;
+    
+    let sinSum = 0;
+    let cosSum = 0;
+    
+    buffer.forEach(item => {
+        sumTemp += item.temperature;
+        sumHum += item.humidity;
+        sumSpeed += item.wind_speed;
+        sumPress += item.pressure;
+        sumSolar += item.solar_radiation;
+        sumRain += item.rainfall;
+        sumWave += item.wave_height;
+        sumSea += item.sea_level;
+        sumPh += item.water_ph;
+        
+        const rad = (item.wind_direction * Math.PI) / 180;
+        sinSum += Math.sin(rad);
+        cosSum += Math.cos(rad);
+    });
+    
+    let avgDirection = Math.round((Math.atan2(sinSum / count, cosSum / count) * 180) / Math.PI);
+    if (avgDirection < 0) avgDirection += 360;
+    
+    return {
+        station_id: buffer[0].station_id,
+        timestamp: buffer[0].timestamp,
+        temperature: parseFloat((sumTemp / count).toFixed(1)),
+        humidity: Math.round(sumHum / count),
+        wind_speed: parseFloat((sumSpeed / count).toFixed(1)),
+        wind_direction: avgDirection,
+        pressure: parseFloat((sumPress / count).toFixed(1)),
+        solar_radiation: Math.round(sumSolar / count),
+        rainfall: parseFloat(sumRain.toFixed(1)),
+        wave_height: parseFloat((sumWave / count).toFixed(2)),
+        sea_level: parseFloat((sumSea / count).toFixed(1)),
+        water_ph: parseFloat((sumPh / count).toFixed(2))
+    };
 }
 
 function postTelemetryToExpress(payload) {
@@ -459,7 +585,13 @@ app.post('/save-config', (req, res) => {
     if (req.body && req.body.ip) {
         MOXA_IP = req.body.ip;
         MOXA_PORT = parseInt(req.body.port) || 4001;
-        console.log(`[${new Date().toISOString()}] 🔄 Konfigurasi diperbarui oleh Dashboard: ${MOXA_IP}:${MOXA_PORT}`);
+        if (req.body.db_storage_interval !== undefined) {
+            dbStorageInterval = parseInt(req.body.db_storage_interval);
+        }
+        if (req.body.db_storage_mode) {
+            dbStorageMode = req.body.db_storage_mode;
+        }
+        console.log(`[${new Date().toISOString()}] 🔄 Konfigurasi diperbarui oleh Dashboard: ${MOXA_IP}:${MOXA_PORT} | Interval: ${dbStorageInterval} Menit | Mode: ${dbStorageMode}`);
         
         if (client) {
             try { client.destroy(); } catch (e) {}
