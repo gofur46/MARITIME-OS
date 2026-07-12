@@ -1012,34 +1012,9 @@ useEffect(() => {
 
     // Dynamically resolve daemon address depending on the client hostname or API configuration
     const getDaemonUrl = () => {
-      // If user has explicitly saved a daemon URL, always respect that first (resolved dynamically)!
-      if (config.moxaDaemonUrl) {
-        return resolveLocalApiUrl(config.moxaDaemonUrl);
-      }
-
-      const currentHost = window.location.hostname;
-      
-      // If accessed via a remote local network IP (e.g. http://192.168.1.50:3000)
-      if (currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
-        return `http://${currentHost}:8080`;
-      }
-
-      // If we are in AI Studio / Cloud preview container
-      if (currentHost.includes('run.app') || currentHost.includes('google.com') || currentHost.includes('aistudio')) {
-        return 'http://localhost:8080';
-      }
-      
-      // Fallback: check config.localDbApiUrl host
-      try {
-        const apiParts = new URL(resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php'));
-        if (apiParts.hostname && apiParts.hostname !== 'localhost' && apiParts.hostname !== '127.0.0.1') {
-          return `http://${apiParts.hostname}:8080`;
-        }
-      } catch (e) {
-        // ignore
-      }
-      
-      return 'http://localhost:8080';
+      // Prioritaskan koneksi langsung ke Express server (Port 3000) yang bertindak sebagai proxy
+      // Ini 100% aman menghindari masalah CORS, Mixed Content HTTPS, dan pembatasan browser modern.
+      return `${window.location.protocol}//${window.location.host}`;
     };
 
     const daemonUrl = getDaemonUrl();
@@ -1112,6 +1087,21 @@ useEffect(() => {
 
     // Fallback polling for status in case WebSocket connection is blocked by CORS/Mixed Content
     const fetchMoxaStatus = async () => {
+      try {
+        // 1. Coba hubungi endpoint internal server Express yang memiliki proxy daemon stabil
+        const expressRes = await fetch('/api/moxa-status');
+        if (expressRes.ok) {
+          const parsed = await expressRes.json();
+          if (parsed && typeof parsed.connected === 'boolean') {
+            setMoxaStatus(parsed);
+            return;
+          }
+        }
+      } catch (err) {
+        // Lewati ke PHP fallback
+      }
+
+      // 2. Fallback ke PHP API
       const testUrl = resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php');
       const moxaStatusUrl = `${testUrl}?get_moxa_status=1`;
       try {
@@ -2099,13 +2089,13 @@ useEffect(() => {
           const ptemp = (newRecord.temperature + 0.08).toFixed(5);
 
           rawString = `${config.idStation || 'AWS001'}${delimiter}${datePart}${delimiter}${timePart}${delimiter}${ws_meas}${delimiter}${ws_max}${delimiter}${wd_meas}${delimiter}${ta_meas}${delimiter}${ta_max}${delimiter}${ta_min}${delimiter}${rh_meas}${delimiter}${pa_meas}${delimiter}NAN${delimiter}${sr_meas}${delimiter}${sr_max}${delimiter}${water_temp}${delimiter}${water_temp_max}${delimiter}${water_temp_min}${delimiter}${water_level}${delimiter}${ph_meas}${delimiter}NAN${delimiter}${batt_volt}${delimiter}${ptemp}`;
-          prefix = `[TCP/IP GATEWAY MOXA] INBOUND <-`;
+          prefix = `[MOXA SIMULATOR - OFFLINE] 🤖`;
         } else if (config.transport === 'TCP') {
           rawString = `${config.idStation}${config.splitchar}${dateStr}${config.splitchar}${newRecord.temperature.toFixed(1)}${config.splitchar}${newRecord.humidity}${config.splitchar}${newRecord.solarRadiation}${config.splitchar}${newRecord.rainfall.toFixed(1)}${config.splitchar}${newRecord.waveHeight.toFixed(2)}${config.splitchar}${newRecord.seaLevel.toFixed(1)}${config.splitchar}${newRecord.waterPh.toFixed(2)}${config.splitchar}${newRecord.windDirection}${config.splitchar}${newRecord.windSpeed.toFixed(1)}${config.splitchar}${newRecord.pressure.toFixed(1)}`;
-          prefix = `[TCP SERVER] RECEIVED ->`;
+          prefix = `[TCP SERVER SIMULATOR - OFFLINE] 🤖`;
         } else {
           rawString = `${config.idStation}${config.splitchar}${dateStr}${config.splitchar}${newRecord.temperature.toFixed(1)}${config.splitchar}${newRecord.humidity}${config.splitchar}${newRecord.solarRadiation}${config.splitchar}${newRecord.rainfall.toFixed(1)}${config.splitchar}${newRecord.waveHeight.toFixed(2)}${config.splitchar}${newRecord.seaLevel.toFixed(1)}${config.splitchar}${newRecord.waterPh.toFixed(2)}${config.splitchar}${newRecord.windDirection}${config.splitchar}${newRecord.windSpeed.toFixed(1)}${config.splitchar}${newRecord.pressure.toFixed(1)}`;
-          prefix = `[SERIAL COM] RECEIVED ->`;
+          prefix = `[SERIAL SIMULATOR - OFFLINE] 🤖`;
         }
         
         setStreamLogs(prev => {
