@@ -502,6 +502,16 @@ export const BMKG_PORTS_LIST: BmkgPortOption[] = [
 const resolveLocalApiUrl = (urlStr: string) => {
   if (!urlStr) return urlStr;
   const currentHost = window.location.hostname;
+  
+  // If we are in the cloud preview sandbox, DO NOT translate localhost loopback!
+  // This allows the browser to connect to the user's actual local PC's PHP gateway.
+  const isCloudPreview = currentHost.includes('run.app') || 
+                         currentHost.includes('aistudio') || 
+                         currentHost.includes('google.com');
+  if (isCloudPreview) {
+    return urlStr;
+  }
+
   if (currentHost && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
     return urlStr.replace(/(localhost|127\.0\.0\.1)/g, currentHost);
   }
@@ -1463,7 +1473,33 @@ useEffect(() => {
 
   const processNewSample = (record: WeatherData) => {
     const now = Date.now();
-    const intervalMin = configRef.current.dbStorageInterval || 10;
+    const intervalMin = configRef.current.dbStorageInterval === undefined ? 10 : configRef.current.dbStorageInterval;
+
+    if (intervalMin === 0) {
+      // INSTANT LOGGING: Post every single data packet directly to local PostgreSQL immediately!
+      const recordToSave = { ...record };
+      recordToSave.timestamp = now;
+
+      // Asynchronously post to local PostgreSQL database backend
+      postLogToLocalPostgres(recordToSave);
+
+      // Append SQL success notification to terminal logs
+      setStreamLogs(prevLogs => {
+        const lines = prevLogs.split('\n');
+        const timeStr = format(new Date(), 'HH:mm:ss');
+        const msg = `[${timeStr} SQL SYSTEM] 🚀 [INSTANT LOGGING] Data disimpan ke database PostgreSQL secara real-time (tanpa buffer).`;
+        const output = [...lines, msg];
+        if (output.length > 40) return output.slice(output.length - 30).join('\n');
+        return output.join('\n');
+      });
+
+      // Reset last saved time mark and empty buffer
+      setLastDbSaveTime(now);
+      sampleBufferRef.current = [];
+      setSampleBuffer([]);
+      return;
+    }
+
     const intervalMs = intervalMin * 60 * 1000;
     const currentBlock = Math.floor(now / intervalMs);
     const lastSaveBlock = Math.floor(lastDbSaveTimeRef.current / intervalMs);
@@ -6937,13 +6973,15 @@ header("Content-Type: application/json; charset=UTF-8");
                       </div>
                       
                       <div>
-                        <span className="text-xs text-slate-400 uppercase font-mono block mb-1">Averaging & Logging Interval ({config.dbStorageInterval || 10} Minutes)</span>
+                        <span className="text-xs text-slate-400 uppercase font-mono block mb-1">
+                          Averaging & Logging Interval: {config.dbStorageInterval === 0 ? <span className="text-emerald-400 font-extrabold animate-pulse">⚡ INSTANT / SETIAP DATA MASUK</span> : <span className="text-white font-bold">{config.dbStorageInterval || 10} Menit</span>}
+                        </span>
                         <div className="flex gap-2">
                           <input 
                             type="range" 
-                            min="1" 
+                            min="0" 
                             max="60" 
-                            value={config.dbStorageInterval || 10} 
+                            value={config.dbStorageInterval === undefined ? 10 : config.dbStorageInterval} 
                             onChange={(e) => {
                               const calculated = parseInt(e.target.value);
                               setConfig({ ...config, dbStorageInterval: calculated });
@@ -6952,16 +6990,25 @@ header("Content-Type: application/json; charset=UTF-8");
                           />
                           <input 
                             type="number" 
-                            min="1" 
+                            min="0" 
                             max="60" 
-                            value={config.dbStorageInterval || 10} 
+                            value={config.dbStorageInterval === undefined ? 10 : config.dbStorageInterval} 
                             onChange={(e) => {
-                              const calculated = Math.min(60, Math.max(1, parseInt(e.target.value) || 1));
+                              const calculated = Math.min(60, Math.max(0, parseInt(e.target.value) || 0));
                               setConfig({ ...config, dbStorageInterval: calculated });
                             }}
                             className="w-12 bg-[#050a12] border border-white/10 font-mono text-center text-xs p-1 text-white rounded outline-none"
                           />
                         </div>
+                        {config.dbStorageInterval === 0 ? (
+                          <p className="text-[10px] text-emerald-400/95 font-sans mt-1.5 leading-normal">
+                            ⚡ <strong>Instant Mode Aktif:</strong> Setiap packet data dari Moxa akan langsung disimpan ke database PostgreSQL tanpa menunggu buffer waktu. Sangat ideal untuk pengujian langsung!
+                          </p>
+                        ) : (
+                          <p className="text-[10px] text-slate-500 font-sans mt-1.5 leading-normal">
+                            Standard WMO: 10 menit (data di-buffer dan dirata-rata terlebih dahulu sebelum masuk database).
+                          </p>
+                        )}
                       </div>
 
                       {/* Local database API URL */}

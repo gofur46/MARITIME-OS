@@ -177,6 +177,19 @@ try {
     );";
     $conn->exec($sql_table);
 
+    // AUTO-INSTALLER: Membuat tabel tbl_moxa_status jika belum ada di PostgreSQL
+    $sql_status_table = "CREATE TABLE IF NOT EXISTS tbl_moxa_status (
+        id SERIAL PRIMARY KEY,
+        connected BOOLEAN NOT NULL,
+        moxa_ip VARCHAR(50) NOT NULL,
+        moxa_port INTEGER NOT NULL,
+        state VARCHAR(50) NOT NULL,
+        error TEXT,
+        last_seen VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );";
+    $conn->exec($sql_status_table);
+
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode([
@@ -186,11 +199,42 @@ try {
     exit();
 }
 
-// Memproses input POST dari aplikasi Client
+// Memproses input POST dari aplikasi Client / Daemon
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = file_get_contents("php://input");
     $data = json_decode($input, true);
 
+    // Menyimpan Status Daemon Moxa
+    if (isset($data['action']) && $data['action'] === 'save_moxa_status') {
+        try {
+            // Bersihkan status lama agar hemat ruang
+            $conn->exec("TRUNCATE tbl_moxa_status");
+            
+            $stmt = $conn->prepare("INSERT INTO tbl_moxa_status (
+                connected, moxa_ip, moxa_port, state, error, last_seen
+            ) VALUES (
+                :connected, :moxa_ip, :moxa_port, :state, :error, :last_seen
+            )");
+
+            $stmt->execute([
+                ':connected' => $data['connected'] ? 1 : 0,
+                ':moxa_ip' => $data['moxa_ip'],
+                ':moxa_port' => (int)$data['moxa_port'],
+                ':state' => $data['state'],
+                ':error' => isset($data['error']) ? $data['error'] : '',
+                ':last_seen' => isset($data['last_seen']) ? $data['last_seen'] : date('H:i:s')
+            ]);
+
+            echo json_encode(["status" => "success", "message" => "Status Moxa berhasil disimpan!"]);
+            exit();
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(["status" => "error", "message" => "Gagal menyimpan status Moxa: " . $e->getMessage()]);
+            exit();
+        }
+    }
+
+    // Menyimpan Data Sensor (Log Telemetri)
     if (isset($data['station_id']) && isset($data['timestamp'])) {
         try {
             $stmt = $conn->prepare("INSERT INTO tbl_sensor_logs (
@@ -225,7 +269,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 } else {
-    // GET Request: Test Konektivitas biasa
+    // GET Request: Mendapatkan log data atau status/config Moxa
+    if (isset($_GET['get_telemetry_logs'])) {
+        try {
+            $stmt = $conn->query("SELECT * FROM tbl_sensor_logs ORDER BY timestamp DESC LIMIT 200");
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode($rows);
+            exit();
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(["status" => "error", "message" => "Gagal mengambil data log: " . $e->getMessage()]);
+            exit();
+        }
+    }
+
+    if (isset($_GET['get_moxa_status'])) {
+        try {
+            $stmt = $conn->query("SELECT * FROM tbl_moxa_status ORDER BY id DESC LIMIT 1");
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                echo json_encode([
+                    "connected" => (bool)$row['connected'],
+                    "moxa_ip" => $row['moxa_ip'],
+                    "moxa_port" => (int)$row['moxa_port'],
+                    "state" => $row['state'],
+                    "last_seen" => $row['last_seen'],
+                    "error" => $row['error']
+                ]);
+            } else {
+                echo json_encode([
+                    "connected" => false,
+                    "moxa_ip" => "192.168.1.254",
+                    "moxa_port" => 4001,
+                    "state" => "OFFLINE",
+                    "error" => "No status recorded yet."
+                ]);
+            }
+            exit();
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(["status" => "error", "message" => "Gagal membaca status: " . $e->getMessage()]);
+            exit();
+        }
+    }
+
+    if (isset($_GET['get_moxa_config'])) {
+        try {
+            $stmt = $conn->query("SELECT * FROM tbl_moxa_status ORDER BY id DESC LIMIT 1");
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                echo json_encode([
+                    "moxa_ip" => $row['moxa_ip'],
+                    "moxa_port" => $row['moxa_port']
+                ]);
+            } else {
+                echo json_encode([
+                    "moxa_ip" => "192.168.1.254",
+                    "moxa_port" => 4001
+                ]);
+            }
+            exit();
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(["status" => "error", "message" => "Gagal membaca config: " . $e->getMessage()]);
+            exit();
+        }
+    }
+
+    // Default Response (Tes Koneksi)
     echo json_encode([
         "status" => "success",
         "message" => "Koneksi PostgreSQL Aktif & Siap Menerima Data Maritim!"
