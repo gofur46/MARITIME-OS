@@ -1925,8 +1925,9 @@ useEffect(() => {
   // Active simulated logger feed
   useEffect(() => {
     const interval = setInterval(() => {
-      // Do not run simulator if we are actively receiving live hardware telemetry in non-OFF modes
-      if (config.transport !== 'OFF' && isLiveActive) {
+      // Do not run simulator if we are using an active hardware transport mode (SERIAL, TCP, MOXA_TCP),
+      // because we only want real data in those modes and NO offline simulated fake data.
+      if (config.transport !== 'OFF') {
         return;
       }
       const pctime = new Date();
