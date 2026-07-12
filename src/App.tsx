@@ -27,8 +27,8 @@ const DEFAULT_CONFIG = {
   stationName: 'Automatic Weather Station',
   transport: 'MOXA_TCP', // SERIAL | TCP | OFF
   splitchar: ';',
-  serialcom: 'COM3',
-  baudrate: '9600',
+  serialcom: '172.16.4.48',
+  baudrate: '5001',
   pierAngle: '15', // Rotating ship inside the compass
   lockOfflineDashboard: 'ON', // ON = lock/hide dashboard, OFF = show last known data
   cloudMode: 'OFF',
@@ -1092,8 +1092,8 @@ useEffect(() => {
           }
           setMoxaStatus(prev => ({
             connected: false,
-            moxa_ip: prev?.moxa_ip || '192.168.1.254',
-            moxa_port: prev?.moxa_port || 4001,
+            moxa_ip: prev?.moxa_ip || '172.16.4.48',
+            moxa_port: prev?.moxa_port || 5001,
             state: 'OFFLINE',
             last_seen: new Date().toLocaleTimeString('id-ID'),
             error: 'Daemon WebSocket Offline (Port 8080)'
@@ -1876,8 +1876,8 @@ useEffect(() => {
     showToastNotification('Config Saved Successfully!');
 
     // Post newly configured Moxa IP & Port to host computer's api.php automatically
-    const moxaIp = newConfig.serialcom || '192.168.127.254';
-    const moxaPort = parseInt(newConfig.baudrate) || 10001;
+    const moxaIp = newConfig.serialcom || '172.16.4.48';
+    const moxaPort = parseInt(newConfig.baudrate) || 5001;
     const url = resolveLocalApiUrl(newConfig.localDbApiUrl || 'http://localhost:8000/api.php');
 
     try {
@@ -3230,7 +3230,7 @@ useEffect(() => {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
                   </span>
-                  <span>AWS OS CONNECTION: {config.transport}{config.transport !== 'OFF' && ` (${config.serialcom || '192.168.1.1'}:${config.baudrate || '4001'})`}</span>
+                  <span>AWS OS CONNECTION: {config.transport}{config.transport !== 'OFF' && ` (${config.serialcom || '172.16.4.48'}:${config.baudrate || '5001'})`}</span>
                 </>
               )}
             </div>
@@ -3333,8 +3333,8 @@ useEffect(() => {
                     <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Logger Transport Mode:</span> <span className="font-extrabold text-red-400">{config.transport}</span></div>
                     {config.transport === 'MOXA_TCP' ? (
                       <>
-                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">IP Gateway Moxa:</span> <span className="font-bold text-slate-200">{config.serialcom || '192.168.1.1'}</span></div>
-                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Port Gateway Moxa:</span> <span className="font-bold text-slate-200">{config.baudrate || '4001'}</span></div>
+                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">IP Gateway Moxa:</span> <span className="font-bold text-slate-200">{config.serialcom || '172.16.4.48'}</span></div>
+                        <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Port Gateway Moxa:</span> <span className="font-bold text-slate-200">{config.baudrate || '5001'}</span></div>
                       </>
                     ) : (
                       <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-slate-500">Serial Port / Endpoint:</span> <span className="font-bold text-slate-200">{config.serialcom || 'COM1'}</span></div>
@@ -5770,8 +5770,8 @@ if (\$_SERVER['REQUEST_METHOD'] === 'GET' && isset(\$_GET['get_moxa_config'])) {
         echo file_get_contents("moxa_config.json");
     } else {
         echo json_encode([
-            "moxa_ip" => "192.168.127.254",
-            "moxa_port" => 10001
+            "moxa_ip" => "172.16.4.48",
+            "moxa_port" => 5001
         ]);
     }
     exit();
@@ -5784,8 +5784,8 @@ if (\$_SERVER['REQUEST_METHOD'] === 'GET' && isset(\$_GET['get_moxa_status'])) {
     } else {
         echo json_encode([
             "connected" => false,
-            "moxa_ip" => "192.168.127.254",
-            "moxa_port" => 10001,
+            "moxa_ip" => "172.16.4.48",
+            "moxa_port" => 5001,
             "state" => "OFFLINE",
             "last_seen" => "Never / Waiting for Daemon...",
             "error" => "No status reported from background daemon yet."
@@ -5874,8 +5874,8 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset(\$data['action']) && \$data['action'] === 'save_moxa_config') {
         try {
             \$config_data = [
-                "moxa_ip" => isset(\$data['moxa_ip']) ? \$data['moxa_ip'] : '192.168.127.254',
-                "moxa_port" => isset(\$data['moxa_port']) ? (int)\$data['moxa_port'] : 10001,
+                "moxa_ip" => isset(\$data['moxa_ip']) ? \$data['moxa_ip'] : '172.16.4.48',
+                "moxa_port" => isset(\$data['moxa_port']) ? (int)\$data['moxa_port'] : 5001,
                 "transport" => isset(\$data['transport']) ? \$data['transport'] : 'TCP'
             ];
             file_put_contents("moxa_config.json", json_encode(\$config_data, JSON_PRETTY_PRINT));
@@ -5893,8 +5893,8 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             \$status_data = [
                 "connected" => isset(\$data['connected']) ? (bool)\$data['connected'] : false,
-                "moxa_ip" => isset(\$data['moxa_ip']) ? \$data['moxa_ip'] : '192.168.127.254',
-                "moxa_port" => isset(\$data['moxa_port']) ? (int)\$data['moxa_port'] : 10001,
+                "moxa_ip" => isset(\$data['moxa_ip']) ? \$data['moxa_ip'] : '172.16.4.48',
+                "moxa_port" => isset(\$data['moxa_port']) ? (int)\$data['moxa_port'] : 5001,
                 "state" => isset(\$data['state']) ? \$data['state'] : 'UNKNOWN',
                 "last_seen" => date('d-m-Y H:i:s'),
                 "error" => isset(\$data['error']) ? \$data['error'] : ''
@@ -6396,7 +6396,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       <input 
                         type="text" 
                         value={config.serialcom || ''} 
-                        placeholder={config.transport === 'SERIAL' ? 'COM3' : '192.168.127.254'}
+                        placeholder={config.transport === 'SERIAL' ? 'COM3' : '172.16.4.48'}
                         onChange={(e) => setConfig({ ...config, serialcom: e.target.value })}
                         className="w-full bg-[#050a12] border border-white/10 font-mono text-xs md:text-sm text-center p-3 text-white rounded-lg outline-none focus:border-[#00f0ff]" 
                       />
@@ -6408,7 +6408,7 @@ header("Content-Type: application/json; charset=UTF-8");
                       <input 
                         type="text" 
                         value={config.baudrate || ''} 
-                        placeholder={config.transport === 'SERIAL' ? '9600' : '4001'}
+                        placeholder={config.transport === 'SERIAL' ? '9600' : '5001'}
                         onChange={(e) => setConfig({ ...config, baudrate: e.target.value })}
                         className="w-full bg-[#050a12] border border-white/10 font-mono text-xs md:text-sm text-center p-3 text-white rounded-lg outline-none focus:border-[#00f0ff]" 
                       />
@@ -6455,11 +6455,11 @@ header("Content-Type: application/json; charset=UTF-8");
                       <div className="text-xs space-y-1 bg-black/40 p-2.5 rounded border border-white/5 text-slate-300">
                         <div className="flex justify-between">
                           <span className="text-slate-500">IP Gateway:</span>
-                          <span className="text-white font-bold">{moxaStatus?.moxa_ip || config.serialcom || '192.168.127.254'}</span>
+                          <span className="text-white font-bold">{moxaStatus?.moxa_ip || config.serialcom || '172.16.4.48'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-500">Port Gateway:</span>
-                          <span className="text-white font-bold">{moxaStatus?.moxa_port || config.baudrate || '10001'}</span>
+                          <span className="text-white font-bold">{moxaStatus?.moxa_port || config.baudrate || '5001'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-500">Daemon state:</span>
@@ -9019,7 +9019,7 @@ header("Content-Type: application/json; charset=UTF-8");
                           <span className="text-emerald-400 font-bold block">B. TCP/IP GATEWAY MOXA (Ethernet / Wireless Router)</span>
                           Digunakan saat stasiun AWS di luar lapangan mentransmisikan data serial RS485 melalui konverter serial-ke-Ethernet Moxa NPort.
                           <ul className="list-disc pl-4 mt-1 space-y-1 text-slate-400">
-                            <li><strong>IP & Port Gateway:</strong> Tentukan IP Address Moxa (IP default: <code>192.168.127.254</code>) beserta Socket Port tujuan (umumnya <code>4001</code> atau <code>10001</code>).</li>
+                            <li><strong>IP & Port Gateway:</strong> Tentukan IP Address Moxa (IP default: <code>172.16.4.48</code>) beserta Socket Port tujuan (umumnya <code>5001</code>).</li>
                             <li><strong>Moxa Web Daemon:</strong> Komunikasi data dikawal oleh background daemon Websocket lokal (default pada port <code>8080</code>).</li>
                             <li><strong>CORS & HTTPS Warn:</strong> Jika server dibuka melalui protokol HTTPS (Secure), browser akan memblokir koneksi HTTP tidak aman ke localhost. Pastikan Anda mengaktifkan izin <em>Insecure Content / Allow</em> di setingan privasi browser Anda.</li>
                           </ul>
@@ -9143,15 +9143,15 @@ header("Content-Type: application/json; charset=UTF-8");
                             <div className="grid grid-cols-2 gap-1.5">
                               <div className="bg-slate-950 p-1 rounded">
                                 <span className="text-slate-500 text-[6px] block">MOXA IP / HOST</span>
-                                <span className="text-white">192.168.1.254</span>
+                                <span className="text-white">172.16.4.48</span>
                               </div>
                               <div className="bg-slate-950 p-1 rounded">
                                 <span className="text-slate-500 text-[6px] block">SOCKET PORT</span>
-                                <span className="text-white">4001</span>
+                                <span className="text-white">5001</span>
                               </div>
                             </div>
                             <div className="bg-emerald-500/10 p-1 rounded text-emerald-400 text-[7px]">
-                              Status: Connected (IP 192.168.1.254:4001)
+                              Status: Connected (IP 172.16.4.48:5001)
                             </div>
                             <div className="grid grid-cols-2 gap-1">
                               <button className="bg-amber-500 text-black rounded text-[6px] py-0.5">RESET OPT</button>
@@ -9605,7 +9605,7 @@ header("Content-Type: application/json; charset=UTF-8");
                           <li>
                             <strong>Gejala: Dashboard Menampilkan Tulisan "OFFLINE"</strong>
                             <br />
-                            <em>Langkah Penanganan:</em> Periksa panel <strong>Moxa Live Status</strong> di menu Option. Pastikan daemon berstatus <strong>CONNECTED</strong>. Jika terputus, pastikan kabel LAN Moxa terhubung dan alamat IP Moxa <code>192.168.1.254</code> dalam kondisi menyala (aktif).
+                            <em>Langkah Penanganan:</em> Periksa panel <strong>Moxa Live Status</strong> di menu Option. Pastikan daemon berstatus <strong>CONNECTED</strong>. Jika terputus, pastikan kabel LAN Moxa terhubung dan alamat IP Moxa <code>172.16.4.48</code> dalam kondisi menyala (aktif).
                           </li>
                           <li>
                             <strong>Gejala: Muncul Peringatan "DATA FEED DISCONNECTED" atau "CONNECTION LOSS"</strong>

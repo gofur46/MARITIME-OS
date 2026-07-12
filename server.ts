@@ -589,8 +589,8 @@ const AWS_CONFIG_FILE = path.join(process.cwd(), "aws_config.json");
 // Local variables to hold the latest moxa daemon status and raw messages
 let lastMoxaStatus: any = {
   connected: false,
-  moxa_ip: '192.168.1.254',
-  moxa_port: 4001,
+  moxa_ip: '172.16.4.48',
+  moxa_port: 5001,
   state: 'OFFLINE',
   last_seen: '-',
   error: 'Waiting for daemon connection'
@@ -865,8 +865,8 @@ app.get("/api/aws-config", (req, res) => {
       // If the Moxa daemon requests its configuration
       if (req.query.get_moxa_config === '1') {
         return res.json({
-          moxa_ip: parsed.serialcom || '192.168.1.254',
-          moxa_port: parseInt(parsed.baudrate) || 4001
+          moxa_ip: parsed.serialcom || '172.16.4.48',
+          moxa_port: parseInt(parsed.baudrate) || 5001
         });
       }
       
@@ -876,8 +876,8 @@ app.get("/api/aws-config", (req, res) => {
     // Fallback defaults if file doesn't exist
     if (req.query.get_moxa_config === '1') {
       return res.json({
-        moxa_ip: '192.168.1.254',
-        moxa_port: 4001
+        moxa_ip: '172.16.4.48',
+        moxa_port: 5001
       });
     }
     return res.json({}); // Return empty object if file does not exist
@@ -898,8 +898,8 @@ app.post("/api/aws-config", (req, res) => {
         console.log("📥 [Proxy] Received status update from Moxa Daemon:", configData);
         lastMoxaStatus = {
           connected: configData.connected,
-          moxa_ip: configData.moxa_ip || '192.168.1.254',
-          moxa_port: configData.moxa_port || 4001,
+          moxa_ip: configData.moxa_ip || '172.16.4.48',
+          moxa_port: configData.moxa_port || 5001,
           state: configData.state || 'UNKNOWN',
           last_seen: new Date().toLocaleTimeString('id-ID'),
           error: configData.error || ''

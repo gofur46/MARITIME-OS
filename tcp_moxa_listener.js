@@ -24,8 +24,8 @@ const API_URL = process.argv[2] || 'http://localhost:8000/api.php';
 
 // IP & Port Moxa (Dapat langsung ditulis di baris perintah sebagai override):
 // FORMAT: node tcp_moxa_listener.js [API_URL] [MOXA_IP] [MOXA_PORT]
-let MOXA_IP = process.argv[3] || '192.168.1.254'; 
-let MOXA_PORT = parseInt(process.argv[4]) || 4001;          
+let MOXA_IP = process.argv[3] || '172.16.4.48'; 
+let MOXA_PORT = parseInt(process.argv[4]) || 5001;          
 const RECONNECT_INTERVAL = 5000; // Coba menyambung kembali setiap 5 detik jika putus
 const WEB_IO_PORT = 8080; // Port Web Server + Socket.IO lokal
 // =======================================================
@@ -161,13 +161,13 @@ function getFriendlyErrorMessage(err) {
         return `Batas waktu koneksi habis (${msg}). Periksa jaringan fisik ke Moxa, pastikan Moxa menyala, kabel LAN terpasang kencang, dan IP PC satu segmen (subnet) dengan Moxa.`;
     }
     if (msg.includes('EHOSTUNREACH')) {
-        return `Host tidak terjangkau (${msg}). Komputer tidak dapat menemukan jalur ke IP Moxa. Periksa konfigurasi IP PC Anda, pastikan segmen IP sama (misal: PC 192.168.1.10 dan Moxa 192.168.1.254).`;
+        return `Host tidak terjangkau (${msg}). Komputer tidak dapat menemukan jalur ke IP Moxa. Periksa konfigurasi IP PC Anda, pastikan segmen IP sama (misal: PC 172.16.4.10 dan Moxa 172.16.4.48).`;
     }
     if (msg.includes('EADDRNOTAVAIL')) {
         return `Alamat IP tidak valid (${msg}). Alamat IP Moxa ${MOXA_IP} tidak dapat digunakan. Periksa kembali penulisan IP di Pengaturan Dashboard.`;
     }
     if (msg.includes('ENOTFOUND')) {
-        return `IP atau Host tidak ditemukan (${msg}). Pastikan IP yang dimasukkan adalah alamat IP yang valid, bukan nama COM port seperti COM3 (COM port hanya digunakan untuk mode SERIAL, gunakan IP seperti 192.168.1.254 untuk MOXA_TCP).`;
+        return `IP atau Host tidak ditemukan (${msg}). Pastikan IP yang dimasukkan adalah alamat IP yang valid, bukan nama COM port seperti COM3 (COM port hanya digunakan untuk mode SERIAL, gunakan IP seperti 172.16.4.48 untuk MOXA_TCP).`;
     }
     return msg;
 }

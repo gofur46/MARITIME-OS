@@ -9,8 +9,8 @@ color 0b
 
 :: --- PENGATURAN DEFAULT SINKRONISASI ---
 set API_URL=http://localhost:8000/api.php
-set MOXA_IP=192.168.1.254
-set MOXA_PORT=4001
+set MOXA_IP=172.16.4.48
+set MOXA_PORT=5001
 
 echo =========================================================
 echo       AWS MARITIME TELEMETRY - AUTO DAEMON INITIALIZER
