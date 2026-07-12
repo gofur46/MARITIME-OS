@@ -499,6 +499,90 @@ app.get("/api/bmkg", async (req, res) => {
 // JSON Middleware for Updater
 app.use(express.json());
 
+// Real-world FTP & SFTP Upload Route
+app.post("/api/ftp-upload", async (req, res) => {
+  const { host, port, protocol, user, pass, path: remotePath, filename, payload } = req.body;
+
+  if (!host || !user || !pass) {
+    return res.status(400).json({ success: false, error: "Host, username, dan password wajib diisi." });
+  }
+
+  const tempLocalFile = path.join(process.cwd(), filename);
+  try {
+    // Tulis payload ke file lokal sementara
+    fs.writeFileSync(tempLocalFile, payload, "utf-8");
+
+    if (protocol === "SFTP") {
+      console.log(`[SFTP Upload] Memulai upload SFTP ke ${host}:${port || 22}...`);
+      const sftpModule = await import("ssh2-sftp-client");
+      // sftpModule.default is usually the class for ssh2-sftp-client
+      const SftpClass = sftpModule.default || (sftpModule as any);
+      const client = new SftpClass();
+
+      await client.connect({
+        host,
+        port: port || 22,
+        username: user,
+        password: pass,
+        readyTimeout: 15000
+      });
+
+      // Pastikan direktori tujuan ada, jika tidak, coba buat
+      try {
+        await client.mkdir(remotePath, true);
+      } catch (err) {
+        // Abaikan jika sudah ada atau gagal membuat
+      }
+
+      const remoteFile = path.join(remotePath, filename).replace(/\\/g, "/");
+      await client.put(tempLocalFile, remoteFile);
+      await client.end();
+      console.log(`[SFTP Upload] Sukses mengunggah ke ${remoteFile}`);
+    } else {
+      console.log(`[FTP Upload] Memulai upload FTP ke ${host}:${port || 21}...`);
+      const ftpModule = await import("basic-ftp");
+      const client = new ftpModule.Client();
+      client.ftp.verbose = true;
+
+      await client.access({
+        host,
+        port: port || 21,
+        user,
+        password: pass,
+        secure: false
+      });
+
+      // Pastikan direktori tujuan ada
+      try {
+        await client.ensureDir(remotePath);
+      } catch (err) {
+        // Abaikan
+      }
+
+      await client.uploadFrom(tempLocalFile, filename);
+      client.close();
+      console.log(`[FTP Upload] Sukses mengunggah ke ${remotePath}/${filename}`);
+    }
+
+    // Hapus file sementara
+    try {
+      fs.unlinkSync(tempLocalFile);
+    } catch (e) {}
+
+    return res.json({ success: true, message: "Upload berhasil!" });
+  } catch (err: any) {
+    console.error(`[Upload Failed] Gagal melakukan transfer ${protocol}:`, err);
+    // Hapus file sementara jika ada
+    try {
+      if (fs.existsSync(tempLocalFile)) {
+        fs.unlinkSync(tempLocalFile);
+      }
+    } catch (e) {}
+
+    return res.status(500).json({ success: false, error: err.message || String(err) });
+  }
+});
+
 // Centralized configuration endpoints for LAN client synchronization
 const AWS_CONFIG_FILE = path.join(process.cwd(), "aws_config.json");
 

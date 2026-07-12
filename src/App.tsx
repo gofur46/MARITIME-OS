@@ -33,7 +33,10 @@ const DEFAULT_CONFIG = {
   lockOfflineDashboard: 'ON', // ON = lock/hide dashboard, OFF = show last known data
   cloudMode: 'OFF',
   httpUrl: 'https://api.portmarine.gov/aws/v1',
+  httpFormatType: 'CSV_POST', // 'CSV_POST' | 'GET_AAWS_QUERY'
   ftpHost: 'ftp.portmarine.gov',
+  ftpPort: '21',
+  ftpProtocol: 'FTP', // 'FTP' | 'SFTP'
   ftpUser: 'aws_logger',
   ftpPass: '********',
   ftpPath: '/data/xml',
@@ -568,14 +571,6 @@ export default function App() {
   // Auto-migrate old/stale sensor mappings in localStorage to the new correct default Moxa mappings
   if (parsedConfig) {
     let changed = false;
-    if (parsedConfig.sensors) {
-      const isOldMapping = parsedConfig.sensors['ch_0'] === '2' || parsedConfig.sensors['ch_8'] === '3' || parsedConfig.sensors['ch_rain'] === '5';
-      if (isOldMapping) {
-        console.log("⚠️ Old/stale sensor mappings detected in localStorage. Auto-migrating to standard Moxa TCP/IP mappings.");
-        parsedConfig.sensors = { ...DEFAULT_CONFIG.sensors };
-        changed = true;
-      }
-    }
     // Auto-migrate transport to standard Moxa TCP/IP for instant live connection
     if (parsedConfig.transport === 'SERIAL' || parsedConfig.transport === 'TCP') {
       console.log("⚠️ Old transport detected in localStorage. Auto-migrating to MOXA_TCP.");
@@ -1268,20 +1263,91 @@ useEffect(() => {
       try {
         const cloudHttpUrl = config.httpUrl || 'https://api.portmarine.gov/aws/v1';
         logsToAppend.push(`[${timeStr} CLOUD HTTP] 📡 Connecting to Cloud API Gateway at: ${cloudHttpUrl}`);
-        // Fetch to destination cloud URL using no-cors to permit seamless outbound tests in browser frames
-        await fetch(cloudHttpUrl, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        logsToAppend.push(`[${timeStr} CLOUD HTTP] 🟢 Sync Successful: Sent 10-minute packet to Cloud API.`);
+        
+        // Formatter functions
+        const formatUtcDateTime = (ts: number) => {
+          const date = new Date(ts);
+          const pad = (num: number) => String(num).padStart(2, '0');
+          return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+        };
+
+        const formatDdmmyyyyHhmmss = (ts: number) => {
+          const date = new Date(ts);
+          const pad = (num: number) => String(num).padStart(2, '0');
+          const d = pad(date.getDate());
+          const m = pad(date.getMonth() + 1);
+          const y = String(date.getFullYear());
+          const hh = pad(date.getHours());
+          const mm = pad(date.getMinutes());
+          const ss = pad(date.getSeconds());
+          return `${d}${m}${y}${hh}${mm}${ss}`;
+        };
+
+        const id = payload.station_id;
+        const tempAvg = payload.temperature.toFixed(1);
+        const tempMin = payload.temp_min.toFixed(1);
+        const tempMax = payload.temp_max.toFixed(1);
+        const rh = payload.humidity;
+        const kecAngin = payload.wind_speed.toFixed(1);
+        const arahAngin = payload.wind_direction;
+        const radiasi = payload.solar_radiation;
+        const tekanan = payload.pressure.toFixed(1);
+        const waterLevel = payload.sea_level.toFixed(1);
+        const tempAir = payload.water_temp.toFixed(1);
+        const phAir = payload.water_ph.toFixed(2);
+        const hujan = payload.rainfall.toFixed(1);
+
+        const formatType = (config as any).httpFormatType || 'CSV_POST';
+
+        if (formatType === 'GET_AAWS_QUERY') {
+          // Format query style: ID;timestamp(DDMMYYYYHHMMSS);hujan;tekanan;rh;temp;kec_spd;dir;rad;null;null;...
+          const ddmmyyyyTime = formatDdmmyyyyHhmmss(record.timestamp);
+          const csvPayloadString = `${id};${ddmmyyyyTime};${hujan};${tekanan};${rh};${tempAvg};${kecAngin};${arahAngin};${radiasi};null;null;null;null;null;null;null;null;null;null;null;null;null;null;null;null;null;`;
+          
+          let finalUrl = '';
+          if (cloudHttpUrl.includes('?')) {
+            // Jika user menulis lengkap dengan parameter (seperti ?dat= atau ?param=), langsung tambahkan di akhir
+            if (cloudHttpUrl.endsWith('=') || cloudHttpUrl.endsWith('&')) {
+              finalUrl = `${cloudHttpUrl}${encodeURIComponent(csvPayloadString)}`;
+            } else {
+              // Jika ada '?' tapi tidak diakhiri '=' atau '&', tambahkan '&dat='
+              finalUrl = `${cloudHttpUrl}&dat=${encodeURIComponent(csvPayloadString)}`;
+            }
+          } else {
+            // Jika tidak ada '?' sama sekali (seperti http://ip/AAWS.php), tambahkan '?dat=' secara otomatis
+            finalUrl = `${cloudHttpUrl}?dat=${encodeURIComponent(csvPayloadString)}`;
+          }
+
+          logsToAppend.push(`[${timeStr} CLOUD HTTP] 📦 Format: AAWS GET Query (${csvPayloadString.substring(0, 45)}...)`);
+          logsToAppend.push(`[${timeStr} CLOUD HTTP] 📤 Request URL: "${finalUrl}"`);
+
+          await fetch(finalUrl, {
+            method: 'GET',
+            mode: 'no-cors'
+          });
+          logsToAppend.push(`[${timeStr} CLOUD HTTP] 🟢 Sync Successful: Sent AAWS GET query packet to Cloud API.`);
+        } else {
+          // Default standard CSV POST
+          const utcTime = formatUtcDateTime(record.timestamp);
+          const csvPayloadString = `${id};${utcTime};${tempAvg};${tempMin};${tempMax};${rh};${kecAngin};${arahAngin};${radiasi};${tekanan};${waterLevel};${tempAir};${phAir};${hujan};`;
+
+          logsToAppend.push(`[${timeStr} CLOUD HTTP] 📦 Format: ID;timestamp(utc);temp avg;temp/min;temp/max;rh;kec/spd;dir;rad;pres;wl;wtemp;wph;rain;`);
+          logsToAppend.push(`[${timeStr} CLOUD HTTP] 📤 Data: "${csvPayloadString}"`);
+
+          await fetch(cloudHttpUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: csvPayloadString
+          });
+          logsToAppend.push(`[${timeStr} CLOUD HTTP] 🟢 Sync Successful: Sent formatted CSV packet to Cloud API.`);
+        }
       } catch (err) {
         logsToAppend.push(`[${timeStr} CLOUD HTTP] ⚠️ API Gateway reachable (Simulated upload complete to Cloud Database Node)`);
       }
     };
 
-    const triggerFtpPush = () => {
+    const triggerFtpPush = async () => {
       const xmlPayload = `
 <TelemetryRecord station="${config.idStation || 'AWS001'}" ts="${formatSqlDateTime(record.timestamp)}">
   <Temperature>${record.temperature}°C</Temperature>
@@ -1292,9 +1358,39 @@ useEffect(() => {
   <WaterPh>${record.waterPh}</WaterPh>
 </TelemetryRecord>`.trim();
 
-      logsToAppend.push(`[${timeStr} CLOUD FTP] ⚙️ Packing XML payload under ${config.idStation || 'AWS001'}_${Math.floor(Date.now() / 1000)}.xml`);
-      logsToAppend.push(`[${timeStr} CLOUD FTP] 🔄 Logging in to FTP Host: ftp://${config.ftpUser || 'aws_logger'}@${config.ftpHost || 'ftp.portmarine.gov'}`);
-      logsToAppend.push(`[${timeStr} CLOUD FTP] 🟢 FTP passive transfer successful. Uploaded XML successfully to: ${config.ftpPath || '/data/xml'}`);
+      const protocol = (config as any).ftpProtocol || 'FTP';
+      const host = config.ftpHost || 'ftp.portmarine.gov';
+      const port = (config as any).ftpPort || (protocol === 'SFTP' ? '22' : '21');
+      const filename = `${config.idStation || 'AWS001'}_${Math.floor(Date.now() / 1000)}.xml`;
+
+      logsToAppend.push(`[${timeStr} CLOUD FTP] ⚙️ Packing XML payload under ${filename}`);
+      logsToAppend.push(`[${timeStr} CLOUD FTP] 🔄 Connecting via ${protocol} to: ${protocol.toLowerCase()}://${config.ftpUser || 'aws_logger'}@${host}:${port}`);
+
+      try {
+        const response = await fetch('/api/ftp-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            host: host,
+            port: parseInt(port),
+            protocol: protocol,
+            user: config.ftpUser,
+            pass: config.ftpPass,
+            path: config.ftpPath || '/data/xml',
+            filename: filename,
+            payload: xmlPayload
+          })
+        });
+
+        const result = await response.json() as any;
+        if (response.ok && result.success) {
+          logsToAppend.push(`[${timeStr} CLOUD FTP] 🟢 ${protocol} Upload successful. File saved to: ${config.ftpPath || '/data/xml'}`);
+        } else {
+          logsToAppend.push(`[${timeStr} CLOUD FTP] 🔴 ${protocol} Upload failed: ${result.error || 'Unknown error'}`);
+        }
+      } catch (err: any) {
+        logsToAppend.push(`[${timeStr} CLOUD FTP] 🔴 Network error connecting to Upload API: ${err.message || err}`);
+      }
     };
 
     const triggerMqttPush = () => {
@@ -1308,7 +1404,7 @@ useEffect(() => {
       await triggerHttpPush();
     }
     if (cloudMode === 'FTP' || cloudMode === 'BOTH' || cloudMode === 'ALL') {
-      triggerFtpPush();
+      await triggerFtpPush();
     }
     if (cloudMode === 'MQTT' || cloudMode === 'ALL') {
       triggerMqttPush();
@@ -6236,6 +6332,21 @@ header("Content-Type: application/json; charset=UTF-8");
                         )}
                       </div>
 
+                      <div className="space-y-1 mt-1">
+                        <label className="text-[10px] uppercase font-bold text-slate-400 block font-mono">Moxa Daemon Host URL</label>
+                        <input 
+                          type="text" 
+                          value={config.moxaDaemonUrl || 'http://localhost:8080'}
+                          placeholder="http://localhost:8080"
+                          onChange={(e) => {
+                            const newCfg = { ...config, moxaDaemonUrl: e.target.value };
+                            setConfig(newCfg);
+                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                          }}
+                          className="w-full bg-[#050a12] border border-white/10 font-mono text-[11px] p-1.5 text-slate-300 rounded outline-none focus:border-teal-400" 
+                        />
+                      </div>
+
                       <div className="text-xs space-y-1 bg-black/40 p-2.5 rounded border border-white/5 text-slate-300">
                         <div className="flex justify-between">
                           <span className="text-slate-500">IP Gateway:</span>
@@ -6342,24 +6453,87 @@ header("Content-Type: application/json; charset=UTF-8");
                         <option value="ALL">ALL (HTTP, FTP & MQTT)</option>
                       </select>
                     </div>
-                    {(config.cloudMode === 'FTP' || config.cloudMode === 'BOTH' || config.cloudMode === 'ALL') && (
-                      <div className="space-y-2 p-3 bg-teal-950/20 border border-teal-500/20 rounded-lg">
-                        <span className="text-xs font-black text-teal-400 font-mono block uppercase tracking-wider mb-1">📁 KREDENSIAL SERVER FTP</span>
+                    {(config.cloudMode === 'HTTP' || config.cloudMode === 'BOTH' || config.cloudMode === 'ALL') && (
+                      <div className="space-y-1.5 p-3 bg-emerald-950/20 border border-emerald-500/25 rounded-lg animate-fade-in">
+                        <span className="text-xs font-black text-emerald-400 font-mono block uppercase tracking-wider mb-1">🌐 KREDENSIAL / HOST HTTP API</span>
                         
                         <div className="space-y-1">
-                          <label className="text-xs uppercase font-bold text-slate-400 block font-mono">FTP Host / Server IP</label>
+                          <label className="text-xs uppercase font-bold text-slate-400 block font-mono">HTTP API Host URL</label>
                           <input 
                             type="text" 
-                            value={config.ftpHost}
-                            placeholder="ftp.portmarine.gov"
-                            onChange={(e) => setConfig({ ...config, ftpHost: e.target.value })}
-                            className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none text-left" 
+                            value={config.httpUrl}
+                            placeholder="https://api.portmarine.gov/aws/v1"
+                            onChange={(e) => {
+                              const newCfg = { ...config, httpUrl: e.target.value };
+                              setConfig(newCfg);
+                              localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                            }}
+                            className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none focus:border-[#22c55e]" 
                           />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-xs uppercase font-bold text-slate-400 block font-mono">Format & Metode HTTP API</label>
+                          <select 
+                            value={(config as any).httpFormatType || 'CSV_POST'}
+                            onChange={(e) => {
+                              const newCfg = { ...config, httpFormatType: e.target.value };
+                              setConfig(newCfg);
+                              localStorage.setItem('aws_config', JSON.stringify(newCfg));
+                            }}
+                            className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none focus:border-[#22c55e]"
+                          >
+                            <option value="CSV_POST">POST (Format Standard CSV Semicolon)</option>
+                            <option value="GET_AAWS_QUERY">GET (Format AAWS php?dat=...)</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                    {(config.cloudMode === 'FTP' || config.cloudMode === 'BOTH' || config.cloudMode === 'ALL') && (
+                      <div className="space-y-2 p-3 bg-teal-950/20 border border-teal-500/20 rounded-lg">
+                        <span className="text-xs font-black text-teal-400 font-mono block uppercase tracking-wider mb-1">📁 KREDENSIAL SERVER FTP / SFTP</span>
+                        
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="col-span-2 space-y-1">
+                            <label className="text-xs uppercase font-bold text-slate-400 block font-mono">Host / IP Server</label>
+                            <input 
+                              type="text" 
+                              value={config.ftpHost}
+                              placeholder="ftp.portmarine.gov"
+                              onChange={(e) => setConfig({ ...config, ftpHost: e.target.value })}
+                              className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none text-left" 
+                            />
+                          </div>
                           <div className="space-y-1">
-                            <label className="text-xs uppercase font-bold text-slate-400 block font-mono">FTP Username</label>
+                            <label className="text-xs uppercase font-bold text-slate-400 block font-mono">Protokol</label>
+                            <select 
+                              value={(config as any).ftpProtocol || 'FTP'}
+                              onChange={(e) => {
+                                const proto = e.target.value;
+                                const defaultPort = proto === 'SFTP' ? '22' : '21';
+                                setConfig({ ...config, ftpProtocol: proto, ftpPort: defaultPort });
+                              }}
+                              className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none text-left font-sans"
+                            >
+                              <option value="FTP">FTP</option>
+                              <option value="SFTP">SFTP</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-xs uppercase font-bold text-slate-400 block font-mono">Port</label>
+                            <input 
+                              type="text" 
+                              value={(config as any).ftpPort || '21'}
+                              placeholder="21"
+                              onChange={(e) => setConfig({ ...config, ftpPort: e.target.value })}
+                              className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-slate-300 rounded outline-none text-left" 
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs uppercase font-bold text-slate-400 block font-mono">Username</label>
                             <input 
                               type="text" 
                               value={config.ftpUser}
@@ -6369,7 +6543,7 @@ header("Content-Type: application/json; charset=UTF-8");
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-xs font-bold tracking-wide text-slate-400 block font-mono mb-1">FTP Password</label>
+                            <label className="text-xs font-bold tracking-wide text-slate-400 block font-mono mb-1">Password</label>
                             <input 
                               type="password" 
                               value={config.ftpPass}
@@ -6381,7 +6555,7 @@ header("Content-Type: application/json; charset=UTF-8");
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-xs font-bold tracking-wide text-slate-400 block font-mono mb-1">FTP Upload Path (Directory)</label>
+                          <label className="text-xs font-bold tracking-wide text-slate-400 block font-mono mb-1">Upload Path (Directory)</label>
                           <input 
                             type="text" 
                             value={config.ftpPath}
@@ -7012,7 +7186,9 @@ header("Content-Type: application/json; charset=UTF-8");
                           value={config.sensors[sensor.key as keyof typeof config.sensors]}
                           onChange={(e) => {
                             const updatedSensors = { ...config.sensors, [sensor.key]: e.target.value };
-                            setConfig({ ...config, sensors: updatedSensors });
+                            const newCfg = { ...config, sensors: updatedSensors };
+                            setConfig(newCfg);
+                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
                           }}
                           className="bg-[#050a12] border border-white/10 font-mono text-xs w-[50px] text-white p-1 rounded outline-none"
                         >
@@ -9419,9 +9595,16 @@ header("Content-Type: application/json; charset=UTF-8");
                             </div>
 
                             <div className="border-l border-[#00f0ff]/30 pl-2">
-                              <strong className="text-white block text-[10px]">💡 Kebijakan Penyulut Suara Verbal</strong>
+                              <strong className="text-white block text-[10px]">💡 Kebijakan Penyulut Suara Verbal & Reset Otomatis</strong>
                               <p className="text-[10px] text-slate-400 mt-0.5">
-                                Untuk mencegah penumpukan audio yang mengganggu, laporan verbal bahasa Indonesia diatur dengan sistem pembatasan jeda (throttling) berdurasi minimal 12 detik antar ucapan, kecuali jika jenis peringatan terbaru berubah.
+                                Untuk mencegah penumpukan audio yang mengganggu, laporan verbal diatur dengan sistem jeda minimal 12 detik. <strong>Sistem alarm otomatis berhenti berbunyi dan berkedip seketika ketika hujan berhenti atau parameter kembali normal.</strong>
+                              </p>
+                            </div>
+
+                            <div className="border-l border-emerald-500/30 pl-2">
+                              <strong className="text-white block text-[10px]">🔄 Sinkronisasi Sensor & HTTP API Terkini</strong>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                Pemetaan sensor (Sensor Channel Mapping) kini disimpan otomatis secara langsung dan tidak ter-reset saat refresh. Format data pengiriman HTTP API dikirim menggunakan format string terstandardisasi: <code className="text-emerald-400 font-mono text-[9px] bg-slate-950 px-1">ID;timestamp(utc);temp avg;temp min;temp max;rh;kec angin;arah angin;radiasi;tekanan;water level;temperatur air;phair;hujan;</code> demi performa integrasi tinggi.
                               </p>
                             </div>
                           </div>
