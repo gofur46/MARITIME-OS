@@ -1036,6 +1036,15 @@ useEffect(() => {
 
         socket.on('statusUpdate', (status: any) => {
           if (status) {
+            // Jika berada di Cloud / HTTPS preview, abaikan status DISCONNECTED dari Express socket,
+            // karena Cloud Run tidak bisa mengakses IP lokal Moxa secara fisik.
+            const isCloudPreview = window.location.hostname.includes('run.app') || 
+                                   window.location.hostname.includes('google.com') || 
+                                   window.location.hostname.includes('aistudio');
+            if (isCloudPreview && !status.connected) {
+              // Abaikan status disconnected dari cloud, biarkan polling PHP lokal yang menentukan
+              return;
+            }
             setMoxaStatus(status);
           }
         });
@@ -1064,6 +1073,13 @@ useEffect(() => {
 
         socket.on('disconnect', () => {
           console.warn("❌ Moxa WebSocket disconnected, waiting for reconnection...");
+          const isCloudPreview = window.location.hostname.includes('run.app') || 
+                                 window.location.hostname.includes('google.com') || 
+                                 window.location.hostname.includes('aistudio');
+          if (isCloudPreview) {
+            // Di cloud, jangan paksa state ke OFFLINE saat socket putus, biarkan polling PHP tetap berjalan
+            return;
+          }
           setMoxaStatus(prev => ({
             connected: false,
             moxa_ip: prev?.moxa_ip || '192.168.1.254',
@@ -1092,7 +1108,9 @@ useEffect(() => {
         const expressRes = await fetch('/api/moxa-status');
         if (expressRes.ok) {
           const parsed = await expressRes.json();
-          if (parsed && typeof parsed.connected === 'boolean') {
+          // Hanya gunakan status dari Express jika ia CONNECTED.
+          // Jika Express melaporkan DISCONNECTED/OFFLINE di cloud, kita abaikan dan tetap fallback ke PHP lokal (karena user kemungkinan besar menjalankan daemon lokal di laptopnya)
+          if (parsed && parsed.connected === true) {
             setMoxaStatus(parsed);
             return;
           }
