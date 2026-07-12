@@ -474,6 +474,108 @@ app.post('/save-config', (req, res) => {
     }
 });
 
+app.get('/', (req, res) => {
+    res.send(`<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS Maritime Telemetry - Moxa Daemon Status</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b1329;
+        }
+        .mono-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+</head>
+<body class="text-slate-200 min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-xl w-full bg-slate-900/80 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md">
+        <!-- Header -->
+        <div class="flex items-center gap-3.5 border-b border-slate-800 pb-5 mb-6">
+            <div class="p-3 bg-teal-500/10 border border-teal-500/20 rounded-2xl text-teal-400">
+                <svg class="w-8 h-8 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-xl font-extrabold text-white tracking-tight uppercase">AWS Maritime OS</h1>
+                <p class="text-xs text-teal-400 font-semibold tracking-wider uppercase">Telemetry Daemon Active</p>
+            </div>
+        </div>
+
+        <!-- Connection Status Card -->
+        <div class="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-5 mb-6 space-y-4">
+            <div class="flex items-center justify-between">
+                <span class="text-xs text-slate-400 uppercase font-bold tracking-wider">Status Koneksi Moxa:</span>
+                <span class="px-3 py-1 text-xs font-black rounded-full uppercase tracking-wider ${
+                    lastStatus.connected 
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                        : lastStatus.state === 'DIALING' || lastStatus.state === 'RECONNECTING'
+                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse'
+                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                }">
+                    \${lastStatus.state}
+                </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 pt-2 border-t border-slate-800/50 text-xs">
+                <div>
+                    <span class="text-slate-500 block mb-0.5">IP Gateway:</span>
+                    <span class="font-bold text-white mono-font">\${lastStatus.moxa_ip}</span>
+                </div>
+                <div>
+                    <span class="text-slate-500 block mb-0.5">Port Gateway:</span>
+                    <span class="font-bold text-white mono-font">\${lastStatus.moxa_port}</span>
+                </div>
+                <div>
+                    <span class="text-slate-500 block mb-0.5">Waktu Update:</span>
+                    <span class="font-semibold text-slate-300 mono-font">\${lastStatus.last_seen || 'Belum ada data'}</span>
+                </div>
+                <div>
+                    <span class="text-slate-500 block mb-0.5">Target Database API:</span>
+                    <span class="font-semibold text-slate-300 mono-font truncate block" title="\${API_URL}">\${API_URL}</span>
+                </div>
+            </div>
+
+            \${lastStatus.error ? \`
+            <div class="mt-4 p-3 bg-rose-500/10 border border-rose-500/15 rounded-xl text-xs text-rose-300 leading-relaxed">
+                <strong>Catatan Error:</strong> \${lastStatus.error}
+            </div>
+            \` : ''}
+        </div>
+
+        <!-- Navigation Links -->
+        <div class="space-y-3">
+            <div class="text-xs text-slate-400 font-medium">
+                Peralatan bantu & API Endpoint Daemon:
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <a href="/status" class="flex items-center justify-between p-3 bg-slate-950/40 hover:bg-slate-950/80 border border-slate-800/80 rounded-xl transition text-xs font-semibold text-teal-400 hover:text-teal-300">
+                    <span>📊 Lihat API Status (JSON)</span>
+                    <span>→</span>
+                </a>
+                <a href="http://localhost:3000" class="flex items-center justify-between p-3 bg-slate-950/40 hover:bg-slate-950/80 border border-slate-800/80 rounded-xl transition text-xs font-semibold text-sky-400 hover:text-sky-300">
+                    <span>💻 Buka Dashboard Utama</span>
+                    <span>→</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Footer Info -->
+        <div class="mt-6 pt-5 border-t border-slate-800/50 flex flex-col sm:flex-row justify-between items-center gap-3 text-[10px] text-slate-500 font-medium">
+            <span>Daemon berjalan secara lokal menggunakan Node.js Express</span>
+            <span>Port: \${WEB_IO_PORT}</span>
+        </div>
+    </div>
+</body>
+</html>`);
+});
+
 app.get('/status', (req, res) => {
     res.json(lastStatus);
 });
