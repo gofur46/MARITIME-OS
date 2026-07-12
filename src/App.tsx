@@ -6262,20 +6262,6 @@ header("Content-Type: application/json; charset=UTF-8");
                         )}
                       </div>
 
-                      <div className="border-t border-white/5 pt-2.5 space-y-1">
-                        <label className="text-[10px] uppercase font-bold text-teal-400 block">🌐 DAEMON WEBSOCKET URL</label>
-                        <input 
-                          type="text" 
-                          value={config.moxaDaemonUrl || 'http://localhost:8080'} 
-                          placeholder="http://localhost:8080"
-                          onChange={(e) => {
-                            const newCfg = { ...config, moxaDaemonUrl: e.target.value };
-                            setConfig(newCfg);
-                            localStorage.setItem('aws_config', JSON.stringify(newCfg));
-                          }}
-                          className="w-full bg-black border border-white/10 font-mono text-xs text-center p-2 text-teal-300 rounded focus:border-[#00f0ff] outline-none" 
-                        />
-                      </div>
 
                       {window.location.protocol === 'https:' && (
                         <div className="p-2.5 text-[10px] text-amber-300 bg-amber-500/10 rounded border border-amber-500/15 leading-relaxed space-y-1">
@@ -6356,19 +6342,6 @@ header("Content-Type: application/json; charset=UTF-8");
                         <option value="ALL">ALL (HTTP, FTP & MQTT)</option>
                       </select>
                     </div>
-
-                    {(config.cloudMode === 'HTTP' || config.cloudMode === 'BOTH' || config.cloudMode === 'ALL') && (
-                      <div className="space-y-1">
-                        <label className="text-xs uppercase font-bold text-slate-400 tracking-wider block">HTTP API URL</label>
-                        <input 
-                          type="text" 
-                          value={config.httpUrl}
-                          onChange={(e) => setConfig({ ...config, httpUrl: e.target.value })}
-                          className="w-full bg-[#050a12] border border-white/10 font-mono text-xs text-left p-2 text-slate-300 rounded outline-none" 
-                        />
-                      </div>
-                    )}
-
                     {(config.cloudMode === 'FTP' || config.cloudMode === 'BOTH' || config.cloudMode === 'ALL') && (
                       <div className="space-y-2 p-3 bg-teal-950/20 border border-teal-500/20 rounded-lg">
                         <span className="text-xs font-black text-teal-400 font-mono block uppercase tracking-wider mb-1">📁 KREDENSIAL SERVER FTP</span>
@@ -6766,21 +6739,6 @@ header("Content-Type: application/json; charset=UTF-8");
                       </div>
 
                       {/* Local database API URL */}
-                      <div>
-                        <span className="text-xs text-slate-400 uppercase font-mono block mb-1">PostgreSQL Database API Endpoint (PHP API Link)</span>
-                        <input 
-                          type="text" 
-                          value={config.localDbApiUrl || ''} 
-                          placeholder="http://localhost:8000/api.php"
-                          onChange={(e) => setConfig({ ...config, localDbApiUrl: e.target.value })}
-                          className="w-full bg-[#050a12] border border-white/10 font-mono text-xs p-2 text-teal-400 rounded outline-none text-left"
-                        />
-                        {window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && (
-                          <p className="text-xs text-amber-500 font-mono mt-1 leading-tight">
-                            ℹ️ <strong>LAN Auto-Resolve Aktif:</strong> Karena Anda mengakses dari perangkat lain (<code className="text-amber-400 font-bold">{window.location.hostname}</code>), semua URL <code className="text-slate-400">localhost</code> akan dialihkan ke IP server utama secara otomatis demi menjaga status tetap ONLINE.
-                          </p>
-                        )}
-                      </div>
 
                       <button 
                         onClick={() => {
