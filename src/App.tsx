@@ -6366,6 +6366,11 @@ header("Content-Type: application/json; charset=UTF-8");
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
                             CONNECTED
                           </span>
+                        ) : isLiveActive ? (
+                          <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded font-black tracking-wider animate-pulse">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                            ACTIVE (DATA OK)
+                          </span>
                         ) : (
                           <span className="flex items-center gap-1.5 bg-red-400/10 text-red-500 border border-red-500/30 text-[10px] px-2 py-0.5 rounded font-black tracking-wider">
                             <span className="h-1.5 w-1.5 rounded-full bg-red-500"></span>
@@ -6400,8 +6405,8 @@ header("Content-Type: application/json; charset=UTF-8");
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-500">Daemon state:</span>
-                          <span className={`font-bold ${moxaStatus && moxaStatus.connected ? 'text-emerald-400' : 'text-amber-400'}`}>
-                            {moxaStatus?.state || 'OFFLINE'}
+                          <span className={`font-bold ${(moxaStatus && moxaStatus.connected) || isLiveActive ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {isLiveActive ? (moxaStatus?.state === 'RECONNECTING' ? 'RECONNECTING / ACTIVE' : moxaStatus?.state || 'ACTIVE') : moxaStatus?.state || 'OFFLINE'}
                           </span>
                         </div>
                         <div className="flex justify-between">
@@ -6411,6 +6416,11 @@ header("Content-Type: application/json; charset=UTF-8");
                         {moxaStatus?.error && (
                           <div className="mt-1.5 text-[10px] text-red-300 bg-red-500/10 p-1.5 rounded border border-red-500/15">
                             ⚠️ Msg: {moxaStatus.error}
+                          </div>
+                        )}
+                        {isLiveActive && moxaStatus && !moxaStatus.connected && (
+                          <div className="mt-2 text-[10px] text-emerald-300 bg-emerald-500/10 p-2 rounded border border-emerald-500/20 leading-relaxed font-sans">
+                            ℹ️ <strong>Status Aliran Data: AKTIF</strong>. Meskipun daemon melaporkan status TCP terputus atau mencoba menghubungkan kembali (kemungkinan karena Moxa membatasi sesi koneksi tunggal atau ada daemon ganda), dashboard Anda <strong>tetap berhasil menerima data real-time secara berkala</strong>.
                           </div>
                         )}
                       </div>
