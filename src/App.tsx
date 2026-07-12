@@ -1348,14 +1348,47 @@ useEffect(() => {
     };
 
     const triggerFtpPush = async () => {
+      // Calculate derived min/max/average stats if they are not explicitly set (same as local postgres payload fallback)
+      const tMin = record.tempMin !== undefined ? record.tempMin : parseFloat((record.temperature - 1.5).toFixed(1));
+      const tMax = record.tempMax !== undefined ? record.tempMax : parseFloat((record.temperature + 1.2).toFixed(1));
+      const wsMin = record.windSpeedMin !== undefined ? record.windSpeedMin : parseFloat(Math.max(0, record.windSpeed - 1.8).toFixed(1));
+      const wsMax = record.windSpeedMax !== undefined ? record.windSpeedMax : parseFloat((record.windSpeed + 2.5).toFixed(1));
+      const wGust = record.windGust !== undefined ? record.windGust : parseFloat(record.windSpeed.toFixed(1));
+      const slMin = record.seaLevelMin !== undefined ? record.seaLevelMin : parseFloat((record.seaLevel - 15.5).toFixed(1));
+      const slMax = record.seaLevelMax !== undefined ? record.seaLevelMax : parseFloat((record.seaLevel + 12.3).toFixed(1));
+      const wtAvg = record.waterTemp !== undefined ? record.waterTemp : parseFloat((record.temperature - 1.2).toFixed(1));
+      const wtMin = record.waterTempMin !== undefined ? record.waterTempMin : parseFloat((record.temperature - 2.0).toFixed(1));
+      const wtMax = record.waterTempMax !== undefined ? record.waterTempMax : parseFloat((record.temperature - 0.7).toFixed(1));
+
       const xmlPayload = `
-<TelemetryRecord station="${config.idStation || 'AWS001'}" ts="${formatSqlDateTime(record.timestamp)}">
-  <Temperature>${record.temperature}°C</Temperature>
-  <Humidity>${record.humidity}%</Humidity>
-  <WindSpeed>${record.windSpeed} m/s</WindSpeed>
-  <WindDirection>${record.windDirection}°</WindDirection>
-  <SeaLevel>${record.seaLevel} cm</SeaLevel>
-  <WaterPh>${record.waterPh}</WaterPh>
+<TelemetryRecord station="${config.idStation || 'AWS001'}" ts="${formatSqlDateTime(record.timestamp)}" interval="${config.dbStorageInterval || 10}m" mode="${config.dbStorageMode || 'AVG'}">
+  <Temperature>
+    <Average>${record.temperature.toFixed(1)}</Average>
+    <Min>${tMin.toFixed(1)}</Min>
+    <Max>${tMax.toFixed(1)}</Max>
+  </Temperature>
+  <Humidity>${record.humidity}</Humidity>
+  <Wind>
+    <SpeedAvg>${record.windSpeed.toFixed(1)}</SpeedAvg>
+    <SpeedMin>${wsMin.toFixed(1)}</SpeedMin>
+    <SpeedMax>${wsMax.toFixed(1)}</SpeedMax>
+    <Gust>${wGust.toFixed(1)}</Gust>
+    <Direction>${record.windDirection}</Direction>
+  </Wind>
+  <Pressure>${record.pressure.toFixed(1)}</Pressure>
+  <SolarRadiation>${record.solarRadiation}</SolarRadiation>
+  <Rainfall>${record.rainfall.toFixed(1)}</Rainfall>
+  <SeaLevel>
+    <Average>${record.seaLevel.toFixed(1)}</Average>
+    <Min>${slMin.toFixed(1)}</Min>
+    <Max>${slMax.toFixed(1)}</Max>
+  </SeaLevel>
+  <Water>
+    <Ph>${record.waterPh.toFixed(2)}</Ph>
+    <TemperatureAvg>${wtAvg.toFixed(1)}</TemperatureAvg>
+    <TemperatureMin>${wtMin.toFixed(1)}</TemperatureMin>
+    <TemperatureMax>${wtMax.toFixed(1)}</TemperatureMax>
+  </Water>
 </TelemetryRecord>`.trim();
 
       const protocol = (config as any).ftpProtocol || 'FTP';
