@@ -753,7 +753,8 @@ async function initLiveHistoryQueue() {
   
   try {
     console.log("🔄 [History Loader] Trying to load history from database...");
-    const res = await fetch("http://localhost:8000/api.php?get_telemetry_logs=1");
+    const dbUrl = config.localDbApiUrl || "http://localhost:8000/api.php";
+    const res = await fetch(`${dbUrl}?get_telemetry_logs=1`);
     if (res.ok) {
       const rawText = await res.text();
       let rawRows;
@@ -983,7 +984,18 @@ app.post("/api/raw-telemetry", (req, res) => {
 
 // Transparent PostgreSQL API Proxy for api.php
 app.all("/api/local-db", async (req, res) => {
-  const targetUrl = "http://localhost:8000/api.php";
+  let targetUrl = "http://localhost:8000/api.php";
+  try {
+    if (fs.existsSync(AWS_CONFIG_FILE)) {
+      const data = fs.readFileSync(AWS_CONFIG_FILE, "utf-8");
+      const parsed = JSON.parse(data);
+      if (parsed.localDbApiUrl) {
+        targetUrl = parsed.localDbApiUrl;
+      }
+    }
+  } catch (err) {
+    // Fallback to default
+  }
   
   // Reconstruct query parameters
   const queryParams = new URLSearchParams(req.query as any).toString();
