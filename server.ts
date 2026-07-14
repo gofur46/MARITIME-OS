@@ -866,7 +866,9 @@ app.get("/api/aws-config", (req, res) => {
       if (req.query.get_moxa_config === '1') {
         return res.json({
           moxa_ip: parsed.serialcom || '172.16.4.48',
-          moxa_port: parseInt(parsed.baudrate) || 5001
+          moxa_port: parseInt(parsed.baudrate) || 5001,
+          db_storage_interval: parsed.dbStorageInterval !== undefined ? parseInt(parsed.dbStorageInterval) : 10,
+          db_storage_mode: parsed.dbStorageMode || 'AVG'
         });
       }
       
@@ -877,7 +879,9 @@ app.get("/api/aws-config", (req, res) => {
     if (req.query.get_moxa_config === '1') {
       return res.json({
         moxa_ip: '172.16.4.48',
-        moxa_port: 5001
+        moxa_port: 5001,
+        db_storage_interval: 10,
+        db_storage_mode: 'AVG'
       });
     }
     return res.json({}); // Return empty object if file does not exist
@@ -924,7 +928,12 @@ app.post("/api/aws-config", (req, res) => {
         fetch("http://localhost:8080/save-config", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ip: daemonIp, port: parseInt(daemonPort) || 4001 })
+          body: JSON.stringify({ 
+            ip: daemonIp, 
+            port: parseInt(daemonPort) || 4001,
+            db_storage_interval: configData.dbStorageInterval !== undefined ? parseInt(configData.dbStorageInterval) : 10,
+            db_storage_mode: configData.dbStorageMode || 'AVG'
+          })
         }).catch((err) => {
           // Daemon might be offline or starting up, ignore error
         });

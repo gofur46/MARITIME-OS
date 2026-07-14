@@ -580,12 +580,19 @@ function postRawTelemetryToExpress(rawPayload) {
 }
 
 function postToPhpGateway(payload) {
+    let dbUrl = API_URL;
+    if (API_URL.includes('/api/aws-config')) {
+        dbUrl = API_URL.replace('/api/aws-config', '/api/local-db');
+    } else if (API_URL.includes('/api/telemetry')) {
+        dbUrl = API_URL.replace('/api/telemetry', '/api/local-db');
+    }
+
     const dataString = JSON.stringify(payload);
-    makeRequest(API_URL, {
+    makeRequest(dbUrl, {
         method: 'POST',
         onError: (err) => {
             console.error(`[${new Date().toISOString()}] ❌ [DATABASE API ERROR] Gagal mengirim data ke api.php: ${err.message}`);
-            console.error(`💡 Solusi: Pastikan Web Server PHP berjalan di ${API_URL}`);
+            console.error(`💡 Solusi: Pastikan Web Server PHP berjalan di ${dbUrl}`);
         }
     }, (res) => {
         let responseBody = '';
