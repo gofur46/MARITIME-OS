@@ -83,8 +83,8 @@ const DEFAULT_CONFIG = {
     'ch_water_temp_min': '16', // Water Temp Min
     'ch_19': '4', // Wind Speed Max
     'ch_20': 'OFF', // Wind Speed Min
-    'ch_rain': '20', // Rainfall
-    'ch_batt': '21' // Battery Voltage
+    'ch_rain': 'OFF', // Rainfall
+    'ch_batt': '20' // Battery Voltage
   }
 };
 
@@ -742,7 +742,7 @@ useEffect(() => {
           'ch_17': '3', 'ch_19': '4', 'ch_20': 'OFF', 'ch_7': '10',
           'ch_9': '10', 'ch_11': '10', 'ch_13': '10', 'ch_18': '18',
           'ch_water_temp': '14', 'ch_water_temp_max': '15', 'ch_water_temp_min': '16',
-          'ch_rain': '20', 'ch_batt': '21'
+          'ch_rain': '19', 'ch_batt': '20'
         };
 
         setConfig(prev => {
