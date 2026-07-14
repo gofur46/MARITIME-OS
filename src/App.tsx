@@ -5788,36 +5788,6 @@ if (\$_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-// 1. GET Request: Check if requesting Moxa IP & Port configuration dynamically
-if (\$_SERVER['REQUEST_METHOD'] === 'GET' && isset(\$_GET['get_moxa_config'])) {
-    if (file_exists("moxa_config.json")) {
-        echo file_get_contents("moxa_config.json");
-    } else {
-        echo json_encode([
-            "moxa_ip" => "172.16.4.48",
-            "moxa_port" => 5001
-        ]);
-    }
-    exit();
-}
-
-// 1b. GET Request: Check Moxa background daemon connection status
-if (\$_SERVER['REQUEST_METHOD'] === 'GET' && isset(\$_GET['get_moxa_status'])) {
-    if (file_exists("moxa_status.json")) {
-        echo file_get_contents("moxa_status.json");
-    } else {
-        echo json_encode([
-            "connected" => false,
-            "moxa_ip" => "172.16.4.48",
-            "moxa_port" => 5001,
-            "state" => "OFFLINE",
-            "last_seen" => "Never / Waiting for Daemon...",
-            "error" => "No status reported from background daemon yet."
-        ]);
-    }
-    exit();
-}
-
 // PostgreSQL Server Configuration
 \$host = "localhost";
 \$port = "5432"; // Standard PostgreSQL Port
@@ -5830,7 +5800,7 @@ try {
     \$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     
     // Auto-create table di PostgreSQL
-    $sql_table = "CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
+    \$sql_table = "CREATE TABLE IF NOT EXISTS tbl_sensor_logs (
         id SERIAL PRIMARY KEY,
         station_id VARCHAR(50) NOT NULL,
         timestamp TIMESTAMP NOT NULL,
@@ -5857,22 +5827,125 @@ try {
         CONSTRAINT unique_station_timestamp UNIQUE (station_id, timestamp)
     );";
     
-    $conn->exec($sql_table);
+    \$conn->exec(\$sql_table);
+
+    // Auto-create table status di PostgreSQL (Database-backed Config/Status Fallback)
+    \$sql_status_table = "CREATE TABLE IF NOT EXISTS tbl_moxa_status (
+        id SERIAL PRIMARY KEY,
+        connected INT NOT NULL,
+        moxa_ip VARCHAR(50) NOT NULL,
+        moxa_port INT NOT NULL,
+        state VARCHAR(50) NOT NULL,
+        error TEXT,
+        last_seen VARCHAR(50) NOT NULL,
+        db_storage_interval INT DEFAULT 10,
+        db_storage_mode VARCHAR(10) DEFAULT 'AVG',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );";
+    \$conn->exec(\$sql_status_table);
 
     // Auto-migrate: Pastikan kolom-kolom baru (seperti suhu air laut, pasut min/max, ph, dll) ditambahkan jika tabel lama sudah ada
-    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS temp_min NUMERIC(5,2) DEFAULT 0.00;");
-    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS temp_max NUMERIC(5,2) DEFAULT 0.00;");
-    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS sea_level_min NUMERIC(5,1) DEFAULT 0.0;");
-    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS sea_level_max NUMERIC(5,1) DEFAULT 0.0;");
-    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_ph NUMERIC(4,2) DEFAULT 7.50;");
-    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp NUMERIC(4,1) DEFAULT 25.0;");
-    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp_min NUMERIC(4,1) DEFAULT 24.0;");
-    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp_max NUMERIC(4,1) DEFAULT 26.0;");
-    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS wind_speed_min NUMERIC(4,1) DEFAULT 0.0;");
-    $conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS wind_speed_max NUMERIC(4,1) DEFAULT 0.0;");
+    \$conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS temp_min NUMERIC(5,2) DEFAULT 0.00;");
+    \$conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS temp_max NUMERIC(5,2) DEFAULT 0.00;");
+    \$conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS sea_level_min NUMERIC(5,1) DEFAULT 0.0;");
+    \$conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS sea_level_max NUMERIC(5,1) DEFAULT 0.0;");
+    \$conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_ph NUMERIC(4,2) DEFAULT 7.50;");
+    \$conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp NUMERIC(4,1) DEFAULT 25.0;");
+    \$conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp_min NUMERIC(4,1) DEFAULT 24.0;");
+    \$conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS water_temp_max NUMERIC(4,1) DEFAULT 26.0;");
+    \$conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS wind_speed_min NUMERIC(4,1) DEFAULT 0.0;");
+    \$conn->exec("ALTER TABLE tbl_sensor_logs ADD COLUMN IF NOT EXISTS wind_speed_max NUMERIC(4,1) DEFAULT 0.0;");
+
+    // Auto-migrate constraint: Pastikan constraint unique_station_timestamp ada
+    try {
+        \$conn->exec("ALTER TABLE tbl_sensor_logs ADD CONSTRAINT unique_station_timestamp UNIQUE (station_id, timestamp);");
+    } catch (PDOException \$ex) {
+        // Abaikan jika constraint sudah ada
+    }
+
+    // Auto-migrate status table columns
+    try {
+        \$conn->exec("ALTER TABLE tbl_moxa_status ADD COLUMN IF NOT EXISTS db_storage_interval INT DEFAULT 10");
+        \$conn->exec("ALTER TABLE tbl_moxa_status ADD COLUMN IF NOT EXISTS db_storage_mode VARCHAR(10) DEFAULT 'AVG'");
+    } catch (PDOException \$ex) {
+        // Abaikan
+    }
+
 } catch (PDOException \$e) {
     http_response_code(500);
     echo json_encode(["status" => "error", "message" => "PostgreSQL Setup Failed: " . \$e->getMessage()]);
+    exit();
+}
+
+// 1. GET Request: Check if requesting Moxa IP & Port configuration dynamically
+if (\$_SERVER['REQUEST_METHOD'] === 'GET' && isset(\$_GET['get_moxa_config'])) {
+    \$config_sent = false;
+    try {
+        \$stmt = \$conn->query("SELECT moxa_ip, moxa_port, db_storage_interval, db_storage_mode FROM tbl_moxa_status ORDER BY id DESC LIMIT 1");
+        \$row = \$stmt->fetch(PDO::FETCH_ASSOC);
+        if (\$row && !empty(\$row['moxa_ip'])) {
+            echo json_encode([
+                "moxa_ip" => \$row['moxa_ip'],
+                "moxa_port" => (int)\$row['moxa_port'],
+                "db_storage_interval" => isset(\$row['db_storage_interval']) ? (int)\$row['db_storage_interval'] : 10,
+                "db_storage_mode" => isset(\$row['db_storage_mode']) ? \$row['db_storage_mode'] : 'AVG'
+            ]);
+            \$config_sent = true;
+        }
+    } catch (PDOException \$e) {
+        // Abaikan db error, fallback ke file
+    }
+
+    if (!\$config_sent) {
+        if (file_exists("moxa_config.json")) {
+            echo file_get_contents("moxa_config.json");
+        } else {
+            echo json_encode([
+                "moxa_ip" => "172.16.4.48",
+                "moxa_port" => 5001,
+                "db_storage_interval" => 10,
+                "db_storage_mode" => "AVG"
+            ]);
+        }
+    }
+    exit();
+}
+
+// 1b. GET Request: Check Moxa background daemon connection status
+if (\$_SERVER['REQUEST_METHOD'] === 'GET' && isset(\$_GET['get_moxa_status'])) {
+    \$status_sent = false;
+    try {
+        \$stmt = \$conn->query("SELECT connected, moxa_ip, moxa_port, state, last_seen, error FROM tbl_moxa_status ORDER BY id DESC LIMIT 1");
+        \$row = \$stmt->fetch(PDO::FETCH_ASSOC);
+        if (\$row) {
+            echo json_encode([
+                "connected" => (bool)\$row['connected'],
+                "moxa_ip" => \$row['moxa_ip'],
+                "moxa_port" => (int)\$row['moxa_port'],
+                "state" => \$row['state'],
+                "last_seen" => \$row['last_seen'],
+                "error" => \$row['error']
+            ]);
+            \$status_sent = true;
+        }
+    } catch (PDOException \$e) {
+        // Abaikan db error, fallback ke file
+    }
+
+    if (!\$status_sent) {
+        if (file_exists("moxa_status.json")) {
+            echo file_get_contents("moxa_status.json");
+        } else {
+            echo json_encode([
+                "connected" => false,
+                "moxa_ip" => "172.16.4.48",
+                "moxa_port" => 5001,
+                "state" => "OFFLINE",
+                "last_seen" => "Never / Waiting for Daemon...",
+                "error" => "No status reported from background daemon yet."
+            ]);
+        }
+    }
     exit();
 }
 
@@ -5894,43 +5967,103 @@ if (\$_SERVER['REQUEST_METHOD'] === 'POST') {
     \$input = file_get_contents("php://input");
     \$data = json_decode(\$input, true);
 
-    // 2. POST Action: Save dynamic config to local file
+    // 2. POST Action: Save dynamic config to local database/file
     if (isset(\$data['action']) && \$data['action'] === 'save_moxa_config') {
+        \$moxa_ip = isset(\$data['moxa_ip']) ? \$data['moxa_ip'] : '172.16.4.48';
+        \$moxa_port = isset(\$data['moxa_port']) ? (int)\$data['moxa_port'] : 5001;
+        \$db_storage_interval = isset(\$data['db_storage_interval']) ? (int)\$data['db_storage_interval'] : 10;
+        \$db_storage_mode = isset(\$data['db_storage_mode']) ? \$data['db_storage_mode'] : 'AVG';
+
         try {
-            \$config_data = [
-                "moxa_ip" => isset(\$data['moxa_ip']) ? \$data['moxa_ip'] : '172.16.4.48',
-                "moxa_port" => isset(\$data['moxa_port']) ? (int)\$data['moxa_port'] : 5001,
-                "transport" => isset(\$data['transport']) ? \$data['transport'] : 'TCP'
-            ];
-            file_put_contents("moxa_config.json", json_encode(\$config_data, JSON_PRETTY_PRINT));
-            echo json_encode(["status" => "success", "message" => "Moxa configuration successfully synced & saved on host machine."]);
-            exit();
-        } catch (Exception \$e) {
-            http_response_code(500);
-            echo json_encode(["status" => "error", "message" => "Failed to write config file: " . \$e->getMessage()]);
-            exit();
+            \$stmt = \$conn->query("SELECT id FROM tbl_moxa_status ORDER BY id DESC LIMIT 1");
+            \$row = \$stmt->fetch(PDO::FETCH_ASSOC);
+            if (\$row) {
+                \$stmt_update = \$conn->prepare("UPDATE tbl_moxa_status SET 
+                    moxa_ip = :moxa_ip, 
+                    moxa_port = :moxa_port,
+                    db_storage_interval = :db_storage_interval,
+                    db_storage_mode = :db_storage_mode
+                    WHERE id = :id");
+                \$stmt_update->execute([
+                    ':moxa_ip' => \$moxa_ip,
+                    ':moxa_port' => \$moxa_port,
+                    ':db_storage_interval' => \$db_storage_interval,
+                    ':db_storage_mode' => \$db_storage_mode,
+                    ':id' => \$row['id']
+                ]);
+            } else {
+                \$stmt_insert = \$conn->prepare("INSERT INTO tbl_moxa_status (
+                    connected, moxa_ip, moxa_port, state, error, last_seen, db_storage_interval, db_storage_mode
+                ) VALUES (
+                    0, :moxa_ip, :moxa_port, 'DISCONNECTED', 'Configured via dashboard', :last_seen, :db_storage_interval, :db_storage_mode
+                )");
+                \$stmt_insert->execute([
+                    ':moxa_ip' => \$moxa_ip,
+                    ':moxa_port' => \$moxa_port,
+                    ':last_seen' => date('H:i:s'),
+                    ':db_storage_interval' => \$db_storage_interval,
+                    ':db_storage_mode' => \$db_storage_mode
+                ]);
+            }
+        } catch (PDOException \$e) {
+            // Abaikan db error jika gagal
         }
+
+        // Tulis file cadangan dengan penahan error (@) jika terbentur izin Windows Service Account
+        \$config_data = [
+            "moxa_ip" => \$moxa_ip,
+            "moxa_port" => \$moxa_port,
+            "transport" => isset(\$data['transport']) ? \$data['transport'] : 'TCP',
+            "db_storage_interval" => \$db_storage_interval,
+            "db_storage_mode" => \$db_storage_mode
+        ];
+        @file_put_contents("moxa_config.json", json_encode(\$config_data, JSON_PRETTY_PRINT));
+
+        echo json_encode(["status" => "success", "message" => "Moxa configuration successfully synced & saved."]);
+        exit();
     }
 
     // 2b. POST Action: Save dynamic Moxa background daemon live connection status report
     if (isset(\$data['action']) && \$data['action'] === 'save_moxa_status') {
+        \$connected = isset(\$data['connected']) ? (bool)\$data['connected'] : false;
+        \$moxa_ip = isset(\$data['moxa_ip']) ? \$data['moxa_ip'] : '172.16.4.48';
+        \$moxa_port = isset(\$data['moxa_port']) ? (int)\$data['moxa_port'] : 5001;
+        \$state = isset(\$data['state']) ? \$data['state'] : 'UNKNOWN';
+        \$error = isset(\$data['error']) ? \$data['error'] : '';
+        \$last_seen = isset(\$data['last_seen']) ? \$data['last_seen'] : date('d-m-Y H:i:s');
+
         try {
-            \$status_data = [
-                "connected" => isset(\$data['connected']) ? (bool)\$data['connected'] : false,
-                "moxa_ip" => isset(\$data['moxa_ip']) ? \$data['moxa_ip'] : '172.16.4.48',
-                "moxa_port" => isset(\$data['moxa_port']) ? (int)\$data['moxa_port'] : 5001,
-                "state" => isset(\$data['state']) ? \$data['state'] : 'UNKNOWN',
-                "last_seen" => date('d-m-Y H:i:s'),
-                "error" => isset(\$data['error']) ? \$data['error'] : ''
-            ];
-            file_put_contents("moxa_status.json", json_encode(\$status_data, JSON_PRETTY_PRINT));
-            echo json_encode(["status" => "success", "message" => "Daemon status synced."]);
-            exit();
-        } catch (Exception \$e) {
-            http_response_code(500);
-            echo json_encode(["status" => "error", "message" => "Failed to write status file: " . \$e->getMessage()]);
-            exit();
+            \$conn->exec("TRUNCATE tbl_moxa_status");
+            \$stmt = \$conn->prepare("INSERT INTO tbl_moxa_status (
+                connected, moxa_ip, moxa_port, state, error, last_seen, db_storage_interval, db_storage_mode
+            ) VALUES (
+                :connected, :moxa_ip, :moxa_port, :state, :error, :last_seen, 10, 'AVG'
+            )");
+            \$stmt->execute([
+                ':connected' => \$connected ? 1 : 0,
+                ':moxa_ip' => \$moxa_ip,
+                ':moxa_port' => \$moxa_port,
+                ':state' => \$state,
+                ':error' => \$error,
+                ':last_seen' => \$last_seen
+            ]);
+        } catch (PDOException \$e) {
+            // Abaikan db error jika gagal
         }
+
+        // Tulis file cadangan dengan penahan error (@) jika terbentur izin Windows Service Account
+        \$status_data = [
+            "connected" => \$connected,
+            "moxa_ip" => \$moxa_ip,
+            "moxa_port" => \$moxa_port,
+            "state" => \$state,
+            "last_seen" => \$last_seen,
+            "error" => \$error
+        ];
+        @file_put_contents("moxa_status.json", json_encode(\$status_data, JSON_PRETTY_PRINT));
+
+        echo json_encode(["status" => "success", "message" => "Daemon status synced."]);
+        exit();
     }
 
     if (isset(\$data['station_id']) && isset(\$data['timestamp'])) {

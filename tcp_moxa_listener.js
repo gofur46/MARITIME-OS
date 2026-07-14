@@ -146,8 +146,21 @@ function updateStatusOnPhpServer(connected, stateLabel, errorMsg) {
     const dataString = JSON.stringify(statusPayload);
     makeRequest(API_URL, {
         method: 'POST',
-        onError: () => {}
-    }, () => {}, dataString);
+        onError: (err) => {
+            console.warn(`[${new Date().toISOString()}] ⚠️ Gagal mengabarkan status daemon ke PHP API: ${err.message}`);
+        }
+    }, (res) => {
+        let responseBody = '';
+        res.on('data', (chunk) => { responseBody += chunk; });
+        res.on('end', () => {
+            try {
+                const responseParsed = JSON.parse(responseBody);
+                if (responseParsed.status !== 'success') {
+                    console.warn(`[${new Date().toISOString()}] ⚠️ Sinkronisasi status ke PHP gagal: ${responseParsed.message}`);
+                }
+            } catch (e) {}
+        });
+    }, dataString);
 }
 
 // Helper untuk menerjemahkan error TCP umum ke bahasa Indonesia yang mudah dimengerti pengguna
@@ -570,10 +583,25 @@ function postToPhpGateway(payload) {
     const dataString = JSON.stringify(payload);
     makeRequest(API_URL, {
         method: 'POST',
-        onError: () => {}
+        onError: (err) => {
+            console.error(`[${new Date().toISOString()}] ❌ [DATABASE API ERROR] Gagal mengirim data ke api.php: ${err.message}`);
+            console.error(`💡 Solusi: Pastikan Web Server PHP berjalan di ${API_URL}`);
+        }
     }, (res) => {
         let responseBody = '';
         res.on('data', (chunk) => { responseBody += chunk; });
+        res.on('end', () => {
+            try {
+                const responseParsed = JSON.parse(responseBody);
+                if (responseParsed.status === 'success') {
+                    console.log(`[${new Date().toISOString()}] 🟢 [DATABASE OK] ${responseParsed.message || 'Data disimpan!'}`);
+                } else {
+                    console.error(`[${new Date().toISOString()}] ❌ [DATABASE ERROR] Gagal menulis ke database: ${responseParsed.message}`);
+                }
+            } catch (e) {
+                console.warn(`[${new Date().toISOString()}] ⚠️ Respon dari api.php tidak valid JSON atau kosong (HTTP ${res.statusCode}): "${responseBody.trim().substring(0, 100)}"`);
+            }
+        });
     }, dataString);
 }
 
