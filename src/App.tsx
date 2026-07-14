@@ -1501,30 +1501,18 @@ useEffect(() => {
       const recordToSave = { ...record };
       recordToSave.timestamp = now;
 
-      // Asynchronously post to local PostgreSQL database backend (skip if using MOXA_TCP since background daemon handles it)
-      if (configRef.current.transport !== 'MOXA_TCP') {
-        postLogToLocalPostgres(recordToSave);
+      // Always post from the browser to ensure the local PostgreSQL database gets saved to (essential for cloud preview testing)
+      postLogToLocalPostgres(recordToSave);
 
-        // Append SQL success notification to terminal logs
-        setStreamLogs(prevLogs => {
-          const lines = prevLogs.split('\n');
-          const timeStr = format(new Date(), 'HH:mm:ss');
-          const msg = `[${timeStr} SQL SYSTEM] 🚀 [INSTANT LOGGING] Data disimpan ke database PostgreSQL secara real-time (tanpa buffer).`;
-          const output = [...lines, msg];
-          if (output.length > 40) return output.slice(output.length - 30).join('\n');
-          return output.join('\n');
-        });
-      } else {
-        // Log that the background daemon handles the instant logging
-        setStreamLogs(prevLogs => {
-          const lines = prevLogs.split('\n');
-          const timeStr = format(new Date(), 'HH:mm:ss');
-          const msg = `[${timeStr} SQL SYSTEM] 🚀 [DAEMON INSTANT] Live packet received. Database logging is handled by background daemon to avoid duplicate entries.`;
-          const output = [...lines, msg];
-          if (output.length > 40) return output.slice(output.length - 30).join('\n');
-          return output.join('\n');
-        });
-      }
+      // Append SQL success notification to terminal logs
+      setStreamLogs(prevLogs => {
+        const lines = prevLogs.split('\n');
+        const timeStr = format(new Date(), 'HH:mm:ss');
+        const msg = `[${timeStr} SQL SYSTEM] 🚀 [INSTANT LOGGING] Data dikirim ke database PostgreSQL secara real-time (tanpa buffer).`;
+        const output = [...lines, msg];
+        if (output.length > 40) return output.slice(output.length - 30).join('\n');
+        return output.join('\n');
+      });
 
       // Reset last saved time mark and empty buffer
       setLastDbSaveTime(now);
@@ -1548,7 +1536,7 @@ useEffect(() => {
       const spaceMode = configRef.current.dbStorageMode || 'AVG';
       if (spaceMode === 'AVG') {
         recordToSave = calculateAverageRecord(updated);
-        msgLog = `⏱️ compiled and saved standard WMO ${configRef.current.dbStorageInterval}-minute average based on ${updated.length} raw samples successfully.`;
+        msgLog = `⏱️ Memproses dan menyimpan rata-rata standar WMO ${configRef.current.dbStorageInterval} menit berdasarkan ${updated.length} sampel ke database.`;
       } else {
         const gusts: number[] = [];
         for (let i = 0; i < updated.length; i++) {
@@ -1570,36 +1558,24 @@ useEffect(() => {
           ...record,
           windGust: highestGust
         };
-        msgLog = `📦 saved raw instantaneous record for ${configRef.current.dbStorageInterval}-minute interval directly to database successfully.`;
+        msgLog = `📦 Menyimpan data instan mentah interval ${configRef.current.dbStorageInterval} menit langsung ke database.`;
       }
 
       // Adjust timestamp of record to reflect the completed logging window boundary precisely (e.g. 19:40:00, 19:50:00)
       recordToSave.timestamp = currentBlock * intervalMs;
 
-      // Asynchronously post to local PostgreSQL database backend (skip if using MOXA_TCP since background daemon handles it)
-      if (configRef.current.transport !== 'MOXA_TCP') {
-        postLogToLocalPostgres(recordToSave);
+      // Always post from the browser to ensure the local PostgreSQL database gets saved to (essential for cloud preview testing)
+      postLogToLocalPostgres(recordToSave);
 
-        // Append SQL success notification to terminal logs
-        setStreamLogs(prevLogs => {
-          const lines = prevLogs.split('\n');
-          const timeStr = format(new Date(), 'HH:mm:ss');
-          const msg = `[${timeStr} SQL SYSTEM] ${msgLog}`;
-          const output = [...lines, msg];
-          if (output.length > 40) return output.slice(output.length - 30).join('\n');
-          return output.join('\n');
-        });
-      } else {
-        // Log that background daemon handles it to keep user informed in the UI log terminal
-        setStreamLogs(prevLogs => {
-          const lines = prevLogs.split('\n');
-          const timeStr = format(new Date(), 'HH:mm:ss');
-          const msg = `[${timeStr} SQL SYSTEM] ⏱️ [DAEMON LOGGING] Interval block reached. Logging is being handled by background daemon (tcp_moxa_listener.js) to avoid duplicate entries.`;
-          const output = [...lines, msg];
-          if (output.length > 40) return output.slice(output.length - 30).join('\n');
-          return output.join('\n');
-        });
-      }
+      // Append SQL success notification to terminal logs
+      setStreamLogs(prevLogs => {
+        const lines = prevLogs.split('\n');
+        const timeStr = format(new Date(), 'HH:mm:ss');
+        const msg = `[${timeStr} SQL SYSTEM] ${msgLog}`;
+        const output = [...lines, msg];
+        if (output.length > 40) return output.slice(output.length - 30).join('\n');
+        return output.join('\n');
+      });
 
       // Reset the last saved time mark to exactly the saved block timestamp
       setLastDbSaveTime(currentBlock * intervalMs);
