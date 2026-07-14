@@ -576,7 +576,15 @@ export default function App() {
   
   // Extract and parse saved config first to avoid dependency chain issues
   const savedConfigStr = localStorage.getItem('aws_config');
-  let parsedConfig = savedConfigStr ? JSON.parse(savedConfigStr) : null;
+  let parsedConfig = null;
+  if (savedConfigStr) {
+    try {
+      parsedConfig = JSON.parse(savedConfigStr);
+    } catch (e) {
+      console.warn("⚠️ Failed to parse saved config from localStorage, reverting to defaults.", e);
+      localStorage.removeItem('aws_config');
+    }
+  }
 
   // Auto-migrate old/stale sensor mappings in localStorage to the new correct default Moxa mappings
   if (parsedConfig) {
@@ -800,7 +808,16 @@ useEffect(() => {
 
   const [history, setHistory] = useState<WeatherData[]>(() => {
     const saved = localStorage.getItem('aws_history_logs');
-    return saved ? JSON.parse(saved) : generateInitialLogs(45, initialConfig.dbStorageInterval || 10, initialConfig.bmkgPortSlug || 'pelabuhan_ciwandan');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        console.warn("⚠️ Failed to parse saved history logs from localStorage, generating fresh ones.", e);
+        localStorage.removeItem('aws_history_logs');
+      }
+    }
+    return generateInitialLogs(45, initialConfig.dbStorageInterval || 10, initialConfig.bmkgPortSlug || 'pelabuhan_ciwandan');
   });
 
   const historyRef = useRef<WeatherData[]>(history);
