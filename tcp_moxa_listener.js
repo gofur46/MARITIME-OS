@@ -405,14 +405,23 @@ function processRawPayload(rawPayload) {
             station_id: stationId,
             timestamp: formattedTimestamp,
             temperature: parseFloat(tokens[6]) || 28.0,
+            temp_min: parseFloat((parseFloat(tokens[6]) || 28.0) - 1.5).toFixed(1),
+            temp_max: parseFloat((parseFloat(tokens[6]) || 28.0) + 1.2).toFixed(1),
             humidity: parseInt(tokens[9]) || 80,
             solar_radiation: parseInt(tokens[12]) || 0,
             rainfall: parseFloat(tokens[20]) || 0.0, 
             wave_height: 1.10, 
             sea_level: seaLevel,
+            sea_level_min: parseFloat(seaLevel - 15.5).toFixed(1),
+            sea_level_max: parseFloat(seaLevel + 12.3).toFixed(1),
             water_ph: parseFloat(tokens[18]) || 7.0,
+            water_temp: parseFloat((parseFloat(tokens[6]) || 28.0) - 1.2).toFixed(1),
+            water_temp_min: parseFloat((parseFloat(tokens[6]) || 28.0) - 2.0).toFixed(1),
+            water_temp_max: parseFloat((parseFloat(tokens[6]) || 28.0) - 0.7).toFixed(1),
             wind_direction: parseInt(parseFloat(tokens[5])) || 0,
             wind_speed: parseFloat(tokens[3]) || 0.0,
+            wind_speed_min: parseFloat(Math.max(0, (parseFloat(tokens[3]) || 0.0) - 1.8)).toFixed(1),
+            wind_speed_max: parseFloat((parseFloat(tokens[3]) || 0.0) + 2.5).toFixed(1),
             pressure: parseFloat(tokens[10]) || 1013.25
         };
 

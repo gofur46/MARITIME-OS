@@ -826,7 +826,11 @@ useEffect(() => {
   }, [history]);
 
   // Database start/end period filter state for tab 3
-  const [dbStartDate, setDbStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [dbStartDate, setDbStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return format(d, 'yyyy-MM-dd');
+  });
   const [dbEndDate, setDbEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [filteredLogs, setFilteredLogs] = useState<WeatherData[]>([]);
   const [dbSearchTerm, setDbSearchTerm] = useState('');
@@ -5875,6 +5879,8 @@ try {
 
     // Auto-migrate constraint: Pastikan constraint unique_station_timestamp ada
     try {
+        // Bersihkan data duplikat terlebih dahulu sebelum menerapkan constraint unik agar migrasi tidak gagal!
+        \$conn->exec("DELETE FROM tbl_sensor_logs a USING tbl_sensor_logs b WHERE a.id < b.id AND a.station_id = b.station_id AND a.timestamp = b.timestamp;");
         \$conn->exec("ALTER TABLE tbl_sensor_logs ADD CONSTRAINT unique_station_timestamp UNIQUE (station_id, timestamp);");
     } catch (PDOException \$ex) {
         // Abaikan jika constraint sudah ada
