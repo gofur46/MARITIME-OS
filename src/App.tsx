@@ -1172,7 +1172,7 @@ export default function App() {
   const [calcLoggerHeight, setCalcLoggerHeight] = useState<number>(1.0);
   const [calcMslHeight, setCalcMslHeight] = useState<number>(() => {
     const saved = localStorage.getItem("tide_msl_height");
-    return saved ? parseFloat(saved) : 2.0;
+    return saved ? parseFloat(saved) : 0;
   });
   const [isTideConfigSaved, setIsTideConfigSaved] = useState<boolean>(false);
   const selectedBmkgRow = bmkgForecast && selectedForecastIndex !== null && selectedForecastIndex < bmkgForecast.length ? bmkgForecast[selectedForecastIndex] : bmkgForecast && bmkgForecast.length > 0 ? bmkgForecast[0] : null;
