@@ -190,14 +190,12 @@ let hasInitializedFromArgs = false;
 
 function syncConfigAndConnect() {
     // Jika user menentukan IP & Port lewat parameter baris perintah (Command Line / BAT file),
-    // kita kunci nilai tersebut agar tidak pernah tertimpa oleh database api.php atau Express.
-    if (process.argv[3] && process.argv[4]) {
+    // kita gunakan nilai tersebut pada boot pertama, namun setelah itu izinkan konfigurasi dari UI / Database mengambil alih.
+    if (process.argv[3] && process.argv[4] && !hasInitializedFromArgs) {
         MOXA_IP = process.argv[3];
         MOXA_PORT = parseInt(process.argv[4]) || 4001;
-        if (!hasInitializedFromArgs) {
-            console.log(`[${new Date().toISOString()}] 🚀 [STATIC OVERRIDE]: Mengunci IP Moxa: ${MOXA_IP} | Port Moxa: ${MOXA_PORT} (Sesuai Parameter BAT!)`);
-            hasInitializedFromArgs = true;
-        }
+        console.log(`[${new Date().toISOString()}] 🚀 [STATIC OVERRIDE]: Menggunakan IP Moxa awal dari parameter BAT: ${MOXA_IP} | Port Moxa: ${MOXA_PORT}`);
+        hasInitializedFromArgs = true;
         connectToMoxa();
         return;
     }
@@ -636,6 +634,7 @@ app.post('/save-config', (req, res) => {
             dbStorageMode = req.body.db_storage_mode;
         }
         console.log(`[${new Date().toISOString()}] 🔄 Konfigurasi diperbarui oleh Dashboard: ${MOXA_IP}:${MOXA_PORT} | Interval: ${dbStorageInterval} Menit | Mode: ${dbStorageMode}`);
+        hasInitializedFromArgs = true;
         
         if (client) {
             try { client.destroy(); } catch (e) {}

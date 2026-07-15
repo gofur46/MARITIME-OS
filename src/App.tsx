@@ -1053,9 +1053,29 @@ export default function App() {
   // --- MULAI TAMBAHAN: AUTO-SYNC CLIENT KE SERVER (VERSI SEMPURNA) ---
   useEffect(() => {
     const initClientState = async () => {
+      // 1. Ambil config dari Express backend jika tersedia
+      try {
+        const expressConfigRes = await fetch("/api/aws-config");
+        if (expressConfigRes.ok) {
+          const serverConfig = await expressConfigRes.json();
+          if (serverConfig && Object.keys(serverConfig).length > 0) {
+            setConfig(prev => {
+              const newConfig = {
+                ...prev,
+                ...serverConfig,
+              };
+              localStorage.setItem('aws_config', JSON.stringify(newConfig));
+              return newConfig;
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to load config from Express server:", err);
+      }
+
       const apiUrl = resolveLocalApiUrl(config.localDbApiUrl || 'http://localhost:8000/api.php');
       
-      // 1. Ambil config dari PHP & Set Mapping Sensor ke Moxa Presets
+      // 2. Ambil config dari PHP & Set Mapping Sensor ke Moxa Presets
       try {
         const configRes = await fetch(`${apiUrl}?get_moxa_config=1`);
         if (configRes.ok) {
@@ -2216,6 +2236,20 @@ export default function App() {
     setConfig(newConfig);
     localStorage.setItem("aws_config", JSON.stringify(newConfig));
     showToastNotification("Config Saved Successfully!");
+
+    // POST to our Express backend on port 3000 to save the configuration centrally and let the server-side proxy talk to the daemon
+    try {
+      await fetch("/api/aws-config", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newConfig),
+      });
+      console.log("Successfully synchronized configuration to Express server /api/aws-config");
+    } catch (e) {
+      console.warn("Could not sync configuration to Express server:", e);
+    }
 
     // Post newly configured Moxa IP & Port to host computer's api.php automatically
     const moxaIp = newConfig.serialcom || "172.16.4.48";
@@ -6701,6 +6735,14 @@ header("Content-Type: application/json; charset=UTF-8");
                         />
                       </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSaveConfig(config)}
+                      className="w-full mt-2.5 py-3 px-4 bg-teal-500 hover:bg-teal-600 active:scale-95 text-slate-950 font-mono text-xs font-black uppercase rounded-lg transition-all duration-200 cursor-pointer text-center flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(20,184,166,0.25)]"
+                    >
+                      ⚡ HUBUNGKAN & SIMPAN SETTINGAN MOXA
+                    </button>
 
                     {config.transport === "MOXA_TCP" && (
                       <div className="p-3.5 bg-slate-950/90 border border-white/10 rounded-xl space-y-3 font-mono">
