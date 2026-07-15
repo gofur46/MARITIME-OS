@@ -787,65 +787,8 @@ let simulationTimer: NodeJS.Timeout | null = null;
 
 function startServerSimulation() {
   if (simulationTimer) clearInterval(simulationTimer);
-  
-  console.log("🚀 [Simulation] Starting server-side simulation loop (4.5s)...");
-  simulationTimer = setInterval(() => {
-    const config = loadConfig();
-    const transport = config.transport || 'OFF';
-    
-    // Run simulation only if transport is 'OFF'
-    if (transport !== 'OFF') return;
-    
-    const activeSlug = (config.bmkgPortSlug || 'pelabuhan_ciwandan').toLowerCase().replace(/-/g, '_');
-    const profile = PORT_PROFILES[activeSlug] || PORT_PROFILES.pelabuhan_ciwandan;
-
-    const nextTemp = profile.avgTemp - 2.0 + Math.random() * 4.0;
-    const nextHum = 70 + Math.floor(Math.random() * 25);
-    const nextWindSpeed = profile.avgWind - 2 + Math.random() * 4;
-    const nextWindDir = Math.floor(Math.random() * 360);
-    const nextPress = 1008 + Math.random() * 5;
-    const nextSolar = Math.floor(100 + Math.random() * 600);
-    const nextRainRate = Math.random() > 0.9 ? parseFloat((Math.random() * 6).toFixed(1)) : 0;
-    const nextWave = parseFloat((profile.avgWave - 0.15 + Math.random() * 0.35).toFixed(2));
-    const nextCurrentSpeed = parseFloat((0.8 + Math.random() * 2.2).toFixed(2));
-    const nextSeaLvl = parseFloat((110 + Math.random() * 60).toFixed(1));
-    const nextPh = parseFloat((7.4 + Math.random() * 0.8).toFixed(2));
-
-    const simulatedRecord = {
-      timestamp: Date.now(),
-      temperature: parseFloat(nextTemp.toFixed(1)),
-      humidity: nextHum,
-      windSpeed: parseFloat(nextWindSpeed.toFixed(1)),
-      windDirection: nextWindDir,
-      pressure: parseFloat(nextPress.toFixed(1)),
-      solarRadiation: nextSolar,
-      solarRadiationMax: Math.round(nextSolar * 1.15),
-      rainfall: nextRainRate,
-      waveHeight: nextWave,
-      currentSpeed: nextCurrentSpeed,
-      seaLevel: nextSeaLvl,
-      seaLevelMin: parseFloat((nextSeaLvl - 15.5).toFixed(1)),
-      seaLevelMax: parseFloat((nextSeaLvl + 12.3).toFixed(1)),
-      waterPh: nextPh,
-      waterTemp: parseFloat((nextTemp - 1.2).toFixed(1)),
-      waterTempMin: parseFloat((nextTemp - 2.0).toFixed(1)),
-      waterTempMax: parseFloat((nextTemp - 0.7).toFixed(1)),
-      tempMin: parseFloat((nextTemp - 1.5).toFixed(1)),
-      tempMax: parseFloat((nextTemp + 1.2).toFixed(1)),
-      windSpeedMin: parseFloat(Math.max(0, nextWindSpeed - 1.8).toFixed(1)),
-      windSpeedMax: parseFloat((nextWindSpeed + 2.5).toFixed(1)),
-      battery: parseFloat((12.05 + Math.random() * 0.4).toFixed(2))
-    };
-
-    // Push to queue
-    liveHistoryQueue.push(simulatedRecord);
-    if (liveHistoryQueue.length > MAX_QUEUE_SIZE) {
-      liveHistoryQueue.shift();
-    }
-
-    // Broadcast to all clients on port 3000
-    io.emit("dataUpdate", simulatedRecord);
-  }, 4500);
+  // Simulation is completely disabled as requested by the user to prevent raw data simulation
+  return;
 }
 
 // Start server-side simulation automatically

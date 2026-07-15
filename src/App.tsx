@@ -324,6 +324,22 @@ const generateMockForecastFrontend = (portSlug: string): BMKGForecastRow[] => {
   return rows;
 };
 
+// ===== FUNGSI BARU UNTUK MENGHITUNG MIN/MAX WATER LEVEL DARI 24 JAM TERAKHIR =====
+const computeWaterLevelMinMax = (historyData: WeatherData[]): { min: number; max: number } => {
+  const now = Date.now();
+  const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000;
+  // Filter data dalam 24 jam terakhir yang memiliki seaLevel valid
+  const recent = historyData.filter((h) => h.timestamp >= twentyFourHoursAgo && h.seaLevel !== undefined && !isNaN(h.seaLevel));
+  if (recent.length === 0) {
+    return { min: 140 - 15.5, max: 140 + 12.3 };
+  }
+  const levels = recent.map((h) => h.seaLevel);
+  return {
+    min: Math.min(...levels),
+    max: Math.max(...levels),
+  };
+};
+
 // Calculate statistical WMO compliant average of instant samples
 // ===== FUNGSI UNTUK MEMBANGUN REKAMAN YANG AKAN DISIMPAN KE DATABASE =====
 // Menggantikan calculateAverageRecord
@@ -1151,7 +1167,7 @@ export default function App() {
     return history;
   }, [isDbConnected, realDbLogs, history]);
   const [isFetchingRealDb, setIsFetchingRealDb] = useState(false);
-  const [showRealDb, setShowRealDb] = useState(false);
+  const [showRealDb, setShowRealDb] = useState(true);
   const [bmkgSearchText, setBmkgSearchText] = useState("");
   const [portSearchQuery, setPortSearchQuery] = useState("");
   const [selectedRegion, setSelectedRegion] = useState<"all" | "Banten" | "Jakarta">("all");
@@ -2014,24 +2030,6 @@ export default function App() {
       });
     }
   };
-  // ===== FUNGSI BARU UNTUK MENGHITUNG MIN/MAX WATER LEVEL DARI 24 JAM TERAKHIR =====
-  const computeWaterLevelMinMax = (historyData: WeatherData[]): { min: number; max: number } => {
-    const now = Date.now();
-    const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000;
-    // Filter data dalam 24 jam terakhir yang memiliki seaLevel valid
-    const recent = historyData.filter((h) => h.timestamp >= twentyFourHoursAgo && h.seaLevel !== undefined && !isNaN(h.seaLevel));
-    if (recent.length === 0) {
-      // Jika tidak ada data, gunakan nilai dari currentData (atau default)
-      const currentSeaLevel = currentData?.seaLevel ?? 140; // default 140 cm
-      return { min: currentSeaLevel - 15.5, max: currentSeaLevel + 12.3 };
-    }
-    const levels = recent.map((h) => h.seaLevel);
-    return {
-      min: Math.min(...levels),
-      max: Math.max(...levels),
-    };
-  };
-
   parseIncomingSentenceRef.current = parseIncomingSentence;
 
   // Handler to open Web Serial API from client browser
@@ -2340,209 +2338,9 @@ export default function App() {
   const [sampleBuffer, setSampleBuffer] = useState<WeatherData[]>([]);
   const sampleBufferRef = useRef<WeatherData[]>([]);
 
-  // Active simulated logger feed
+  // Active simulated logger feed (Disabled completely to prevent raw data simulation as requested)
   useEffect(() => {
-    const interval = setInterval(() => {
-      // Do not run simulator if we are using an active hardware transport mode (SERIAL, TCP, MOXA_TCP),
-      // because we only want real data in those modes and NO offline simulated fake data.
-      if (config.transport !== "OFF") {
-        return;
-      }
-      const pctime = new Date();
-      const activeSlug = (config.bmkgPortSlug || "pelabuhan_ciwandan").toLowerCase().replace(/-/g, "_");
-      const profile = PORT_PROFILES[activeSlug] || PORT_PROFILES.pelabuhan_ciwandan;
-
-      const nextTemp = profile.avgTemp - 2.0 + Math.random() * 4.0;
-      const nextHum = 70 + Math.floor(Math.random() * 25);
-      const nextWindSpeed = profile.avgWind - 2 + Math.random() * 4;
-      const nextWindDir = Math.floor(Math.random() * 360);
-      const nextPress = 1008 + Math.random() * 5;
-      const nextSolar = Math.floor(100 + Math.random() * 600);
-      const nextRainRate = Math.random() > 0.9 ? parseFloat((Math.random() * 6).toFixed(1)) : 0;
-      const nextWave = parseFloat((profile.avgWave - 0.15 + Math.random() * 0.35).toFixed(2));
-      const nextCurrentSpeed = parseFloat((0.8 + Math.random() * 2.2).toFixed(2)); // simulated Knots
-      const nextSeaLvl = parseFloat((110 + Math.random() * 60).toFixed(1));
-      const nextPh = parseFloat((7.4 + Math.random() * 0.8).toFixed(2));
-
-      // Append rain accum if raining
-      if (nextRainRate > 0) {
-        setRainAccum((prev) => parseFloat((prev + nextRainRate * 0.05).toFixed(1)));
-      }
-
-      const newRecord: WeatherData = {
-        timestamp: Date.now(),
-        temperature: parseFloat(nextTemp.toFixed(1)),
-        humidity: nextHum,
-        windSpeed: parseFloat(nextWindSpeed.toFixed(1)),
-        windDirection: nextWindDir,
-        pressure: parseFloat(nextPress.toFixed(1)),
-        solarRadiation: nextSolar,
-        rainfall: nextRainRate,
-        waveHeight: nextWave,
-        currentSpeed: nextCurrentSpeed,
-        seaLevel: nextSeaLvl,
-        waterPh: nextPh,
-        tempMin: parseFloat((nextTemp - 1.5).toFixed(1)),
-        tempMax: parseFloat((nextTemp + 1.2).toFixed(1)),
-        windSpeedMin: parseFloat(Math.max(0, nextWindSpeed - 1.8).toFixed(1)),
-        windSpeedMax: parseFloat((nextWindSpeed + 2.5).toFixed(1)),
-      };
-
-      // Handle Storage Rules dynamically (only if transport is OFF, otherwise we let parseIncomingSentence drive it via config-aware indices!)
-      if (config.transport === "OFF") {
-        const spaceMode = config.dbStorageMode || "AVG";
-
-        // Calculate wind gust based on a fixed 3-sample window (last 2 from historyRef + current newRecord)
-        const last2History = historyRef.current.slice(-2);
-        const last3History = [...last2History, newRecord];
-        const rawSpeedsHistory = last3History.map((item) => item.windSpeed);
-        const maxSpeedHistory = Math.max(...rawSpeedsHistory);
-        const minSpeedHistory = Math.min(...rawSpeedsHistory);
-        const hasGustHistory = maxSpeedHistory - minSpeedHistory >= 10;
-        newRecord.windGust = hasGustHistory ? parseFloat(maxSpeedHistory.toFixed(1)) : undefined;
-
-        sampleBufferRef.current.push(newRecord);
-        const updated = [...sampleBufferRef.current];
-        setSampleBuffer(updated);
-
-        // After 5 samples are compiled (simulating full period cycle for high usability live visual), we write the record according to the chosen mode (AVG vs RAW)
-        if (updated.length >= 5) {
-          let recordToSave: WeatherData;
-          let msgLog = "";
-
-          if (spaceMode === "AVG") {
-            recordToSave = buildRecordForSaving(updated, historyRef.current);
-            msgLog = `⏱️ compiled and saved standard WMO ${config.dbStorageInterval}-minute average based on 5 raw samples successfully.`;
-          } else {
-            // RAW mode: ambil sampel terakhir, tapi water level min/max dari history
-            const lastSample = updated[updated.length - 1];
-            const { min: seaLevelMin, max: seaLevelMax } = computeWaterLevelMinMax(historyRef.current);
-            recordToSave = {
-              ...lastSample,
-              seaLevelMin,
-              seaLevelMax,
-              windGust: (() => {
-                const gusts: number[] = [];
-                for (let i = 0; i < updated.length; i++) {
-                  if (updated[i].windGust !== undefined && updated[i].windGust !== null) {
-                    gusts.push(updated[i].windGust!);
-                  } else {
-                    const last3 = updated.slice(Math.max(0, i - 2), i + 1);
-                    const rawSpeeds = last3.map((item) => item.windSpeed);
-                    const maxS = Math.max(...rawSpeeds);
-                    const minS = Math.min(...rawSpeeds);
-                    if (maxS - minS >= 10) {
-                      gusts.push(parseFloat(maxS.toFixed(1)));
-                    }
-                  }
-                }
-                return gusts.length > 0 ? Math.max(...gusts) : undefined;
-              })(),
-            };
-            msgLog = `📦 saved raw instantaneous record for ${config.dbStorageInterval}-minute interval directly to database successfully.`;
-          }
-
-          // Adjust simulated timestamp to reflect precise clock block boundary (e.g. 10, 20, 30...)
-          const intervalMin = config.dbStorageInterval || 10;
-          const intervalMs = intervalMin * 60 * 1000;
-          const alignedTimestamp = Math.floor(Date.now() / intervalMs) * intervalMs;
-          recordToSave.timestamp = alignedTimestamp;
-
-          // Asynchronously post to local PostgreSQL database script
-          postLogToLocalPostgres(recordToSave);
-
-          setHistory((prevHist) => {
-            const keeps = [...prevHist, recordToSave];
-            if (keeps.length > 200) {
-              return keeps.slice(keeps.length - 150);
-            }
-            localStorage.setItem("aws_history_logs", JSON.stringify(keeps));
-            return keeps;
-          });
-
-          // Write notification in terminal
-          setStreamLogs((prevLogs) => {
-            const lines = prevLogs.split("\n");
-            const timeStr = format(new Date(), "HH:mm:ss");
-            const msg = `[${timeStr} SQL SYSTEM] ${msgLog}`;
-            const output = [...lines, msg];
-            if (output.length > 40) return output.slice(output.length - 30).join("\n");
-            return output.join("\n");
-          });
-
-          sampleBufferRef.current = [];
-          setSampleBuffer([]);
-        }
-      }
-
-      // Update terminal stream simulator and feed rawString directly through parser
-      if (config.transport !== "OFF") {
-        const dateStr = format(pctime, "dd-MM-yyyy HH:mm:ss");
-        let rawString = "";
-        let prefix = "";
-
-        if (config.transport === "MOXA_TCP") {
-          // Format based on standard Moxa output schema provided:
-          // AWS001;08-06-2026;07:51:10;0;0;58.6;-35.1;0;-35.1;50;975.2;NAN;NAN;0;27.2;27.5;0;NAN;-3.5;NAN;12.06145;28.08301
-          // Mapping:
-          // [0] Kode_Stasiun, [1] Date (DD-MM-YYYY), [2] Time (HH:mm:ss), [3] WS_meas, [4] WS_Max, [5] WD_meas,
-          // [6] TA_meas, [7] TA_Max, [8] TA_Min, [9] RH_meas, [10] PA_meas, [11] NAN, [12] SR_meas, [13] SR_Max,
-          // [14] water_temp, [15] water_temp_max, [16] water_temp_min, [17] water_level, [18] PH_meas, [19] "NAN",
-          // [20] batt_volt, [21] +PTemp
-          const delimiter = config.splitchar || ";";
-          const datePart = format(pctime, "dd-MM-yyyy");
-          const timePart = format(pctime, "HH:mm:ss");
-          const ws_meas = Math.round(newRecord.windSpeed);
-          const ws_max = Math.round(newRecord.windSpeed + 2.4);
-          const wd_meas = newRecord.windDirection.toFixed(1);
-          const ta_meas = newRecord.temperature.toFixed(1);
-          const ta_max = (newRecord.temperature + 1.1).toFixed(1);
-          const ta_min = (newRecord.temperature - 1.4).toFixed(1);
-          const rh_meas = newRecord.humidity;
-          const pa_meas = newRecord.pressure.toFixed(1);
-          const sr_meas = newRecord.solarRadiation > 10 ? newRecord.solarRadiation : "NAN";
-          const sr_max = newRecord.solarRadiation > 10 ? Math.round(newRecord.solarRadiation * 1.12) : 0;
-          const water_temp = (newRecord.temperature - 1.2).toFixed(1);
-          const water_temp_max = (newRecord.temperature - 0.7).toFixed(1);
-          const water_temp_min = (newRecord.temperature - 2.0).toFixed(1);
-          const water_level = isNaN(newRecord.seaLevel) ? "NAN" : (newRecord.seaLevel / 100).toFixed(2);
-          const ph_meas = newRecord.waterPh ? newRecord.waterPh.toFixed(2) : "NAN";
-          const batt_volt = (12.05 + Math.random() * 0.4).toFixed(5);
-          const ptemp = (newRecord.temperature + 0.08).toFixed(5);
-
-          rawString = `${
-            config.idStation || "AWS001"
-          }${delimiter}${datePart}${delimiter}${timePart}${delimiter}${ws_meas}${delimiter}${ws_max}${delimiter}${wd_meas}${delimiter}${ta_meas}${delimiter}${ta_max}${delimiter}${ta_min}${delimiter}${rh_meas}${delimiter}${pa_meas}${delimiter}NAN${delimiter}${sr_meas}${delimiter}${sr_max}${delimiter}${water_temp}${delimiter}${water_temp_max}${delimiter}${water_temp_min}${delimiter}${water_level}${delimiter}${ph_meas}${delimiter}NAN${delimiter}${batt_volt}${delimiter}${ptemp}`;
-          prefix = `[MOXA SIMULATOR - OFFLINE] 🤖`;
-        } else if (config.transport === "TCP") {
-          rawString = `${config.idStation}${config.splitchar}${dateStr}${config.splitchar}${newRecord.temperature.toFixed(1)}${config.splitchar}${newRecord.humidity}${config.splitchar}${newRecord.solarRadiation}${
-            config.splitchar
-          }${newRecord.rainfall.toFixed(1)}${config.splitchar}${newRecord.waveHeight.toFixed(2)}${config.splitchar}${newRecord.seaLevel.toFixed(1)}${config.splitchar}${newRecord.waterPh.toFixed(2)}${config.splitchar}${
-            newRecord.windDirection
-          }${config.splitchar}${newRecord.windSpeed.toFixed(1)}${config.splitchar}${newRecord.pressure.toFixed(1)}`;
-          prefix = `[TCP SERVER SIMULATOR - OFFLINE] 🤖`;
-        } else {
-          rawString = `${config.idStation}${config.splitchar}${dateStr}${config.splitchar}${newRecord.temperature.toFixed(1)}${config.splitchar}${newRecord.humidity}${config.splitchar}${newRecord.solarRadiation}${
-            config.splitchar
-          }${newRecord.rainfall.toFixed(1)}${config.splitchar}${newRecord.waveHeight.toFixed(2)}${config.splitchar}${newRecord.seaLevel.toFixed(1)}${config.splitchar}${newRecord.waterPh.toFixed(2)}${config.splitchar}${
-            newRecord.windDirection
-          }${config.splitchar}${newRecord.windSpeed.toFixed(1)}${config.splitchar}${newRecord.pressure.toFixed(1)}`;
-          prefix = `[SERIAL SIMULATOR - OFFLINE] 🤖`;
-        }
-
-        setStreamLogs((prev) => {
-          const lines = prev.split("\n");
-          const output_lines = [...lines, `${prefix} ${rawString}`];
-          if (output_lines.length > 40) return output_lines.slice(output_lines.length - 30).join("\n");
-          return output_lines.join("\n");
-        });
-
-        // Parse simulated rawString directly using dynamic index mappings!
-        parseIncomingSentence(rawString, config.transport as any);
-      }
-    }, 4500);
-
-    return () => clearInterval(interval);
+    return;
   }, [config, isLiveActive]);
 
   // Helper to parse database row into WeatherData object safely
@@ -5856,7 +5654,7 @@ export default function App() {
                       let forceMsg = "";
 
                       if (config.dbStorageMode === "AVG") {
-                        recordToSave = calculateAverageRecord(sampleBuffer);
+                        recordToSave = buildRecordForSaving(sampleBuffer, history);
                         forceMsg = `USER FORCE AVG: Saved composite average of ${sampleBuffer.length} samples successfully.`;
                       } else {
                         const gusts: number[] = [];
@@ -6636,11 +6434,9 @@ header("Content-Type: application/json; charset=UTF-8");
                   <div className="flex items-center gap-2">
                     <h5 className="text-sm font-bold text-white uppercase tracking-wider font-sans">MODE PENAMPILAN DATA TELEMETRI</h5>
                     <span
-                      className={`text-[10px] uppercase tracking-wider font-mono font-black py-0.5 px-2 rounded-full border ${
-                        showRealDb ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20 animate-pulse" : "bg-amber-500/15 text-amber-300 border-amber-500/20"
-                      }`}
+                      className="text-[10px] uppercase tracking-wider font-mono font-black py-0.5 px-2 rounded-full border bg-emerald-500/15 text-emerald-400 border-emerald-500/20 animate-pulse"
                     >
-                      {showRealDb ? "DATABASE RAW POSTGRESQL" : "TRANSIENT OFFLINE SIMULATION"}
+                      DATABASE TELEMETRI 10-MENIT POSTGRESQL
                     </span>
                   </div>
                 </div>
@@ -6648,33 +6444,8 @@ header("Content-Type: application/json; charset=UTF-8");
               <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
                 {/* Selector Buttons */}
                 <span className="text-xs text-slate-500 uppercase font-bold font-mono mr-2 hidden md:inline">SUMBER LOG:</span>
-                <div className="flex bg-[#050a12] p-1 border border-white/10 rounded-lg w-full md:w-auto justify-center md:justify-start">
-                  <button
-                    onClick={() => {
-                      setShowRealDb(false);
-                      showToastNotification("Log beralih ke Mode Simulasi Offline.");
-                    }}
-                    className={`text-xs px-3.5 py-1.5 rounded-md font-mono uppercase font-black transition cursor-pointer flex-1 md:flex-initial text-center ${
-                      !showRealDb ? "bg-amber-500/15 text-amber-300 border border-amber-500/20 shadow-sm" : "text-slate-400 hover:text-slate-300"
-                    }`}
-                  >
-                    📴 Offline Logs
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (realDbLogs.length === 0) {
-                        fetchRealDatabaseLogs(false);
-                      } else {
-                        setShowRealDb(true);
-                        showToastNotification("Log beralih ke Mode Database PostgreSQL.");
-                      }
-                    }}
-                    className={`text-xs px-3.5 py-1.5 rounded-md font-mono uppercase font-black transition cursor-pointer flex-1 md:flex-initial text-center ${
-                      showRealDb ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-sm" : "text-slate-400 hover:text-slate-300"
-                    }`}
-                  >
-                    🐘 PostgreSQL Table
-                  </button>
+                <div className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400 font-mono text-xs font-black">
+                  <span>🐘 POSTGRESQL ACTIVE</span>
                 </div>
 
                 <button
