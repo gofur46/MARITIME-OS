@@ -864,12 +864,13 @@ app.post("/api/aws-config", (req, res) => {
       // Reload simulation/history properties to reflect changed settings
       startServerSimulation();
       
-      // Forward the updated IP/Port to the daemon's /save-config endpoint on port 8080
+      // Forward the updated IP/Port to the daemon's /save-config endpoint
       const daemonIp = configData.serialcom;
       const daemonPort = configData.baudrate;
+      const daemonUrl = configData.moxaDaemonUrl || "http://localhost:8080";
       if (daemonIp && daemonPort) {
-        console.log(`[Proxy] Forwarding updated config to Moxa Daemon: ${daemonIp}:${daemonPort}`);
-        fetch("http://localhost:8080/save-config", {
+        console.log(`[Proxy] Forwarding updated config to Moxa Daemon (${daemonUrl}): ${daemonIp}:${daemonPort}`);
+        fetch(`${daemonUrl}/save-config`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 

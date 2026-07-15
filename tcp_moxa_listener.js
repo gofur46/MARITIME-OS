@@ -203,18 +203,15 @@ function syncConfigAndConnect() {
     if (isFetchingConfig) return;
     isFetchingConfig = true;
 
-    console.log(`[${new Date().toISOString()}] 🔍 Mengambil konfigurasi IP & Port dari database via api.php...`);
-    
-    const apiParts = parseUrlConfig(API_URL);
-    const moxaConfigPath = apiParts.path + (apiParts.path.includes('?') ? '&' : '?') + 'get_moxa_config=1';
+    console.log(`[${new Date().toISOString()}] 🔍 Mengambil konfigurasi IP & Port dari Express Central Server (localhost:3000)...`);
 
-    makeRequest(API_URL, {
-        path: moxaConfigPath,
+    // First try the central Express API
+    makeRequest("http://localhost:3000/api/aws-config", {
+        path: "/api/aws-config?get_moxa_config=1",
         method: 'GET',
         onError: (err) => {
-            console.warn(`[${new Date().toISOString()}] ⚠️ Server PHP API Offline. Menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
-            isFetchingConfig = false;
-            connectToMoxa();
+            console.warn(`[${new Date().toISOString()}] ⚠️ Express Server Offline. Mencoba mengambil konfigurasi via PHP API (${API_URL})...`);
+            fetchConfigFromPhp();
         }
     }, (res) => {
         let body = '';
@@ -223,31 +220,68 @@ function syncConfigAndConnect() {
             try {
                 if (res.statusCode === 200 && body.trim().startsWith('{')) {
                     const config = JSON.parse(body);
-                    if (config) {
-                        if (config.moxa_ip) {
-                            MOXA_IP = config.moxa_ip;
-                            MOXA_PORT = parseInt(config.moxa_port) || 4001;
-                            console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC]: IP Moxa : ${MOXA_IP} | Port Moxa : ${MOXA_PORT} (Sesuai Database!)`);
-                        }
-                        if (config.db_storage_interval !== undefined) {
-                            dbStorageInterval = parseInt(config.db_storage_interval);
-                            console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC]: DB Storage Interval : ${dbStorageInterval} Menit`);
-                        }
-                        if (config.db_storage_mode) {
-                            dbStorageMode = config.db_storage_mode;
-                            console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC]: DB Storage Mode : ${dbStorageMode}`);
-                        }
-                    }
+                    applySyncedConfig(config, "Express Server");
+                    isFetchingConfig = false;
+                    connectToMoxa();
                 } else {
-                    console.log(`[${new Date().toISOString()}] ⚠️ Respon API tidak valid, menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
+                    fetchConfigFromPhp();
                 }
-            } catch (err) {
-                console.log(`[${new Date().toISOString()}] ⚠️ Gagal mengurai respon api.php, menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
+            } catch (e) {
+                fetchConfigFromPhp();
             }
-            isFetchingConfig = false;
-            connectToMoxa();
         });
     });
+
+    function fetchConfigFromPhp() {
+        console.log(`[${new Date().toISOString()}] 🔍 Mengambil konfigurasi IP & Port dari database via api.php...`);
+        const apiParts = parseUrlConfig(API_URL);
+        const moxaConfigPath = apiParts.path + (apiParts.path.includes('?') ? '&' : '?') + 'get_moxa_config=1';
+
+        makeRequest(API_URL, {
+            path: moxaConfigPath,
+            method: 'GET',
+            onError: (err) => {
+                console.warn(`[${new Date().toISOString()}] ⚠️ Server PHP API Offline. Menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
+                isFetchingConfig = false;
+                connectToMoxa();
+            }
+        }, (res) => {
+            let body = '';
+            res.on('data', (chunk) => { body += chunk; });
+            res.on('end', () => {
+                try {
+                    if (res.statusCode === 200 && body.trim().startsWith('{')) {
+                        const config = JSON.parse(body);
+                        applySyncedConfig(config, "PHP API");
+                    } else {
+                        console.log(`[${new Date().toISOString()}] ⚠️ Respon API tidak valid, menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
+                    }
+                } catch (err) {
+                    console.log(`[${new Date().toISOString()}] ⚠️ Gagal mengurai respon api.php, menggunakan IP: ${MOXA_IP} | Port: ${MOXA_PORT}`);
+                }
+                isFetchingConfig = false;
+                connectToMoxa();
+            });
+        });
+    }
+
+    function applySyncedConfig(config, sourceName) {
+        if (config) {
+            if (config.moxa_ip) {
+                MOXA_IP = config.moxa_ip;
+                MOXA_PORT = parseInt(config.moxa_port) || 4001;
+                console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC - ${sourceName}]: IP Moxa : ${MOXA_IP} | Port Moxa : ${MOXA_PORT}`);
+            }
+            if (config.db_storage_interval !== undefined) {
+                dbStorageInterval = parseInt(config.db_storage_interval);
+                console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC - ${sourceName}]: DB Storage Interval : ${dbStorageInterval} Menit`);
+            }
+            if (config.db_storage_mode) {
+                dbStorageMode = config.db_storage_mode;
+                console.log(`[${new Date().toISOString()}] ⚙️ [CONFIG SYNC - ${sourceName}]: DB Storage Mode : ${dbStorageMode}`);
+            }
+        }
+    }
 }
 
 function connectToMoxa() {

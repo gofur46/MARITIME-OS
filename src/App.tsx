@@ -1104,32 +1104,65 @@ export default function App() {
   
       // 2. Tarik Data Riwayat (History) Asli dari Database agar Grafik & Angka Sama Persis!
       try {
-        const logRes = await fetch(`${apiUrl}?get_telemetry_logs=1`);
-        if (logRes.ok) {
-          const rawText = await logRes.text();
-          let rawRows;
-          try { 
-            rawRows = JSON.parse(rawText.trim()); 
-          } catch (err) {
-            const matches = rawText.match(/\[\s*\{[^]*\}\s*\]/g);
-            if (matches && matches.length > 0) rawRows = JSON.parse(matches[matches.length - 1]);
+        let rawRows;
+        let success = false;
+        
+        try {
+          console.log(`[Init State] Attempting direct history fetch from: ${apiUrl}?get_telemetry_logs=1`);
+          const logRes = await fetch(`${apiUrl}?get_telemetry_logs=1`);
+          if (logRes.ok) {
+            const rawText = await logRes.text();
+            try { 
+              rawRows = JSON.parse(rawText.trim()); 
+            } catch (err) {
+              const matches = rawText.match(/\[\s*\{[^]*\}\s*\]/g);
+              if (matches && matches.length > 0) rawRows = JSON.parse(matches[matches.length - 1]);
+            }
+            if (rawRows && Array.isArray(rawRows.data)) rawRows = rawRows.data;
+            if (Array.isArray(rawRows)) {
+              success = true;
+            }
           }
-          if (rawRows && Array.isArray(rawRows.data)) rawRows = rawRows.data;
+        } catch (err) {
+          console.warn("[Init State] Direct history fetch failed. Attempting fallback via Express Proxy...");
+        }
+
+        // Fallback to Express Proxy if direct fetch didn't succeed
+        if (!success) {
+          try {
+            const proxyRes = await fetch("/api/local-db?get_telemetry_logs=1");
+            if (proxyRes.ok) {
+              const rawText = await proxyRes.text();
+              try { 
+                rawRows = JSON.parse(rawText.trim()); 
+              } catch (err) {
+                const matches = rawText.match(/\[\s*\{[^]*\}\s*\]/g);
+                if (matches && matches.length > 0) rawRows = JSON.parse(matches[matches.length - 1]);
+              }
+              if (rawRows && Array.isArray(rawRows.data)) rawRows = rawRows.data;
+              if (Array.isArray(rawRows)) {
+                success = true;
+                console.log("[Init State] Successfully loaded history from Express DB Proxy!");
+              }
+            }
+          } catch (proxyErr) {
+            console.error("[Init State] Fallback Express Proxy history fetch also failed:", proxyErr);
+          }
+        }
   
-          if (rawRows && Array.isArray(rawRows) && rawRows.length > 0) {
-            const parsedHistory = rawRows.map(parseDbRowToWeatherData).reverse();
-            
-            // Simpan ke state history (untuk keperluan live data)
-            setHistory(parsedHistory);
-            localStorage.setItem('aws_history_logs', JSON.stringify(parsedHistory));
-            
-            // 🔥 TAMBAHKAN: Simpan ke realDbLogs dan aktifkan tampilan database
-            setRealDbLogs(parsedHistory);
-            setShowRealDb(true);
-            setIsDbConnected(true);
-            
-            console.log("🟢 Sinkronisasi History DB & Config selesai!");
-          }
+        if (success && Array.isArray(rawRows) && rawRows.length > 0) {
+          const parsedHistory = rawRows.map(parseDbRowToWeatherData).reverse();
+          
+          // Simpan ke state history (untuk keperluan live data)
+          setHistory(parsedHistory);
+          localStorage.setItem('aws_history_logs', JSON.stringify(parsedHistory));
+          
+          // 🔥 TAMBAHKAN: Simpan ke realDbLogs dan aktifkan tampilan database
+          setRealDbLogs(parsedHistory);
+          setShowRealDb(true);
+          setIsDbConnected(true);
+          
+          console.log("🟢 Sinkronisasi History DB & Config selesai!");
         }
       } catch (err) { }
     };
@@ -2235,18 +2268,21 @@ export default function App() {
   const handleSaveConfig = async (newConfig: typeof config) => {
     setConfig(newConfig);
     localStorage.setItem("aws_config", JSON.stringify(newConfig));
-    showToastNotification("Config Saved Successfully!");
 
     // POST to our Express backend on port 3000 to save the configuration centrally and let the server-side proxy talk to the daemon
+    let centralSyncSuccess = false;
     try {
-      await fetch("/api/aws-config", {
+      const res = await fetch("/api/aws-config", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(newConfig),
       });
-      console.log("Successfully synchronized configuration to Express server /api/aws-config");
+      if (res.ok) {
+        centralSyncSuccess = true;
+        console.log("Successfully synchronized configuration to Express server /api/aws-config");
+      }
     } catch (e) {
       console.warn("Could not sync configuration to Express server:", e);
     }
@@ -2254,46 +2290,89 @@ export default function App() {
     // Post newly configured Moxa IP & Port to host computer's api.php automatically
     const moxaIp = newConfig.serialcom || "172.16.4.48";
     const moxaPort = parseInt(newConfig.baudrate) || 5001;
-    const url = resolveLocalApiUrl(newConfig.localDbApiUrl || "http://localhost:8000/api.php");
+    const directUrl = resolveLocalApiUrl(newConfig.localDbApiUrl || "http://localhost:8000/api.php");
+    const moxaConfigBody = {
+      action: "save_moxa_config",
+      moxa_ip: moxaIp,
+      moxa_port: moxaPort,
+      transport: newConfig.transport,
+      db_storage_interval: newConfig.dbStorageInterval === undefined ? 10 : newConfig.dbStorageInterval,
+      db_storage_mode: newConfig.dbStorageMode || "AVG",
+    };
 
+    let phpSyncSuccess = false;
+    
+    // First, try via Express DB Proxy (which bypasses CORS/HTTPS mixed content restrictions!)
     try {
-      await fetch(url, {
+      const res = await fetch("/api/local-db", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          action: "save_moxa_config",
-          moxa_ip: moxaIp,
-          moxa_port: moxaPort,
-          transport: newConfig.transport,
-          db_storage_interval: newConfig.dbStorageInterval === undefined ? 10 : newConfig.dbStorageInterval,
-          db_storage_mode: newConfig.dbStorageMode || "AVG",
-        }),
+        body: JSON.stringify(moxaConfigBody),
       });
-      console.log("Successfully synchronized Moxa hardware configuration to api.php");
+      if (res.ok) {
+        phpSyncSuccess = true;
+        console.log("Successfully synchronized Moxa hardware configuration to api.php via Express DB Proxy!");
+      }
     } catch (e) {
-      console.warn("Could not sync Moxa config to PHP (PHP server offline or CORS restricted):", e);
+      console.warn("Could not sync Moxa config to PHP via Express proxy, trying direct...", e);
     }
 
-    // Post to local daemon's Express server /save-config endpoint to update immediately without requiring daemon restart!
-    try {
-      const daemonUrl = newConfig.moxaDaemonUrl || "http://localhost:8080";
-      await fetch(`${daemonUrl}/save-config`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ip: moxaIp,
-          port: moxaPort,
-          db_storage_interval: newConfig.dbStorageInterval === undefined ? 10 : newConfig.dbStorageInterval,
-          db_storage_mode: newConfig.dbStorageMode || "AVG",
-        }),
-      });
-      console.log("Successfully updated Moxa local daemon configuration instantly!");
-    } catch (e) {
-      console.warn("Could not update local daemon config (Daemon offline or CORS restricted):", e);
+    // Direct fallback if proxy is unavailable
+    if (!phpSyncSuccess) {
+      try {
+        const res = await fetch(directUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(moxaConfigBody),
+        });
+        if (res.ok) {
+          phpSyncSuccess = true;
+          console.log("Successfully synchronized Moxa hardware configuration to api.php directly!");
+        }
+      } catch (e) {
+        console.warn("Could not sync Moxa config to PHP directly:", e);
+      }
+    }
+
+    // Sync with daemon (the Express backend already forwarded it on /api/aws-config post, but we can do a secondary proxy/direct check)
+    let daemonSyncSuccess = centralSyncSuccess; // If central backend received it, it forwarded it on the server-side!
+    
+    if (!daemonSyncSuccess) {
+      // Direct fallback to daemon
+      try {
+        const daemonUrl = newConfig.moxaDaemonUrl || "http://localhost:8080";
+        const res = await fetch(`${daemonUrl}/save-config`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ip: moxaIp,
+            port: moxaPort,
+            db_storage_interval: newConfig.dbStorageInterval === undefined ? 10 : newConfig.dbStorageInterval,
+            db_storage_mode: newConfig.dbStorageMode || "AVG",
+          }),
+        });
+        if (res.ok) {
+          daemonSyncSuccess = true;
+          console.log("Successfully updated Moxa local daemon configuration instantly!");
+        }
+      } catch (e) {
+        console.warn("Could not update local daemon config directly:", e);
+      }
+    }
+
+    // Now, show the user a high-quality perfect Indonesian status message of what actually worked!
+    if (centralSyncSuccess && phpSyncSuccess) {
+      showToastNotification("🟢 Sinkronisasi Sukses! Konfigurasi tersimpan ke Server & PostgreSQL Database.");
+    } else if (centralSyncSuccess) {
+      showToastNotification("🟡 Sebagian Berhasil: Konfigurasi lokal disimpan, namun Gagal menghubungi PostgreSQL Database XAMPP.");
+    } else {
+      showToastNotification("🔴 Sinkronisasi Gagal: Tidak dapat menghubungi Server Dashboard.");
     }
   };
 
@@ -2429,55 +2508,74 @@ export default function App() {
       showToastNotification("🔄 Memuat log telemetri asli dari PostgreSQL...");
     }
 
+    const parseAndSetLogs = (rawText: string) => {
+      let rawRows;
+      try {
+        rawRows = JSON.parse(rawText.trim());
+      } catch (err) {
+        const matches = rawText.match(/\[\s*\{[^]*\}\s*\]/g);
+        if (matches && matches.length > 0) {
+          rawRows = JSON.parse(matches[matches.length - 1]);
+        } else {
+          const singleMatches = rawText.match(/\{"status"[^}]*\}/g) || rawText.match(/\{[^]*\}/g);
+          if (singleMatches && singleMatches.length > 0) {
+            rawRows = JSON.parse(singleMatches[singleMatches.length - 1]);
+          } else {
+            throw err;
+          }
+        }
+      }
+      if (rawRows && rawRows.data && Array.isArray(rawRows.data)) {
+        rawRows = rawRows.data;
+      }
+
+      if (Array.isArray(rawRows)) {
+        const parsedRows: WeatherData[] = rawRows.map(parseDbRowToWeatherData);
+        setRealDbLogs(parsedRows);
+        setShowRealDb(true);
+        setIsDbConnected(true);
+
+        if (!silent) {
+          showToastNotification(`🟢 Berhasil sinkronisasi ${parsedRows.length} data asli dari PostgreSQL database!`);
+        }
+        return true;
+      }
+      return false;
+    };
+
     try {
+      console.log(`[Database Fetch] Attempting direct fetch to: ${fetchUrl}`);
       const res = await fetch(fetchUrl);
       if (res.ok) {
         const rawText = await res.text();
-        let rawRows;
-        try {
-          rawRows = JSON.parse(rawText.trim());
-        } catch (err) {
-          const matches = rawText.match(/\[\s*\{[^]*\}\s*\]/g);
-          if (matches && matches.length > 0) {
-            rawRows = JSON.parse(matches[matches.length - 1]);
-          } else {
-            const singleMatches = rawText.match(/\{"status"[^}]*\}/g) || rawText.match(/\{[^}]*\}/g);
-            if (singleMatches && singleMatches.length > 0) {
-              rawRows = JSON.parse(singleMatches[singleMatches.length - 1]);
-            } else {
-              throw err;
-            }
-          }
+        if (parseAndSetLogs(rawText)) {
+          return;
         }
-        if (rawRows && rawRows.data && Array.isArray(rawRows.data)) {
-          rawRows = rawRows.data;
-        }
-
-        if (Array.isArray(rawRows)) {
-          const parsedRows: WeatherData[] = rawRows.map(parseDbRowToWeatherData);
-          setRealDbLogs(parsedRows);
-          setShowRealDb(true);
-          setIsDbConnected(true);
-
-          if (!silent) {
-            showToastNotification(`🟢 Berhasil sinkronisasi ${parsedRows.length} data asli dari PostgreSQL database!`);
-          }
-        } else {
-          throw new Error("Respon api.php tidak valid.");
-        }
-      } else {
-        throw new Error(`HTTP Error ${res.status}`);
       }
+      throw new Error(`Direct fetch was not successful or returned invalid data`);
     } catch (e) {
-      console.error("Failed to fetch database logs:", e);
-      if (!silent) {
-        const isHttps = window.location.protocol === "https:";
-        const isLocalApi = testUrl.includes("localhost") || testUrl.includes("127.0.0.1");
+      console.warn("[Database Fetch] Direct fetch failed. Attempting fallback via Express DB Proxy (/api/local-db)...", e);
+      try {
+        const proxyRes = await fetch("/api/local-db?get_telemetry_logs=1");
+        if (proxyRes.ok) {
+          const rawText = await proxyRes.text();
+          if (parseAndSetLogs(rawText)) {
+            console.log("[Database Fetch] Successfully loaded logs via Express DB Proxy!");
+            return;
+          }
+        }
+        throw new Error("Proxy fetch was not successful");
+      } catch (proxyErr) {
+        console.error("Failed to fetch database logs via both direct and proxy paths:", proxyErr);
+        if (!silent) {
+          const isHttps = window.location.protocol === "https:";
+          const isLocalApi = testUrl.includes("localhost") || testUrl.includes("127.0.0.1");
 
-        if (isHttps && isLocalApi) {
-          showToastNotification("⚠️ Keamanan Browser: Koneksi HTTPS memblokir HTTP lokal (Mixed Content). Jalankan Dashboard secara lokal or matikan Mixed Content Shield browser Anda!");
-        } else {
-          showToastNotification("⚠️ Gagal memuat data! Gantilah isi api.php lokal Anda dengan file script terbaru di bawah ini.");
+          if (isHttps && isLocalApi) {
+            showToastNotification("⚠️ Keamanan Browser: Koneksi HTTPS memblokir HTTP lokal (Mixed Content). Jalankan Dashboard secara lokal atau matikan Mixed Content Shield browser Anda!");
+          } else {
+            showToastNotification("⚠️ Gagal memuat data! Periksa apakah PostgreSQL API dan Daemon Moxa Anda aktif.");
+          }
         }
       }
     } finally {
@@ -6710,6 +6808,21 @@ header("Content-Type: application/json; charset=UTF-8");
                         value={config.splitchar}
                         onChange={(e) => setConfig({ ...config, splitchar: e.target.value })}
                         className="w-full bg-[#050a12] border border-white/10 font-mono text-xs md:text-sm text-center p-3 text-white rounded-lg outline-none focus:border-[#00f0ff]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs md:text-xs uppercase font-bold text-teal-400 font-mono tracking-wider block mb-1.5">🐘 PostgreSQL PHP API (api.php) URL</label>
+                      <input
+                        type="text"
+                        value={config.localDbApiUrl || ""}
+                        placeholder="http://localhost:8000/api.php"
+                        onChange={(e) => {
+                          const newCfg = { ...config, localDbApiUrl: e.target.value };
+                          setConfig(newCfg);
+                          localStorage.setItem("aws_config", JSON.stringify(newCfg));
+                        }}
+                        className="w-full bg-[#050a12] border border-white/10 font-mono text-xs md:text-sm p-3 text-white rounded-lg outline-none focus:border-[#00f0ff]"
                       />
                     </div>
 
